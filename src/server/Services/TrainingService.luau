@@ -19,7 +19,7 @@ local function buildTrainTool()
 	tool.Name = TOOL_NAME
 	tool.RequiresHandle = false
 	tool.CanBeDropped = false
-	tool.ToolTip = "Tap to do a squat and gain Power"
+	tool.ToolTip = "Equip to start training"
 	return tool
 end
 
@@ -33,10 +33,7 @@ local function give(player)
 	end
 	local tool = buildTrainTool()
 	tool.Parent = backpack
-	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid:EquipTool(tool)
-	end
+	-- NEM adjuk a kézbe: a játékos veszi elő a hotbarból (1), akkor indul az edzés
 end
 
 local function onTap(player)
@@ -45,7 +42,7 @@ local function onTap(player)
 	end
 
 	local now = os.clock()
-	if now - (lastTap[player.UserId] or 0) < GameConfig.MinTapInterval then
+	if now - (lastTap[player.UserId] or 0) < GameConfig.TrainTapMinInterval then
 		return
 	end
 	lastTap[player.UserId] = now

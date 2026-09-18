@@ -98,6 +98,7 @@ end
 local function makePrompt(part, object)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "SqueezePrompt"
+	prompt.Style = Enum.ProximityPromptStyle.Custom -- a kliens rajzolja a saját UI-t
 	prompt.ActionText = "SQUEEZE"
 	prompt.ObjectText = object.name
 	prompt.HoldDuration = 0

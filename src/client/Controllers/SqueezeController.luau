@@ -15,6 +15,7 @@ local GameConfig = require(Shared.Config.Game)
 local Objects = require(Shared.Config.Objects)
 local Format = require(Shared.Format)
 local Net = require(Shared.Net)
+local Ui = require(Shared.Ui)
 
 local EffectsController = require(script.Parent.EffectsController)
 
@@ -25,7 +26,7 @@ local COLORS = GameConfig.Colors
 local SqueezeController = {}
 
 local session = nil -- { objectId, name, needed, progress, lastTick }
-local bar, fill, titleLabel, hintLabel
+local bar, fill, titleLabel, titleOutline, hintLabel
 
 -- cinematic állapot
 local cinematicActive = false
@@ -51,27 +52,44 @@ local function buildBar(gui)
 	bar.AnchorPoint = Vector2.new(0.5, 1)
 	bar.Position = UDim2.new(0.5, 0, 1, -90)
 	bar.Size = UDim2.fromOffset(420, 74)
-	bar.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
-	bar.BackgroundTransparency = 0.08
 	bar.BorderSizePixel = 0
 	bar.Visible = false
 	bar.Parent = gui
+	-- középen fekete, a széleken szépen áttűnő háttér
+	Ui.applyFadeBackground(bar, 0.12)
 
-	local barStroke = Instance.new("UIStroke")
-	barStroke.Color = Color3.fromRGB(60, 66, 82)
-	barStroke.Thickness = 1
-	barStroke.Parent = bar
+	-- cím: fehér gradiens + fekete outline (mint a prompt/hotbar szövegek)
+	titleOutline = Instance.new("TextLabel")
+	titleOutline.Size = UDim2.new(1, -20, 0, 24)
+	titleOutline.Position = UDim2.fromOffset(12, 6)
+	titleOutline.BackgroundTransparency = 1
+	titleOutline.Font = Enum.Font.GothamBold
+	titleOutline.TextSize = 18
+	titleOutline.TextColor3 = Color3.fromRGB(0, 0, 0)
+	titleOutline.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	titleOutline.TextStrokeTransparency = 0
+	titleOutline.TextXAlignment = Enum.TextXAlignment.Left
+	titleOutline.Text = ""
+	titleOutline.Parent = bar
+	Ui.applyDisplay(titleOutline)
 
 	titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -20, 0, 24)
 	titleLabel.Position = UDim2.fromOffset(12, 6)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextSize = 17
-	titleLabel.TextColor3 = COLORS.Text
+	titleLabel.TextSize = 18
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Text = ""
 	titleLabel.Parent = bar
+	Ui.applyDisplay(titleLabel)
+	local titleGradient = Ui.applyTextGradient(titleLabel)
+	titleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	titleGradient.Rotation = 90
 
 	hintLabel = Instance.new("TextLabel")
 	hintLabel.AnchorPoint = Vector2.new(1, 0)
@@ -81,14 +99,18 @@ local function buildBar(gui)
 	hintLabel.Font = Enum.Font.GothamBold
 	hintLabel.TextSize = 15
 	hintLabel.TextColor3 = COLORS.Gold
+	hintLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	hintLabel.TextStrokeTransparency = 0
 	hintLabel.TextXAlignment = Enum.TextXAlignment.Right
 	hintLabel.Text = "CLICK / TAP!"
 	hintLabel.Parent = bar
+	Ui.applyDisplay(hintLabel)
 
 	local track = Instance.new("Frame")
-	track.Position = UDim2.fromOffset(12, 38)
-	track.Size = UDim2.new(1, -24, 0, 22)
-	track.BackgroundColor3 = Color3.fromRGB(8, 9, 13)
+	track.Position = UDim2.fromOffset(12, 40)
+	track.Size = UDim2.new(1, -24, 0, 18)
+	track.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	track.BackgroundTransparency = 0.45
 	track.BorderSizePixel = 0
 	track.Parent = bar
 
@@ -151,29 +173,23 @@ local function loadSqueezeTrack(character)
 	end)
 end
 
--- kattintásonként egy kicsit tekerünk előre az animáción
-local function scrubSqueezeTrack(target)
-	local track = squeezeTrack
-	if not track or track.Length <= 0 then
-		return
-	end
+-- kattintásonként egy kicsit tekerünk előre: folytonos, simított követés
+local scrubTarget = 0 -- 0..1 közötti cél-pozíció az animációban
+local scrubActive = false
 
-	local clamped = math.clamp(target, 0, 0.99) * track.Length
-	local start = track.TimePosition
-	local duration = GameConfig.SqueezeAnim.ScrubTime
-
+local function startScrubLoop()
 	task.spawn(function()
-		local t0 = os.clock()
-		while true do
-			if squeezeTrack ~= track then
-				return
+		while scrubActive and cinematicActive do
+			local track = squeezeTrack
+			if track and track.Length > 0 then
+				local target = scrubTarget * track.Length
+				local current = track.TimePosition
+				local dt = task.wait()
+				local alpha = math.clamp(dt * GameConfig.SqueezeAnim.ScrubSpeed, 0, 1)
+				track.TimePosition = current + (target - current) * alpha
+			else
+				task.wait()
 			end
-			local t = math.clamp((os.clock() - t0) / duration, 0, 1)
-			track.TimePosition = start + (clamped - start) * t
-			if t >= 1 then
-				break
-			end
-			task.wait()
 		end
 	end)
 end
@@ -363,6 +379,9 @@ local function enterCinematic(payload)
 	-- animáció: publikált, vagy procedurális R6 póz
 	if GameConfig.SqueezeAnimationId ~= "" then
 		loadSqueezeTrack(character)
+		scrubTarget = GameConfig.SqueezeAnim.ScrubStart
+		scrubActive = true
+		startScrubLoop()
 	else
 		poseMotors = buildProceduralPose(character, objectPosition)
 		if poseMotors then
@@ -454,7 +473,8 @@ function SqueezeController.tap()
 	-- kattintásonként egy kicsit zár össze (a haladás szerint)
 	local cfg = GameConfig.SqueezeAnim
 	local squeezeRatio = math.clamp(session.progress / session.needed, 0, 1)
-	scrubSqueezeTrack(cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * squeezeRatio)
+	local eased = squeezeRatio ^ cfg.ScrubCurve
+	scrubTarget = cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * eased
 
 	if fill then
 		local ratio = math.clamp(session.progress / session.needed, 0, 1)
@@ -482,6 +502,7 @@ local function onState(payload)
 			lastTick = 0,
 		}
 		titleLabel.Text = payload.name
+		titleOutline.Text = payload.name
 		fill.Size = UDim2.fromScale(0, 1)
 		fill.BackgroundColor3 = COLORS.Accent
 		setVisible(true)
@@ -497,6 +518,7 @@ local function onState(payload)
 		proceduralBurst()
 
 		-- pop után az animáció hátralévő része gyorsan lefut
+		scrubActive = false
 		if squeezeTrack then
 			squeezeTrack:AdjustSpeed(1.6)
 		end
@@ -508,7 +530,7 @@ local function onState(payload)
 		end)
 	elseif payload.state == "fail" then
 		session = nil
-		scrubSqueezeTrack(0)
+		scrubTarget = 0
 		exitCinematic()
 		if bar and bar.Visible then
 			hintLabel.Text = "FAILED!"

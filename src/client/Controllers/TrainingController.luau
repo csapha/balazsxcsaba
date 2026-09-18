@@ -1,7 +1,6 @@
--- Edzés: a "Train" tool a hotbarban.
--- R6 rig: a guggolás PROCEDURÁLIS (RootJoint + Right/Left Hip C0 tween),
--- mert R6-nál a Motor6D.C0 írható. Ha később publikált animációt akarunk,
--- a Game.SquatAnimationId-be kell beírni az ID-t (akkor azt játssza).
+-- Edzés: a "Train" tool egy KI/BE kapcsoló.
+-- Bekapcsolva a karakter automatikusan, szépen lassan guggol (loopoló animáció),
+-- és minden ciklusban Erőt kap. NEM kell kattintgatni.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,7 +8,6 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
-local Format = require(Shared.Format)
 local Net = require(Shared.Net)
 
 local EffectsController = require(script.Parent.EffectsController)
@@ -18,20 +16,21 @@ local player = Players.LocalPlayer
 
 local TrainingController = {}
 
-local lastSquat = 0
-local tapGain = 0
+local training = false
 local squatTrack = nil
-local lastSquatRefresh = 0
+local tapGain = 0
 
--- ---------- publikált animáció (ha be van állítva) ----------
+local function getAnimator(character)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	return humanoid and humanoid:FindFirstChildOfClass("Animator")
+end
 
-local function playAnimationSquat(character)
+local function startSquatAnimation(character)
 	if GameConfig.SquatAnimationId == "" then
 		return false
 	end
 
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	local animator = getAnimator(character)
 	if not animator then
 		return false
 	end
@@ -51,15 +50,19 @@ local function playAnimationSquat(character)
 	end
 
 	if not squatTrack.IsPlaying then
-		squatTrack:Play(0.1)
+		squatTrack:Play(0.15)
 	end
-	lastSquatRefresh = os.clock()
 	return true
 end
 
--- ---------- fallback (ha nincs használható animáció) ----------
+local function stopSquatAnimation()
+	if squatTrack then
+		squatTrack:Stop(0.25)
+	end
+end
 
-local function fallbackFeedback(character)
+-- ha nincs animáció: por + kamera-dip
+local function fallbackPulse(character)
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if root then
 		EffectsController.dust(root.Position)
@@ -72,49 +75,19 @@ local function fallbackFeedback(character)
 
 	task.spawn(function()
 		local down = TweenService:Create(humanoid,
-			TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ CameraOffset = Vector3.new(0, -0.55, 0) })
 		down:Play()
 		down.Completed:Wait()
 		local up = TweenService:Create(humanoid,
-			TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ CameraOffset = Vector3.new(0, 0, 0) })
 		up:Play()
 	end)
 end
 
-local function playSquat(character)
-	local now = os.clock()
-	if now - lastSquat < 0.2 then
-		return
-	end
-	lastSquat = now
-
-	if playAnimationSquat(character) then
-		local root = character:FindFirstChild("HumanoidRootPart")
-		if root then
-			EffectsController.dust(root.Position)
-		end
-		return
-	end
-
-	fallbackFeedback(character)
-end
-
--- ---------- tool ----------
-
-local function hookTool(tool)
-	if tool.Name ~= "Train" or tool:GetAttribute("TrainHooked") then
-		return
-	end
-	tool:SetAttribute("TrainHooked", true)
-
-	tool.Activated:Connect(function()
-		local character = player.Character
-		if not character then
-			return
-		end
-
+local function trainLoop(character)
+	while training and character.Parent do
 		local remote = Net.get("TrainTap")
 		if remote then
 			remote:FireServer()
@@ -123,11 +96,64 @@ local function hookTool(tool)
 		local root = character:FindFirstChild("HumanoidRootPart")
 		if root and tapGain > 0 then
 			EffectsController.floatingText(root.Position,
-				"+" .. Format.number(tapGain),
+				"+" .. tostring(math.floor(tapGain * 10) / 10),
 				Color3.fromRGB(116, 210, 250))
 		end
 
-		playSquat(character)
+		task.wait(GameConfig.TrainCycle)
+	end
+end
+
+local function setMovement(character, enabled)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+	if enabled then
+		humanoid.WalkSpeed = 16
+		humanoid.JumpPower = 50
+		humanoid.JumpHeight = 7.2
+	else
+		humanoid.WalkSpeed = 0
+		humanoid.JumpPower = 0
+		humanoid.JumpHeight = 0
+	end
+end
+
+local function setTraining(character, value)
+	if training == value then
+		return
+	end
+	training = value
+
+	if value then
+		setMovement(character, false) -- edzés közben nem lehet mozogni
+		if not startSquatAnimation(character) then
+			fallbackPulse(character)
+		end
+		task.spawn(trainLoop, character)
+	else
+		setMovement(character, true)
+		stopSquatAnimation()
+	end
+end
+
+local function hookTool(tool)
+	if tool.Name ~= "Train" or tool:GetAttribute("TrainHooked") then
+		return
+	end
+	tool:SetAttribute("TrainHooked", true)
+
+	-- elővételre (1-es gomb / hotbar) automatikusan indul, nem kell kattintani
+	tool.Equipped:Connect(function()
+		local character = player.Character
+		if character then
+			setTraining(character, true)
+		end
+	end)
+
+	tool.Unequipped:Connect(function()
+		setTraining(player.Character, false)
 	end)
 end
 
@@ -152,6 +178,7 @@ function TrainingController.init()
 
 	player.CharacterAdded:Connect(function(character)
 		squatTrack = nil
+		training = false
 		hookContainer(character)
 	end)
 
@@ -167,17 +194,6 @@ function TrainingController.init()
 			end
 		end)
 	end
-
-	-- publikált animáció leállítása, ha abbahagyod a kattintást
-	task.spawn(function()
-		while true do
-			task.wait(0.3)
-			if squatTrack and squatTrack.IsPlaying
-				and os.clock() - lastSquatRefresh > GameConfig.TrainAnimStopDelay then
-				squatTrack:Stop(0.25)
-			end
-		end
-	end)
 end
 
 return TrainingController

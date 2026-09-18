@@ -2,6 +2,10 @@
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Ui = require(Shared.Ui)
+
 local SPARKLE_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 
 local EffectsController = {}
@@ -54,19 +58,25 @@ function EffectsController.floatingText(position, text, color)
 	anchor.Parent = Workspace
 
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromOffset(170, 34)
+	billboard.Size = UDim2.fromOffset(280, 62)
 	billboard.AlwaysOnTop = true
 	billboard.Parent = anchor
 
+	-- csak a szöveg, háttér nélkül
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 20
-	label.TextColor3 = color
-	label.TextStrokeTransparency = 0.25
+	label.TextSize = 34
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0.5
 	label.Text = text
 	label.Parent = billboard
+	Ui.applyDisplay(label)
+	Ui.applyTextGradient(label)
+	if color then
+		label.TextColor3 = color
+	end
 
 	task.spawn(function()
 		local rise = TweenService:Create(
@@ -78,12 +88,12 @@ function EffectsController.floatingText(position, text, color)
 
 		task.wait(0.4)
 
-		local fade = TweenService:Create(label, TweenInfo.new(0.4), {
+		local textFade = TweenService:Create(label, TweenInfo.new(0.4), {
 			TextTransparency = 1,
 			TextStrokeTransparency = 1,
 		})
-		fade:Play()
-		fade.Completed:Wait()
+		textFade:Play()
+		textFade.Completed:Wait()
 		anchor:Destroy()
 	end)
 end

@@ -2,6 +2,7 @@
 local Controllers = script:WaitForChild("Controllers")
 
 local HudController = require(Controllers:WaitForChild("HudController"))
+local HotbarController = require(Controllers:WaitForChild("HotbarController"))
 local EffectsController = require(Controllers:WaitForChild("EffectsController"))
 local TrainingController = require(Controllers:WaitForChild("TrainingController"))
 local SqueezeController = require(Controllers:WaitForChild("SqueezeController"))
@@ -10,8 +11,10 @@ local DailyRewardController = require(Controllers:WaitForChild("DailyRewardContr
 local GachaController = require(Controllers:WaitForChild("GachaController"))
 local RebirthController = require(Controllers:WaitForChild("RebirthController"))
 local TeleportController = require(Controllers:WaitForChild("TeleportController"))
+local PromptController = require(Controllers:WaitForChild("PromptController"))
 
 local hud = HudController.init()
+HotbarController.init()
 EffectsController.init()
 TrainingController.init(hud)
 SqueezeController.init(hud)
@@ -20,4 +23,4 @@ DailyRewardController.init(hud)
 GachaController.init(hud)
 RebirthController.init(hud)
 TeleportController.init(hud)
-
+PromptController.init()

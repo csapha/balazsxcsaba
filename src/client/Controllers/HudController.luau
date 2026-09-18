@@ -2,6 +2,9 @@
 -- Szándékosan NINCS számláló, shop panel vagy kártya: minden játék-elem
 -- a világban van (hotbar Train tool, tárgyak, később világ-beli upgrade pad).
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Ui = require(Shared.Ui)
 
 local HudController = {}
 
@@ -23,6 +26,7 @@ local function notify(container, text, color)
 	label.TextStrokeTransparency = 0.4
 	label.Text = text
 	label.Parent = container
+	Ui.applyBody(label)
 
 	table.insert(notifyLabels, label)
 	layoutNotifications()

@@ -3,9 +3,10 @@ return {
 	Persistence = false, -- session-only egyelőre
 
 	-- edzés
-	TrainTapGain = 1.5, -- ennyi grip egy kattintásra (hand szorzóval)
-	TrainTapRate = 15, -- max kattintás / mp (szerver limit)
-	PassiveTick = 1, -- passzív grip ennyi másodpercenként adódik
+	TrainTapGain = 1.5, -- ennyi Erő jár egy guggolásért (hand szorzóval)
+	TrainCycle = 1.4, -- automatikus edzés: ennyi mp-enként egy guggolás
+	TrainTapMinInterval = 0.6, -- szerver limit: ennél sűrűbben nem ad Erőt
+	PassiveTick = 1, -- passzív Erő ennyi másodpercenként adódik
 
 	-- edzés animációk
 	-- FIGYELEM: az ingyenes workout KeyframeSequence-ek csak a HumanoidRootPart-ot
@@ -30,7 +31,8 @@ return {
 		PulseOut = 0.10, -- szorítás-pulzus ki (mp)
 		ScrubStart = 0.28, -- az animáció eleji "kézfelemelés" átugrása (itt kezdődik a zárás)
 		ScrubEnd = 0.98, -- az animáció vége (max szorítás)
-		ScrubTime = 0.10, -- ennyi ideig csúszik az animáció pozíciója (mp)
+		ScrubSpeed = 14, -- milyen gyorsan simul rá a célpozícióra (1/mp); nagyobb = gyorsabb, simább
+		ScrubCurve = 2.2, -- a kattintás-haladás görbéje: >1 = lassan indul, a végére zár össze teljesen
 	},
 	-- cinematic kamera a szorításhoz
 	Cinematic = {
