@@ -1,0 +1,14 @@
+# Project place file
+/plinkorngincremental.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+
+# Python
+__pycache__/
+
+# Editor
+.vscode/

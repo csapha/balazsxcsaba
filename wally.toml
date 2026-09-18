@@ -1,0 +1,12 @@
+[package]
+name = "csabi/game1"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+Promise = "evaera/promise@4.0.0"
+Networker = "leifstout/networker@0.3.1"
+Vide = "centau/vide@0.4.0"
+TopbarPlus = "1foreverhd/topbarplus@3.4.0"
+Dataservicetyped = "leifstout/dataservicetyped@1.0.3"

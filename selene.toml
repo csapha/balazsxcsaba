@@ -1,0 +1,5 @@
+std = "roblox"
+exclude = ["Packages/**"]
+
+[rules]
+mixed_table = "allow"
