@@ -15,16 +15,21 @@ function Format.number(n)
 	end
 
 	local text
-	if n >= 100 then
-		text = string.format("%.0f", n)
-	elseif n >= 10 then
-		text = string.format("%.1f", n)
-	else
-		text = string.format("%.2f", n)
-	end
-
 	if suffixIndex == 1 then
 		text = string.format("%.0f", n)
+	else
+		if n >= 100 then
+			text = string.format("%.0f", n)
+		elseif n >= 10 then
+			text = string.format("%.1f", n)
+		else
+			text = string.format("%.2f", n)
+		end
+		-- Felesleges záró nullák és tizedespont levágása (pl. 1.000.000 -> 1M, 5.200.000.000 -> 5.2B)
+		if string.find(text, "%.") then
+			text = text:gsub("0+$", "")
+			text = text:gsub("%.$", "")
+		end
 	end
 
 	return (negative and "-" or "") .. text .. SUFFIXES[suffixIndex]

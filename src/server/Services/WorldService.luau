@@ -8,6 +8,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
 local Objects = require(Shared.Config.Objects)
 local Format = require(Shared.Format)
+local Net = require(Shared.Net)
+local PlayerData = require(script.Parent.PlayerData)
 
 local WorldService = {}
 
@@ -227,5 +229,79 @@ function WorldService.popObject(objectId)
 		WorldService.setStatus(objectId, "")
 	end)
 end
+
+function WorldService.teleportPlayer(player, objectId)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return false
+	end
+
+	local object = Objects.byId[objectId]
+	if not object then
+		return false
+	end
+
+	if not PlayerData.isTeleportUnlocked(player, objectId) then
+		local notifyRemote = Net.get("Notify")
+		if notifyRemote then
+			local cost = Objects.getUnlockCost(object)
+			notifyRemote:FireClient(
+				player,
+				string.format("Need %s Power to unlock %s!", Format.number(cost), object.name),
+				Color3.fromRGB(255, 100, 100)
+			)
+		end
+		return false
+	end
+
+	local baseX = 30 + (object.index - 1) * GameConfig.ObjectSpacing
+	local standDistance = object.size * 0.5 + 3.2
+	local standPos = Vector3.new(baseX, 3.5, standDistance)
+	local lookTarget = Vector3.new(baseX, 3.5, 0)
+
+	root.CFrame = CFrame.lookAt(standPos, lookTarget)
+
+	local notifyRemote = Net.get("Notify")
+	if notifyRemote then
+		notifyRemote:FireClient(
+			player,
+			string.format("Teleported to %s (%s)!", object.name, Format.weight(object.weight)),
+			Color3.fromRGB(80, 240, 255)
+		)
+	end
+	return true
+end
+
+-- Remote események figyelése a teleportáláshoz és feloldáshoz
+task.spawn(function()
+	local tpRemote = Net.get("TeleportToObject")
+	if tpRemote then
+		tpRemote.OnServerEvent:Connect(function(player, objectId)
+			WorldService.teleportPlayer(player, objectId)
+		end)
+	end
+
+	local unlockRemote = Net.get("UnlockTeleport")
+	if unlockRemote then
+		unlockRemote.OnServerEvent:Connect(function(player, objectId)
+			local success, costOrErr, object = PlayerData.unlockTeleport(player, objectId)
+			local notifyRemote = Net.get("Notify")
+			if success and notifyRemote and object then
+				notifyRemote:FireClient(
+					player,
+					string.format("Unlocked %s for %s Power!", object.name, Format.number(costOrErr)),
+					Color3.fromRGB(80, 255, 120)
+				)
+			elseif not success and notifyRemote then
+				notifyRemote:FireClient(
+					player,
+					tostring(costOrErr),
+					Color3.fromRGB(255, 100, 100)
+				)
+			end
+		end)
+	end
+end)
 
 return WorldService

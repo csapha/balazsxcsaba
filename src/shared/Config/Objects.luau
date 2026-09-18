@@ -29,4 +29,12 @@ function Objects.clicksNeeded(object, grip, config)
 	return math.floor(config.BaseClicks + (config.MaxClicks - config.BaseClicks) * t + 0.5)
 end
 
+-- Teleport feloldási költség Erőben
+function Objects.getUnlockCost(object)
+	if object.id == "watermelon" then
+		return 0
+	end
+	return math.floor(object.weight * object.gateRatio)
+end
+
 return Objects

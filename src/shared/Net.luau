@@ -10,6 +10,13 @@ local REMOTE_NAMES = {
 	"SqueezeTick", -- kliens -> szerver: szorítás kattintás
 	"SqueezeState", -- szerver -> kliens: bar állapot / eredmény
 	"BuyUpgrade", -- kliens -> szerver: fejlesztés vásárlás (kind, id)
+	"ClaimDailyReward", -- kliens -> szerver: napi jutalom átvétele
+	"OpenChest", -- kliens -> szerver: ládanyitás (chestId)
+	"EquipMaterial", -- kliens -> szerver: anyag felszerelése (materialId)
+	"ChestOpened", -- szerver -> kliens: nyitás eredménye (material, wasPity, newPity)
+	"DoRebirth", -- kliens -> szerver: Rebirth végrehajtása
+	"TeleportToObject", -- kliens -> szerver: teleportálás objektumhoz (objectId)
+	"UnlockTeleport", -- kliens -> szerver: teleport feloldása Erőből (objectId)
 	"Popup", -- szerver -> kliens: jutalom popup (position, text, color)
 }
 

@@ -31,6 +31,7 @@ local bar, fill, titleLabel, hintLabel
 local cinematicActive = false
 local savedCameraType = nil
 local savedFOV = nil
+local savedWalkSpeed = nil
 local cineBaseCFrame = nil
 local squeezeTrack = nil
 
@@ -339,6 +340,7 @@ local function enterCinematic(payload)
 	)
 
 	-- mozgás tiltása a jelenet alatt
+	savedWalkSpeed = (humanoid.WalkSpeed > 0) and humanoid.WalkSpeed or (savedWalkSpeed or 16)
 	humanoid.WalkSpeed = 0
 	humanoid.JumpPower = 0
 	humanoid.JumpHeight = 0
@@ -378,7 +380,7 @@ local function exitCinematic()
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.WalkSpeed = 16
+		humanoid.WalkSpeed = savedWalkSpeed or 16
 		humanoid.JumpPower = 50
 		humanoid.JumpHeight = 7.2
 	end

@@ -9,6 +9,7 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
+local Format = require(Shared.Format)
 local Net = require(Shared.Net)
 
 local EffectsController = require(script.Parent.EffectsController)
@@ -122,7 +123,7 @@ local function hookTool(tool)
 		local root = character:FindFirstChild("HumanoidRootPart")
 		if root and tapGain > 0 then
 			EffectsController.floatingText(root.Position,
-				"+" .. tostring(math.floor(tapGain * 10) / 10),
+				"+" .. Format.number(tapGain),
 				Color3.fromRGB(116, 210, 250))
 		end
 
