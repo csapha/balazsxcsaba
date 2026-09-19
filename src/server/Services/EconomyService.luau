@@ -98,7 +98,7 @@ function EconomyService.init()
 			if ok then
 				notify(
 					player,
-					"🎁 Claimed " .. res.title .. ": " .. res.displayReward .. "!",
+					"Claimed " .. res.title .. ": " .. res.displayReward .. "!",
 					Color3.fromRGB(80, 245, 120)
 				)
 			else

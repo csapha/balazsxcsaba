@@ -8,10 +8,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GachaConfig = require(Shared.Config.Gacha)
 local Format = require(Shared.Format)
 local Net = require(Shared.Net)
+local UiIcons = require(Shared.UiIcons)
+local MenuCoordinator = require(script.Parent.MenuCoordinator)
 
 local player = Players.LocalPlayer
 
 local GachaController = {}
+local MENU_NAME = "chests"
 
 -- Állapot
 local isModalOpen = false
@@ -31,6 +34,7 @@ local equippedLabel = nil
 local pityLabel = nil
 local revealCard = nil
 local revealScale = nil
+local isPreview = false
 
 -- Segédfüggvény éles fekete UIStroke beállításhoz
 local function applyStroke(instance, color, thickness, mode)
@@ -42,6 +46,15 @@ local function applyStroke(instance, color, thickness, mode)
 	return stroke
 end
 
+-- Szín világosítása/sötétítése (factor > 1 világosít, < 1 sötétít)
+local function shadeColor(color, factor)
+	return Color3.new(
+		math.clamp(color.R * factor, 0, 1),
+		math.clamp(color.G * factor, 0, 1),
+		math.clamp(color.B * factor, 0, 1)
+	)
+end
+
 -- Éles 3D gomb készítése
 local function create3DButton(parent, size, position, anchorPoint, mainColor, shadowColor, text)
 	local shadowFrame = Instance.new("Frame")
@@ -49,7 +62,7 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	shadowFrame.Size = size
 	shadowFrame.Position = position
 	shadowFrame.AnchorPoint = anchorPoint or Vector2.new(0, 0)
-	shadowFrame.BackgroundColor3 = shadowColor or Color3.fromRGB(25, 125, 52)
+	shadowFrame.BackgroundColor3 = shadeColor(shadowColor or Color3.fromRGB(25, 125, 52), 0.7)
 	shadowFrame.BorderSizePixel = 0
 	shadowFrame.Parent = parent
 	applyStroke(shadowFrame, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
@@ -61,37 +74,74 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	topButton.BackgroundColor3 = mainColor or Color3.fromRGB(46, 204, 113)
 	topButton.BorderSizePixel = 0
 	topButton.AutoButtonColor = false
-	topButton.Font = Enum.Font.FredokaOne
-	topButton.Text = text or ""
-	topButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	topButton.TextSize = 20
+	topButton.Text = ""
 	topButton.Parent = shadowFrame
 	applyStroke(topButton, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
-	local defaultTopPos = UDim2.new(0, 0, 0, 0)
-	local pressedTopPos = UDim2.new(0, 0, 0, 4)
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Label"
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.Position = UDim2.fromScale(0, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.BorderSizePixel = 0
+	textLabel.Font = Enum.Font.FredokaOne
+	textLabel.Text = text or ""
+	textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textLabel.TextSize = 20
+	textLabel.Parent = topButton
+	applyStroke(textLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
+
+	local textGradient = Instance.new("UIGradient")
+	textGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	textGradient.Rotation = 90
+	textGradient.Parent = textLabel
+
+	local buttonGradient = Instance.new("UIGradient")
+	buttonGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, shadeColor(topButton.BackgroundColor3, 1.22)),
+		ColorSequenceKeypoint.new(1, topButton.BackgroundColor3),
+	})
+	buttonGradient.Rotation = 90
+	buttonGradient.Parent = topButton
+
+	local pressScale = Instance.new("UIScale")
+	pressScale.Parent = shadowFrame
+
+	local pressDown = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local pressRelease = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 	topButton.MouseButton1Down:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.05), { Position = pressedTopPos }):Play()
+		TweenService:Create(pressScale, pressDown, { Scale = 0.9 }):Play()
 	end)
 
 	topButton.MouseButton1Up:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	topButton.MouseLeave:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	return {
 		container = shadowFrame,
 		button = topButton,
 		setText = function(newText)
-			topButton.Text = newText
+			textLabel.Text = newText
+		end,
+		setTextSize = function(newSize)
+			textLabel.TextSize = newSize
 		end,
 		setColor = function(newMain, newShadow)
 			topButton.BackgroundColor3 = newMain
-			shadowFrame.BackgroundColor3 = newShadow
+			shadowFrame.BackgroundColor3 = shadeColor(newShadow, 0.7)
+			buttonGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, shadeColor(newMain, 1.22)),
+				ColorSequenceKeypoint.new(1, newMain),
+			})
 		end,
 	}
 end
@@ -101,7 +151,7 @@ local function refreshHeaderInfo()
 	if equippedLabel then
 		local mat = currentData.equippedMaterial and GachaConfig.materials[currentData.equippedMaterial]
 		if mat then
-			equippedLabel.Text = string.format("Glove: %s %s (x%.1f)", mat.emoji, mat.name, mat.multiplier)
+			equippedLabel.Text = string.format("Glove: %s (x%.1f)", mat.name, mat.multiplier)
 			equippedLabel.TextColor3 = mat.color
 		else
 			equippedLabel.Text = "Glove: None (x1.0)"
@@ -125,6 +175,7 @@ function GachaController.open()
 	if isModalOpen then
 		return
 	end
+	MenuCoordinator.opening(MENU_NAME)
 	isModalOpen = true
 	refreshHeaderInfo()
 
@@ -132,7 +183,6 @@ function GachaController.open()
 	modalOverlay.BackgroundTransparency = 1
 	windowScale.Scale = 0.8
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.18), { BackgroundTransparency = 0.5 }):Play()
 	local popTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -146,19 +196,19 @@ function GachaController.close()
 		return
 	end
 	isModalOpen = false
+	MenuCoordinator.closed(MENU_NAME)
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 	local closeTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 		{ Scale = 0.8 }
 	)
 	closeTween:Play()
-	closeTween.Completed:Wait()
-
-	if not isModalOpen then
-		modalOverlay.Visible = false
-	end
+	closeTween.Completed:Connect(function()
+		if not isModalOpen then
+			modalOverlay.Visible = false
+		end
+	end)
 end
 
 function GachaController.toggle()
@@ -214,7 +264,7 @@ local function showRevealPopup(result)
 	topText.Size = UDim2.fromScale(1, 1)
 	topText.BackgroundTransparency = 1
 	topText.Font = Enum.Font.FredokaOne
-	topText.Text = result.wasPity and "⭐ PITY GUARANTEE! ⭐" or "YOU UNBOXED!"
+	topText.Text = result.wasPity and "PITY GUARANTEE!" or "YOU UNBOXED!"
 	topText.TextSize = 20
 	topText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	topText.ZIndex = 33
@@ -236,7 +286,8 @@ local function showRevealPopup(result)
 	iconLabel.Size = UDim2.fromScale(1, 1)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = mat.emoji or "🧤"
+	iconLabel.Text = "?"
+	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
 	iconLabel.TextSize = 58
 	iconLabel.ZIndex = 33
 	iconLabel.Parent = iconFrame
@@ -287,6 +338,11 @@ local function showRevealPopup(result)
 	end
 
 	equipBtn.button.MouseButton1Click:Connect(function()
+		if isPreview then
+			closePopup()
+			return
+		end
+
 		local remote = Net.get("EquipMaterial")
 		if remote then
 			remote:FireServer(mat.id)
@@ -308,13 +364,20 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	local card = Instance.new("Frame")
 	card.Name = "ChestCard_" .. chestDef.id
 	card.Size = UDim2.new(1, 0, 0, 96)
-	card.BackgroundColor3 = chestDef.color
+	card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	card.BorderSizePixel = 0
 	card.LayoutOrder = layoutOrder
 	card.Parent = parent
 
-	-- Éles vastag fekete keret
-	applyStroke(card, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Border)
+	-- A fekete keret a külső frame maga; a színes kártya beljebb van,
+	-- így a scrollframe széle nem tudja levágni a keretet.
+	local inner = Instance.new("Frame")
+	inner.Name = "Inner"
+	inner.Size = UDim2.new(1, -7, 1, -7)
+	inner.Position = UDim2.fromOffset(3.5, 3.5)
+	inner.BackgroundColor3 = chestDef.color
+	inner.BorderSizePixel = 0
+	inner.Parent = card
 
 	-- Bal oldali láda doboz
 	local iconBox = Instance.new("Frame")
@@ -324,14 +387,15 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	iconBox.BackgroundColor3 = Color3.fromRGB(20, 16, 12)
 	iconBox.BackgroundTransparency = 0.35
 	iconBox.BorderSizePixel = 0
-	iconBox.Parent = card
+	iconBox.Parent = inner
 	applyStroke(iconBox, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
 
 	local iconLabel = Instance.new("TextLabel")
 	iconLabel.Size = UDim2.fromScale(1, 1)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = chestDef.icon or "📦"
+	iconLabel.Text = "?"
+	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
 	iconLabel.TextSize = 42
 	iconLabel.Parent = iconBox
 
@@ -341,7 +405,7 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	infoFrame.Size = UDim2.new(1, -250, 1, -16)
 	infoFrame.BackgroundTransparency = 1
 	infoFrame.BorderSizePixel = 0
-	infoFrame.Parent = card
+	infoFrame.Parent = inner
 
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Size = UDim2.new(1, 0, 0, 28)
@@ -368,7 +432,7 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	descLabel.Size = UDim2.new(1, 0, 0, 24)
 	descLabel.BackgroundTransparency = 1
 	descLabel.Font = Enum.Font.FredokaOne
-	descLabel.Text = "Drops: " .. table.concat(oddsSummary, " • ")
+	descLabel.Text = "Drops: " .. table.concat(oddsSummary, ", ")
 	descLabel.TextSize = 16
 	descLabel.TextColor3 = Color3.fromRGB(255, 255, 210)
 	descLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -378,9 +442,9 @@ local function createChestCard(parent, chestDef, layoutOrder)
 
 	-- Jobb oldali éles 3D OPEN gomb
 	local openBtn = create3DButton(
-		card,
+		inner,
 		UDim2.fromOffset(130, 52),
-		UDim2.new(1, -14, 0.5, 0),
+		UDim2.new(1, -12, 0.5, 0),
 		Vector2.new(1, 0.5),
 		Color3.fromRGB(46, 204, 113),
 		Color3.fromRGB(25, 125, 52),
@@ -388,6 +452,10 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	)
 
 	openBtn.button.MouseButton1Click:Connect(function()
+		if isPreview then
+			return
+		end
+
 		local remote = Net.get("OpenChest")
 		if remote then
 			remote:FireServer(chestDef.id)
@@ -400,46 +468,38 @@ local function buildUI(screenGui)
 	-- 1. HUD Gomb (Képernyő bal oldalán, az Upgrades gomb alatt)
 	local hudWrapper = Instance.new("Frame")
 	hudWrapper.Name = "GachaHudWrapper"
-	hudWrapper.Size = UDim2.fromOffset(148, 52)
-	hudWrapper.Position = UDim2.new(0, 20, 0.5, -32)
+	hudWrapper.Size = UDim2.fromOffset(76, 76)
+	hudWrapper.Position = UDim2.new(0, 106, 0.5, -43)
 	hudWrapper.AnchorPoint = Vector2.new(0, 0.5)
 	hudWrapper.BackgroundTransparency = 1
 	hudWrapper.BorderSizePixel = 0
+	hudWrapper.ZIndex = 100
 	hudWrapper.Parent = screenGui
 
 	local hudBtn3D = create3DButton(
 		hudWrapper,
 		UDim2.fromScale(1, 1),
-		UDim2.new(0, 0, 0, 0),
-		Vector2.new(0, 0),
-		Color3.fromRGB(235, 165, 35), -- Meleg aranysárga láda szín
-		Color3.fromRGB(155, 100, 20),
+		UDim2.fromScale(0.5, 0.5),
+		Vector2.new(0.5, 0.5),
+		Color3.fromRGB(24, 24, 28),
+		Color3.fromRGB(4, 4, 6),
 		""
 	)
 
-	local chestIcon = Instance.new("TextLabel")
-	chestIcon.Size = UDim2.fromOffset(36, 36)
-	chestIcon.Position = UDim2.new(0, 8, 0.5, -18)
-	chestIcon.BackgroundTransparency = 1
-	chestIcon.BorderSizePixel = 0
-	chestIcon.Font = Enum.Font.FredokaOne
-	chestIcon.Text = "📦"
-	chestIcon.TextSize = 28
-	chestIcon.Parent = hudBtn3D.button
-
 	local hudText = Instance.new("TextLabel")
 	hudText.Name = "Label"
-	hudText.Size = UDim2.new(1, -44, 1, 0)
-	hudText.Position = UDim2.new(0, 40, 0, 0)
+	hudText.Size = UDim2.fromScale(1, 1)
+	hudText.Position = UDim2.fromScale(0, 0)
 	hudText.BackgroundTransparency = 1
 	hudText.BorderSizePixel = 0
 	hudText.Font = Enum.Font.FredokaOne
 	hudText.Text = "CHESTS"
-	hudText.TextSize = 18
+	hudText.TextSize = 16
 	hudText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hudText.TextXAlignment = Enum.TextXAlignment.Center
 	hudText.Parent = hudBtn3D.button
-	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 3.2, Enum.ApplyStrokeMode.Contextual)
+	UiIcons.decorateMenuButton(hudBtn3D.button, hudText, "chests")
 
 	hudBtn3D.button.MouseButton1Click:Connect(function()
 		GachaController.toggle()
@@ -457,13 +517,11 @@ local function buildUI(screenGui)
 	modalOverlay.BorderSizePixel = 0
 	modalOverlay.Text = ""
 	modalOverlay.AutoButtonColor = false
+	modalOverlay.Active = false
+	modalOverlay.InputSink = Enum.InputSink.None
 	modalOverlay.Visible = false
 	modalOverlay.ZIndex = 12
 	modalOverlay.Parent = screenGui
-
-	modalOverlay.MouseButton1Click:Connect(function()
-		GachaController.close()
-	end)
 
 	-- Fő Ablak (ÉLES SAROK, VASTAG FEKETE KERET)
 	windowFrame = Instance.new("Frame")
@@ -472,6 +530,7 @@ local function buildUI(screenGui)
 	windowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 	windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	windowFrame.BackgroundColor3 = Color3.fromRGB(26, 20, 16)
+	windowFrame.BackgroundTransparency = 0.1
 	windowFrame.BorderSizePixel = 0
 	windowFrame.ZIndex = 13
 	windowFrame.Parent = modalOverlay
@@ -486,6 +545,8 @@ local function buildUI(screenGui)
 	windowBlocker.BackgroundTransparency = 1
 	windowBlocker.BorderSizePixel = 0
 	windowBlocker.Text = ""
+	windowBlocker.Active = false
+	windowBlocker.InputSink = Enum.InputSink.None
 	windowBlocker.Parent = windowFrame
 
 	-- FEJLÉC (Meleg bronz-arany sáv)
@@ -514,21 +575,10 @@ local function buildUI(screenGui)
 	headerDiv.ZIndex = 15
 	headerDiv.Parent = headerBar
 
-	local headChestIcon = Instance.new("TextLabel")
-	headChestIcon.Size = UDim2.fromOffset(48, 48)
-	headChestIcon.Position = UDim2.new(0, 14, 0.5, -24)
-	headChestIcon.BackgroundTransparency = 1
-	headChestIcon.BorderSizePixel = 0
-	headChestIcon.Font = Enum.Font.FredokaOne
-	headChestIcon.Text = "📦"
-	headChestIcon.TextSize = 40
-	headChestIcon.ZIndex = 15
-	headChestIcon.Parent = headerBar
-
 	local headerTitle = Instance.new("TextLabel")
 	headerTitle.Name = "Title"
-	headerTitle.Size = UDim2.new(0, 320, 1, 0)
-	headerTitle.Position = UDim2.new(0, 68, 0, 0)
+	headerTitle.Size = UDim2.new(1, -84, 1, 0)
+	headerTitle.Position = UDim2.fromOffset(18, 0)
 	headerTitle.BackgroundTransparency = 1
 	headerTitle.BorderSizePixel = 0
 	headerTitle.Font = Enum.Font.FredokaOne
@@ -539,6 +589,15 @@ local function buildUI(screenGui)
 	headerTitle.ZIndex = 15
 	headerTitle.Parent = headerBar
 	applyStroke(headerTitle, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Contextual)
+
+	local headerTitleGradient = Instance.new("UIGradient")
+	headerTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	headerTitleGradient.Rotation = 90
+	headerTitleGradient.Parent = headerTitle
 
 	-- Piros Éles Bezáró Gomb ("X")
 	local closeBtn3D = create3DButton(
@@ -552,21 +611,20 @@ local function buildUI(screenGui)
 	)
 	closeBtn3D.container.ZIndex = 15
 	closeBtn3D.button.ZIndex = 16
-	closeBtn3D.button.TextSize = 28
+	closeBtn3D.setTextSize(28)
 	closeBtn3D.button.MouseButton1Click:Connect(function()
 		GachaController.close()
 	end)
 
-	-- SubHeader: Felszerelt kesztyű-anyag és Pity állapot
+	-- SubHeader: Felszerelt kesztyű-anyag és Pity állapot (csak szöveg, háttér nélkül)
 	local subHeader = Instance.new("Frame")
 	subHeader.Name = "SubHeader"
 	subHeader.Size = UDim2.new(1, -24, 0, 30)
 	subHeader.Position = UDim2.new(0, 12, 0, 76)
-	subHeader.BackgroundColor3 = Color3.fromRGB(18, 14, 12)
+	subHeader.BackgroundTransparency = 1
 	subHeader.BorderSizePixel = 0
 	subHeader.ZIndex = 14
 	subHeader.Parent = windowFrame
-	applyStroke(subHeader, Color3.fromRGB(130, 85, 40), 2, Enum.ApplyStrokeMode.Border)
 
 	equippedLabel = Instance.new("TextLabel")
 	equippedLabel.Name = "EquippedLabel"
@@ -607,6 +665,8 @@ local function buildUI(screenGui)
 	scrollFrame.BorderSizePixel = 0
 	scrollFrame.ScrollBarThickness = 7
 	scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 68, 55)
+	scrollFrame.ScrollBarImageTransparency = 1
+	scrollFrame.VerticalScrollBarInset = Enum.ScrollBarInset.None
 	scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scrollFrame.ZIndex = 14
@@ -620,7 +680,7 @@ local function buildUI(screenGui)
 	local listPadding = Instance.new("UIPadding")
 	listPadding.PaddingTop = UDim.new(0, 2)
 	listPadding.PaddingBottom = UDim.new(0, 10)
-	listPadding.PaddingLeft = UDim.new(0, 2)
+	listPadding.PaddingLeft = UDim.new(0, 8)
 	listPadding.PaddingRight = UDim.new(0, 8)
 	listPadding.Parent = scrollFrame
 
@@ -634,8 +694,13 @@ end
 
 -- Inicializálás
 function GachaController.init(hud)
+	isPreview = hud ~= nil and hud.preview == true
+	MenuCoordinator.register(MENU_NAME, GachaController.close)
 	local screenGui = hud and hud.gui or player:WaitForChild("PlayerGui"):WaitForChild("SqueezeHud")
 	buildUI(screenGui)
+	if isPreview then
+		return
+	end
 
 	-- Szinkronizálás a szerver adatokkal
 	local dataRemote = Net.get("DataChanged")

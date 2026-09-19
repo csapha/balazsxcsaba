@@ -73,9 +73,13 @@ function EffectsController.floatingText(position, text, color)
 	label.Text = text
 	label.Parent = billboard
 	Ui.applyDisplay(label)
-	Ui.applyTextGradient(label)
+	local textGradient = Ui.applyTextGradient(label)
 	if color then
-		label.TextColor3 = color
+		textGradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, color:Lerp(Color3.new(1, 1, 1), 0.4)),
+			ColorSequenceKeypoint.new(0.5, color),
+			ColorSequenceKeypoint.new(1, color:Lerp(Color3.new(0, 0, 0), 0.25)),
+		})
 	end
 
 	task.spawn(function()

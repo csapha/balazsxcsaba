@@ -71,13 +71,13 @@ local function stopPulse(slot)
 		slot.pulse:Cancel()
 		slot.pulse = nil
 	end
-	slot.inner.Transparency = 0.2
+	slot.stroke.Transparency = 0.15
 end
 
 local function startPulse(slot)
 	stopPulse(slot)
 	local tween = TweenService:Create(
-		slot.inner,
+		slot.stroke,
 		TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
 		{ Transparency = 0.5 }
 	)
@@ -94,14 +94,14 @@ local function refreshSlot(tool)
 		-- elővett: visszafogott külső keret + finoman lélegző belső glow
 		slot.stroke.Color = COLOR_BORDER
 		slot.stroke.Transparency = 0.0
-		slot.frame.BackgroundTransparency = 0.0
+		slot.frame.BackgroundTransparency = 0.15
 		slot.label.TextColor3 = Color3.fromRGB(255, 255, 255)
 		startPulse(slot)
 	else
 		stopPulse(slot)
 		slot.stroke.Color = COLOR_BORDER
 		slot.stroke.Transparency = 0.15
-		slot.frame.BackgroundTransparency = 0.08
+		slot.frame.BackgroundTransparency = 0.4
 		slot.label.TextColor3 = Color3.fromRGB(228, 228, 234)
 	end
 end
@@ -135,7 +135,7 @@ local function rebuild()
 		frame.Name = tool.Name
 		frame.Size = UDim2.fromOffset(64, 64)
 		frame.BackgroundColor3 = COLOR_TILE
-		frame.BackgroundTransparency = 0.35 -- áttetszőbb
+		frame.BackgroundTransparency = 0.4
 		frame.BorderSizePixel = 0
 		frame.LayoutOrder = index
 		frame.Parent = bar
@@ -154,36 +154,6 @@ local function rebuild()
 		})
 		shade.Rotation = 90
 		shade.Parent = frame
-
-		-- fehér inner border, szépen elhalványulva (blendelt)
-		local inner = Instance.new("Frame")
-		inner.Name = "Inner"
-		inner.Position = UDim2.fromOffset(3, 3)
-		inner.Size = UDim2.new(1, -6, 1, -6)
-		inner.BackgroundTransparency = 1
-		inner.Parent = frame
-
-		local innerStroke = Instance.new("UIStroke")
-		innerStroke.Color = Color3.fromRGB(255, 255, 255)
-		innerStroke.Thickness = 1
-		innerStroke.Transparency = 0.2
-		innerStroke.Parent = inner
-
-		local strokeGradient = Instance.new("UIGradient")
-		strokeGradient.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.4, Color3.fromRGB(214, 214, 220)),
-			ColorSequenceKeypoint.new(0.75, Color3.fromRGB(150, 150, 160)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(96, 96, 106)),
-		})
-		strokeGradient.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.0),
-			NumberSequenceKeypoint.new(0.35, 0.4),
-			NumberSequenceKeypoint.new(0.7, 0.78),
-			NumberSequenceKeypoint.new(1, 1.0),
-		})
-		strokeGradient.Rotation = -90
-		strokeGradient.Parent = innerStroke
 
 		local outline = Instance.new("TextLabel")
 		outline.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -238,14 +208,14 @@ local function rebuild()
 		end)
 		button.MouseEnter:Connect(function()
 			if not isEquipped(tool) then
-				frame.BackgroundTransparency = 0.2
+				frame.BackgroundTransparency = 0.25
 			end
 		end)
 		button.MouseLeave:Connect(function()
 			refreshSlot(tool)
 		end)
 
-		slots[tool] = { frame = frame, stroke = stroke, label = label, inner = innerStroke }
+		slots[tool] = { frame = frame, stroke = stroke, label = label }
 		refreshSlot(tool)
 	end
 end

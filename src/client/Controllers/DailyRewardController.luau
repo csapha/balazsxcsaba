@@ -1,15 +1,18 @@
 -- DailyRewardController: Napi jutalom rendszer és UI (éles sarkokkal, 7 napos elrendezéssel)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local DailyRewardsConfig = require(Shared.Config.DailyRewards)
 local Net = require(Shared.Net)
+local MenuCoordinator = require(script.Parent.MenuCoordinator)
 
 local player = Players.LocalPlayer
 
 local DailyRewardController = {}
+local MENU_NAME = "dailyReward"
 
 -- Állapot
 local isModalOpen = false
@@ -20,12 +23,13 @@ local dailyData = {
 }
 
 local dayCards = {}
-local hudButton = nil
+local dailyIcon = nil
+local noticeShown = false
 local modalOverlay = nil
 local windowFrame = nil
 local windowScale = nil
 local timerConnection = nil
-local notifBadge = nil
+local isPreview = false
 
 -- Segédfüggvény éles fekete UIStroke beállításhoz
 local function applyStroke(instance, color, thickness, mode)
@@ -37,6 +41,15 @@ local function applyStroke(instance, color, thickness, mode)
 	return stroke
 end
 
+-- Szín világosítása/sötétítése (factor > 1 világosít, < 1 sötétít)
+local function shadeColor(color, factor)
+	return Color3.new(
+		math.clamp(color.R * factor, 0, 1),
+		math.clamp(color.G * factor, 0, 1),
+		math.clamp(color.B * factor, 0, 1)
+	)
+end
+
 -- Éles 3D gomb készítése
 local function create3DButton(parent, size, position, anchorPoint, mainColor, shadowColor, text)
 	local shadowFrame = Instance.new("Frame")
@@ -44,7 +57,7 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	shadowFrame.Size = size
 	shadowFrame.Position = position
 	shadowFrame.AnchorPoint = anchorPoint or Vector2.new(0, 0)
-	shadowFrame.BackgroundColor3 = shadowColor or Color3.fromRGB(25, 125, 52)
+	shadowFrame.BackgroundColor3 = shadeColor(shadowColor or Color3.fromRGB(25, 125, 52), 0.7)
 	shadowFrame.BorderSizePixel = 0
 	shadowFrame.Parent = parent
 	applyStroke(shadowFrame, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
@@ -56,37 +69,74 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	topButton.BackgroundColor3 = mainColor or Color3.fromRGB(46, 204, 113)
 	topButton.BorderSizePixel = 0
 	topButton.AutoButtonColor = false
-	topButton.Font = Enum.Font.FredokaOne
-	topButton.Text = text or ""
-	topButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	topButton.TextSize = 20
+	topButton.Text = ""
 	topButton.Parent = shadowFrame
 	applyStroke(topButton, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
-	local defaultTopPos = UDim2.new(0, 0, 0, 0)
-	local pressedTopPos = UDim2.new(0, 0, 0, 4)
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Label"
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.Position = UDim2.fromScale(0, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.BorderSizePixel = 0
+	textLabel.Font = Enum.Font.FredokaOne
+	textLabel.Text = text or ""
+	textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textLabel.TextSize = 20
+	textLabel.Parent = topButton
+	applyStroke(textLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
+
+	local textGradient = Instance.new("UIGradient")
+	textGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	textGradient.Rotation = 90
+	textGradient.Parent = textLabel
+
+	local buttonGradient = Instance.new("UIGradient")
+	buttonGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, shadeColor(topButton.BackgroundColor3, 1.22)),
+		ColorSequenceKeypoint.new(1, topButton.BackgroundColor3),
+	})
+	buttonGradient.Rotation = 90
+	buttonGradient.Parent = topButton
+
+	local pressScale = Instance.new("UIScale")
+	pressScale.Parent = shadowFrame
+
+	local pressDown = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local pressRelease = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 	topButton.MouseButton1Down:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.05), { Position = pressedTopPos }):Play()
+		TweenService:Create(pressScale, pressDown, { Scale = 0.9 }):Play()
 	end)
 
 	topButton.MouseButton1Up:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	topButton.MouseLeave:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	return {
 		container = shadowFrame,
 		button = topButton,
 		setText = function(newText)
-			topButton.Text = newText
+			textLabel.Text = newText
+		end,
+		setTextSize = function(newSize)
+			textLabel.TextSize = newSize
 		end,
 		setColor = function(newMain, newShadow)
 			topButton.BackgroundColor3 = newMain
-			shadowFrame.BackgroundColor3 = newShadow
+			shadowFrame.BackgroundColor3 = shadeColor(newShadow, 0.7)
+			buttonGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, shadeColor(newMain, 1.22)),
+				ColorSequenceKeypoint.new(1, newMain),
+			})
 		end,
 	}
 end
@@ -113,8 +163,14 @@ local function refreshCards()
 	dailyData.canClaim = canClaim
 	local remaining = math.max(0, DailyRewardsConfig.cooldown - timeSince)
 
-	if notifBadge then
-		notifBadge.Visible = canClaim
+	if dailyIcon then
+		if canClaim and not noticeShown then
+			noticeShown = true
+			dailyIcon:notify()
+		elseif not canClaim and noticeShown then
+			noticeShown = false
+			dailyIcon:clearNotices()
+		end
 	end
 
 	local claimedCount = dailyData.streak or 0
@@ -170,6 +226,7 @@ function DailyRewardController.open()
 	if isModalOpen then
 		return
 	end
+	MenuCoordinator.opening(MENU_NAME)
 	isModalOpen = true
 	refreshCards()
 
@@ -177,7 +234,6 @@ function DailyRewardController.open()
 	modalOverlay.BackgroundTransparency = 1
 	windowScale.Scale = 0.8
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.18), { BackgroundTransparency = 0.5 }):Play()
 	local popTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -192,18 +248,44 @@ function DailyRewardController.close()
 	end
 	isModalOpen = false
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+	if dailyIcon then
+		dailyIcon:deselect()
+	end
+
 	local closeTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 		{ Scale = 0.8 }
 	)
 	closeTween:Play()
-	closeTween.Completed:Wait()
+	closeTween.Completed:Connect(function()
+		if not isModalOpen then
+			modalOverlay.Visible = false
+		end
+	end)
+end
 
-	if not isModalOpen then
-		modalOverlay.Visible = false
+function DailyRewardController.destroy()
+	isModalOpen = false
+	MenuCoordinator.closed(MENU_NAME)
+	noticeShown = false
+
+	if dailyIcon then
+		pcall(function()
+			dailyIcon:destroy()
+		end)
+		dailyIcon = nil
 	end
+
+	if modalOverlay then
+		modalOverlay:Destroy()
+		modalOverlay = nil
+	end
+
+	windowFrame = nil
+	windowScale = nil
+	dayCards = {}
+	MenuCoordinator.unregister(MENU_NAME, DailyRewardController.close)
 end
 
 function DailyRewardController.toggle()
@@ -250,7 +332,8 @@ local function createDayCard(parent, def, size, pos)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.BorderSizePixel = 0
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = def.emoji or "🎁"
+	iconLabel.Text = "?"
+	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
 	iconLabel.TextSize = def.isBig and 56 or 36
 	iconLabel.Parent = card
 
@@ -326,6 +409,10 @@ local function createDayCard(parent, def, size, pos)
 	claimBtn.container.Visible = false
 
 	claimBtn.button.MouseButton1Click:Connect(function()
+		if isPreview then
+			return
+		end
+
 		local remote = Net.get("ClaimDailyReward")
 		if remote then
 			remote:FireServer()
@@ -345,82 +432,7 @@ end
 
 -- A teljes felület felépítése
 local function buildUI(screenGui)
-	-- 1. HUD Gomb a JOBB FELSŐ SAROKBAN ("Daily Reward" ajándékdoboz)
-	local hudWrapper = Instance.new("Frame")
-	hudWrapper.Name = "DailyRewardHudWrapper"
-	hudWrapper.Size = UDim2.fromOffset(164, 56)
-	hudWrapper.Position = UDim2.new(1, -20, 0, 20)
-	hudWrapper.AnchorPoint = Vector2.new(1, 0)
-	hudWrapper.BackgroundTransparency = 1
-	hudWrapper.BorderSizePixel = 0
-	hudWrapper.Parent = screenGui
-
-	local hudBtn3D = create3DButton(
-		hudWrapper,
-		UDim2.fromScale(1, 1),
-		UDim2.new(0, 0, 0, 0),
-		Vector2.new(0, 0),
-		Color3.fromRGB(230, 55, 60), -- Piros ajándékdoboz szín
-		Color3.fromRGB(150, 25, 30),
-		""
-	)
-
-	-- Ajándékdoboz ikon
-	local giftIcon = Instance.new("TextLabel")
-	giftIcon.Name = "GiftIcon"
-	giftIcon.Size = UDim2.fromOffset(36, 36)
-	giftIcon.Position = UDim2.new(0, 8, 0.5, -18)
-	giftIcon.BackgroundTransparency = 1
-	giftIcon.BorderSizePixel = 0
-	giftIcon.Font = Enum.Font.FredokaOne
-	giftIcon.Text = "🎁"
-	giftIcon.TextSize = 30
-	giftIcon.Parent = hudBtn3D.button
-
-	-- Szöveg a gombon
-	local hudText = Instance.new("TextLabel")
-	hudText.Name = "Label"
-	hudText.Size = UDim2.new(1, -48, 1, 0)
-	hudText.Position = UDim2.new(0, 44, 0, 0)
-	hudText.BackgroundTransparency = 1
-	hudText.BorderSizePixel = 0
-	hudText.Font = Enum.Font.FredokaOne
-	hudText.Text = "DAILY REWARD"
-	hudText.TextSize = 16
-	hudText.TextColor3 = Color3.fromRGB(255, 255, 255)
-	hudText.TextXAlignment = Enum.TextXAlignment.Center
-	hudText.Parent = hudBtn3D.button
-	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
-
-	-- Értesítő badge (zöld vagy sárga felkiáltójel)
-	notifBadge = Instance.new("Frame")
-	notifBadge.Name = "NotifBadge"
-	notifBadge.Size = UDim2.fromOffset(22, 22)
-	notifBadge.Position = UDim2.new(0, -4, 0, -4)
-	notifBadge.BackgroundColor3 = Color3.fromRGB(50, 255, 60)
-	notifBadge.BorderSizePixel = 0
-	notifBadge.Visible = false
-	notifBadge.ZIndex = 6
-	notifBadge.Parent = hudWrapper
-	applyStroke(notifBadge, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
-
-	local notifText = Instance.new("TextLabel")
-	notifText.Size = UDim2.fromScale(1, 1)
-	notifText.BackgroundTransparency = 1
-	notifText.BorderSizePixel = 0
-	notifText.Font = Enum.Font.FredokaOne
-	notifText.Text = "!"
-	notifText.TextSize = 15
-	notifText.TextColor3 = Color3.fromRGB(0, 0, 0)
-	notifText.Parent = notifBadge
-
-	hudBtn3D.button.MouseButton1Click:Connect(function()
-		DailyRewardController.toggle()
-	end)
-
-	hudButton = hudWrapper
-
-	-- 2. Modal felület (Sötétítő háttér + Éles Ablak)
+	-- Modal felület (Sötétítő háttér + Éles Ablak)
 	modalOverlay = Instance.new("TextButton")
 	modalOverlay.Name = "DailyRewardModalOverlay"
 	modalOverlay.Size = UDim2.fromScale(1, 1)
@@ -430,13 +442,11 @@ local function buildUI(screenGui)
 	modalOverlay.BorderSizePixel = 0
 	modalOverlay.Text = ""
 	modalOverlay.AutoButtonColor = false
+	modalOverlay.Active = false
+	modalOverlay.InputSink = Enum.InputSink.None
 	modalOverlay.Visible = false
 	modalOverlay.ZIndex = 15
 	modalOverlay.Parent = screenGui
-
-	modalOverlay.MouseButton1Click:Connect(function()
-		DailyRewardController.close()
-	end)
 
 	-- Fő Ablak (ÉLES SAROK, VASTAG FEKETE KERET)
 	windowFrame = Instance.new("Frame")
@@ -445,6 +455,7 @@ local function buildUI(screenGui)
 	windowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 	windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	windowFrame.BackgroundColor3 = Color3.fromRGB(24, 20, 16)
+	windowFrame.BackgroundTransparency = 0.1
 	windowFrame.BorderSizePixel = 0
 	windowFrame.ZIndex = 16
 	windowFrame.Parent = modalOverlay
@@ -460,6 +471,8 @@ local function buildUI(screenGui)
 	windowBlocker.BackgroundTransparency = 1
 	windowBlocker.BorderSizePixel = 0
 	windowBlocker.Text = ""
+	windowBlocker.Active = false
+	windowBlocker.InputSink = Enum.InputSink.None
 	windowBlocker.Parent = windowFrame
 
 	-- FEJLÉC (Meleg arany/barna árnyalat, pontosan mint a képen)
@@ -488,23 +501,11 @@ local function buildUI(screenGui)
 	headerDiv.ZIndex = 18
 	headerDiv.Parent = headerBar
 
-	-- Ajándékdoboz ikon a fejlécben
-	local headGiftIcon = Instance.new("TextLabel")
-	headGiftIcon.Size = UDim2.fromOffset(48, 48)
-	headGiftIcon.Position = UDim2.new(0, 14, 0.5, -24)
-	headGiftIcon.BackgroundTransparency = 1
-	headGiftIcon.BorderSizePixel = 0
-	headGiftIcon.Font = Enum.Font.FredokaOne
-	headGiftIcon.Text = "🎁"
-	headGiftIcon.TextSize = 42
-	headGiftIcon.ZIndex = 18
-	headGiftIcon.Parent = headerBar
-
 	-- Fejléc Cím: "DAILY REWARD"
 	local headerTitle = Instance.new("TextLabel")
 	headerTitle.Name = "Title"
-	headerTitle.Size = UDim2.new(0, 320, 1, 0)
-	headerTitle.Position = UDim2.new(0, 68, 0, 0)
+	headerTitle.Size = UDim2.new(1, -84, 1, 0)
+	headerTitle.Position = UDim2.fromOffset(18, 0)
 	headerTitle.BackgroundTransparency = 1
 	headerTitle.BorderSizePixel = 0
 	headerTitle.Font = Enum.Font.FredokaOne
@@ -515,6 +516,15 @@ local function buildUI(screenGui)
 	headerTitle.ZIndex = 18
 	headerTitle.Parent = headerBar
 	applyStroke(headerTitle, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Contextual)
+
+	local headerTitleGradient = Instance.new("UIGradient")
+	headerTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	headerTitleGradient.Rotation = 90
+	headerTitleGradient.Parent = headerTitle
 
 	-- Piros Éles Bezáró Gomb ("X")
 	local closeBtn3D = create3DButton(
@@ -528,24 +538,16 @@ local function buildUI(screenGui)
 	)
 	closeBtn3D.container.ZIndex = 18
 	closeBtn3D.button.ZIndex = 19
-	closeBtn3D.button.TextSize = 28
+	closeBtn3D.setTextSize(28)
 	closeBtn3D.button.MouseButton1Click:Connect(function()
 		DailyRewardController.close()
 	end)
 
-	-- Alsáv: "Login every day to keep your streak!" (Pontosan mint a képen)
-	local subBanner = Instance.new("Frame")
-	subBanner.Name = "SubBanner"
-	subBanner.Size = UDim2.new(1, -24, 0, 32)
-	subBanner.Position = UDim2.new(0, 12, 0, 76)
-	subBanner.BackgroundColor3 = Color3.fromRGB(16, 12, 10)
-	subBanner.BorderSizePixel = 0
-	subBanner.ZIndex = 17
-	subBanner.Parent = windowFrame
-	applyStroke(subBanner, Color3.fromRGB(120, 75, 40), 2, Enum.ApplyStrokeMode.Border)
-
+	-- Alsó szöveg: "Login every day to keep your streak!"
 	local bannerText = Instance.new("TextLabel")
-	bannerText.Size = UDim2.fromScale(1, 1)
+	bannerText.Name = "SubBanner"
+	bannerText.Size = UDim2.new(1, -24, 0, 32)
+	bannerText.Position = UDim2.new(0, 12, 0, 76)
 	bannerText.BackgroundTransparency = 1
 	bannerText.BorderSizePixel = 0
 	bannerText.Font = Enum.Font.FredokaOne
@@ -553,7 +555,7 @@ local function buildUI(screenGui)
 	bannerText.TextSize = 20
 	bannerText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	bannerText.ZIndex = 18
-	bannerText.Parent = subBanner
+	bannerText.Parent = windowFrame
 	applyStroke(bannerText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
 	-- JUTALMAK RÁCSA (Bal oldal: 3 oszlop x 2 sor, Jobb oldal: Day 7 Nagy Kártya)
@@ -599,8 +601,33 @@ end
 
 -- Inicializálás
 function DailyRewardController.init(hud)
+	isPreview = hud ~= nil and hud.preview == true
+	MenuCoordinator.register(MENU_NAME, DailyRewardController.close)
 	local screenGui = hud and hud.gui or player:WaitForChild("PlayerGui"):WaitForChild("SqueezeHud")
+	local playerGui = player and player:FindFirstChildOfClass("PlayerGui")
+	local isLivePlayerGui = RunService:IsRunning()
+		and playerGui ~= nil
+		and screenGui:IsDescendantOf(playerGui)
+
+	-- TopbarPlus must never start in Studio Edit/UI Labs: it needs a live viewport.
+	if not isPreview and isLivePlayerGui then
+		local TopbarPlus = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("TopbarPlus"))
+		dailyIcon = TopbarPlus.new()
+		dailyIcon:setName("DailyReward")
+		dailyIcon:setLabel("DAILY")
+		dailyIcon:setOrder(1)
+		dailyIcon:bindEvent("selected", function()
+			DailyRewardController.open()
+		end)
+		dailyIcon:bindEvent("deselected", function()
+			DailyRewardController.close()
+		end)
+	end
+
 	buildUI(screenGui)
+	if isPreview then
+		return
+	end
 
 	-- Szerver adatok figyelése
 	local remote = Net.get("DataChanged")

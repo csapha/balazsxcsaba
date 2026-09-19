@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local ContentProvider = game:GetService("ContentProvider")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
@@ -17,7 +18,10 @@ local player = Players.LocalPlayer
 local TrainingController = {}
 
 local training = false
+local trainSession = 0
 local squatTrack = nil
+local squatTrackAnimator = nil
+local squatAnimation = nil
 local tapGain = 0
 
 local function getAnimator(character)
@@ -25,32 +29,78 @@ local function getAnimator(character)
 	return humanoid and humanoid:FindFirstChildOfClass("Animator")
 end
 
+local function getSquatAnimation()
+	if not squatAnimation and GameConfig.SquatAnimationId ~= "" then
+		squatAnimation = Instance.new("Animation")
+		squatAnimation.AnimationId = GameConfig.SquatAnimationId
+	end
+	return squatAnimation
+end
+
+local function loadSquatTrack(character)
+	local animator = getAnimator(character)
+	local animation = getSquatAnimation()
+	if not animator or not animation then
+		return nil
+	end
+
+	if squatTrack and squatTrackAnimator == animator then
+		return squatTrack
+	end
+
+	local ok, track = pcall(function()
+		return animator:LoadAnimation(animation)
+	end)
+	if not ok or not track then
+		return nil
+	end
+
+	track.Priority = Enum.AnimationPriority.Action
+	track.Looped = true
+	squatTrack = track
+	squatTrackAnimator = animator
+	return track
+end
+
+local function warmSquatAnimation(character)
+	local animation = getSquatAnimation()
+	if not animation then
+		return
+	end
+
+	pcall(function()
+		ContentProvider:PreloadAsync({ animation })
+	end)
+
+	if character ~= player.Character then
+		return
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 5)
+	if not humanoid then
+		return
+	end
+
+	local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid:WaitForChild("Animator", 5)
+	if not animator or character ~= player.Character then
+		return
+	end
+
+	loadSquatTrack(character)
+end
+
 local function startSquatAnimation(character)
 	if GameConfig.SquatAnimationId == "" then
 		return false
 	end
 
-	local animator = getAnimator(character)
-	if not animator then
+	local track = loadSquatTrack(character)
+	if not track then
 		return false
 	end
 
-	if not squatTrack then
-		local animation = Instance.new("Animation")
-		animation.AnimationId = GameConfig.SquatAnimationId
-		local ok, track = pcall(function()
-			return animator:LoadAnimation(animation)
-		end)
-		if not ok or not track then
-			return false
-		end
-		track.Priority = Enum.AnimationPriority.Action
-		track.Looped = true
-		squatTrack = track
-	end
-
-	if not squatTrack.IsPlaying then
-		squatTrack:Play(0.15)
+	if not track.IsPlaying then
+		track:Play(0.15)
 	end
 	return true
 end
@@ -86,8 +136,8 @@ local function fallbackPulse(character)
 	end)
 end
 
-local function trainLoop(character)
-	while training and character.Parent do
+local function trainLoop(character, session)
+	while training and trainSession == session and character.Parent do
 		local remote = Net.get("TrainTap")
 		if remote then
 			remote:FireServer()
@@ -97,7 +147,7 @@ local function trainLoop(character)
 		if root and tapGain > 0 then
 			EffectsController.floatingText(root.Position,
 				"+" .. tostring(math.floor(tapGain * 10) / 10),
-				Color3.fromRGB(116, 210, 250))
+				Color3.fromRGB(255, 212, 71))
 		end
 
 		task.wait(GameConfig.TrainCycle)
@@ -125,13 +175,14 @@ local function setTraining(character, value)
 		return
 	end
 	training = value
+	trainSession += 1
 
 	if value then
 		setMovement(character, false) -- edzés közben nem lehet mozogni
 		if not startSquatAnimation(character) then
 			fallbackPulse(character)
 		end
-		task.spawn(trainLoop, character)
+		task.spawn(trainLoop, character, trainSession)
 	else
 		setMovement(character, true)
 		stopSquatAnimation()
@@ -178,12 +229,15 @@ function TrainingController.init()
 
 	player.CharacterAdded:Connect(function(character)
 		squatTrack = nil
+		squatTrackAnimator = nil
 		training = false
 		hookContainer(character)
+		task.spawn(warmSquatAnimation, character)
 	end)
 
 	if player.Character then
 		hookContainer(player.Character)
+		task.spawn(warmSquatAnimation, player.Character)
 	end
 
 	local remote = Net.get("DataChanged")

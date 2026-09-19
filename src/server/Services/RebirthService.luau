@@ -41,13 +41,13 @@ function RebirthService.init()
 			local newMulti = RebirthConfig.getMultiplier(rebirthCount)
 			notify(
 				player,
-				string.format("🎉 REBIRTH #%d! Unlocked %s & x%.1f Multiplier!", rebirthCount, skin.name, newMulti),
+				string.format("REBIRTH #%d! Unlocked %s & x%.1f Multiplier!", rebirthCount, skin.name, newMulti),
 				Color3.fromRGB(255, 215, 0)
 			)
 
 			-- Announce to all players in the server
 			broadcast(
-				string.format("⚡ %s just achieved REBIRTH #%d (%s skin, x%.1f permanent multi)!", player.DisplayName, rebirthCount, skin.name, newMulti),
+				string.format("%s just achieved REBIRTH #%d (%s skin, x%.1f permanent multi)!", player.DisplayName, rebirthCount, skin.name, newMulti),
 				Color3.fromRGB(80, 240, 255)
 			)
 		else

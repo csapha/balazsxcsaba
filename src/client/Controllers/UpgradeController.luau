@@ -8,10 +8,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local UpgradesConfig = require(Shared.Config.Upgrades)
 local Format = require(Shared.Format)
 local Net = require(Shared.Net)
+local UiIcons = require(Shared.UiIcons)
+local MenuCoordinator = require(script.Parent.MenuCoordinator)
 
 local player = Players.LocalPlayer
 
 local UpgradeController = {}
+local MENU_NAME = "upgrades"
 
 -- Állapot
 local isModalOpen = false
@@ -28,8 +31,8 @@ local hudButton = nil
 local modalOverlay = nil
 local windowFrame = nil
 local windowScale = nil
-local cashLabel = nil
 local notifBadge = nil
+local isPreview = false
 
 -- Segédfüggvény UIStroke beállításhoz (vastag éles keretekhez és betűkontúrhoz)
 local function applyStroke(instance, color, thickness, mode)
@@ -41,36 +44,13 @@ local function applyStroke(instance, color, thickness, mode)
 	return stroke
 end
 
--- Dupla zöld chevron (felfelé mutató éles nyilak) ikon
-local function createChevronIcon(parent, size)
-	local container = Instance.new("Frame")
-	container.Name = "ChevronIcon"
-	container.Size = UDim2.fromOffset(size, size)
-	container.BackgroundTransparency = 1
-	container.BorderSizePixel = 0
-	container.Parent = parent
-
-	-- Két egymásra helyezett stílusos zöld nyíl
-	local function createArrow(offsetY, isTop)
-		local arrow = Instance.new("TextLabel")
-		arrow.Size = UDim2.new(1, 0, 0.72, 0)
-		arrow.Position = UDim2.fromOffset(0, offsetY)
-		arrow.BackgroundTransparency = 1
-		arrow.BorderSizePixel = 0
-		arrow.Font = Enum.Font.FredokaOne
-		arrow.Text = "▲"
-		arrow.TextSize = math.floor(size * 0.82)
-		arrow.TextColor3 = isTop and Color3.fromRGB(155, 255, 60) or Color3.fromRGB(48, 215, 75)
-		applyStroke(arrow, Color3.fromRGB(0, 0, 0), math.max(2, math.floor(size * 0.08)), Enum.ApplyStrokeMode.Contextual)
-		arrow.ZIndex = isTop and 4 or 3
-		arrow.Parent = container
-		return arrow
-	end
-
-	createArrow(math.floor(size * 0.28), false)
-	createArrow(0, true)
-
-	return container
+-- Szín világosítása/sötétítése (factor > 1 világosít, < 1 sötétít)
+local function shadeColor(color, factor)
+	return Color3.new(
+		math.clamp(color.R * factor, 0, 1),
+		math.clamp(color.G * factor, 0, 1),
+		math.clamp(color.B * factor, 0, 1)
+	)
 end
 
 -- ÉLES 3D gomb készítése (zöld felület + sötét árnyék alul, nulla lekerekítés, vastag fekete keret)
@@ -80,7 +60,7 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	shadowFrame.Size = size
 	shadowFrame.Position = position
 	shadowFrame.AnchorPoint = anchorPoint or Vector2.new(0, 0)
-	shadowFrame.BackgroundColor3 = shadowColor or Color3.fromRGB(25, 125, 52)
+	shadowFrame.BackgroundColor3 = shadeColor(shadowColor or Color3.fromRGB(25, 125, 52), 0.7)
 	shadowFrame.BorderSizePixel = 0
 	shadowFrame.Parent = parent
 	-- NEM LEKEREKÍTETT: éles vastag fekete keret
@@ -93,38 +73,75 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	topButton.BackgroundColor3 = mainColor or Color3.fromRGB(46, 204, 113)
 	topButton.BorderSizePixel = 0
 	topButton.AutoButtonColor = false
-	topButton.Font = Enum.Font.FredokaOne
-	topButton.Text = text or ""
-	topButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	topButton.TextSize = 22
+	topButton.Text = ""
 	topButton.Parent = shadowFrame
 	applyStroke(topButton, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Label"
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.Position = UDim2.fromScale(0, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.BorderSizePixel = 0
+	textLabel.Font = Enum.Font.FredokaOne
+	textLabel.Text = text or ""
+	textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textLabel.TextSize = 22
+	textLabel.Parent = topButton
+	applyStroke(textLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
+
+	local textGradient = Instance.new("UIGradient")
+	textGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	textGradient.Rotation = 90
+	textGradient.Parent = textLabel
+
+	local buttonGradient = Instance.new("UIGradient")
+	buttonGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, shadeColor(topButton.BackgroundColor3, 1.22)),
+		ColorSequenceKeypoint.new(1, topButton.BackgroundColor3),
+	})
+	buttonGradient.Rotation = 90
+	buttonGradient.Parent = topButton
+
 	-- Nyomás animáció
-	local defaultTopPos = UDim2.new(0, 0, 0, 0)
-	local pressedTopPos = UDim2.new(0, 0, 0, 4)
+	local pressScale = Instance.new("UIScale")
+	pressScale.Parent = shadowFrame
+
+	local pressDown = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local pressRelease = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 	topButton.MouseButton1Down:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.05), { Position = pressedTopPos }):Play()
+		TweenService:Create(pressScale, pressDown, { Scale = 0.9 }):Play()
 	end)
 
 	topButton.MouseButton1Up:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	topButton.MouseLeave:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	return {
 		container = shadowFrame,
 		button = topButton,
 		setText = function(newText)
-			topButton.Text = newText
+			textLabel.Text = newText
+		end,
+		setTextSize = function(newSize)
+			textLabel.TextSize = newSize
 		end,
 		setColor = function(newMain, newShadow)
 			topButton.BackgroundColor3 = newMain
-			shadowFrame.BackgroundColor3 = newShadow
+			shadowFrame.BackgroundColor3 = shadeColor(newShadow, 0.7)
+			buttonGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, shadeColor(newMain, 1.22)),
+				ColorSequenceKeypoint.new(1, newMain),
+			})
 		end,
 	}
 end
@@ -163,17 +180,13 @@ local function updateCard(category)
 		if currentData.cash >= nextEntry.cost then
 			elements.actionBtn.setColor(Color3.fromRGB(46, 204, 113), Color3.fromRGB(25, 125, 52))
 		else
-			elements.actionBtn.setColor(Color3.fromRGB(40, 160, 90), Color3.fromRGB(20, 100, 45))
+			elements.actionBtn.setColor(Color3.fromRGB(64, 185, 110), Color3.fromRGB(36, 135, 68))
 		end
 	end
 end
 
 -- Összes kártya és jelvény frissítése
 local function refreshAll()
-	if cashLabel then
-		cashLabel.Text = "Cash: " .. Format.money(currentData.cash)
-	end
-
 	local canAffordAny = false
 
 	for _, category in ipairs(UpgradesConfig.categories) do
@@ -198,6 +211,7 @@ function UpgradeController.open()
 	if isModalOpen then
 		return
 	end
+	MenuCoordinator.opening(MENU_NAME)
 	isModalOpen = true
 	refreshAll()
 
@@ -205,7 +219,6 @@ function UpgradeController.open()
 	modalOverlay.BackgroundTransparency = 1
 	windowScale.Scale = 0.8
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.18), { BackgroundTransparency = 0.5 }):Play()
 	local popTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -219,19 +232,19 @@ function UpgradeController.close()
 		return
 	end
 	isModalOpen = false
+	MenuCoordinator.closed(MENU_NAME)
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 	local closeTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 		{ Scale = 0.8 }
 	)
 	closeTween:Play()
-	closeTween.Completed:Wait()
-
-	if not isModalOpen then
-		modalOverlay.Visible = false
-	end
+	closeTween.Completed:Connect(function()
+		if not isModalOpen then
+			modalOverlay.Visible = false
+		end
+	end)
 end
 
 function UpgradeController.toggle()
@@ -247,13 +260,20 @@ local function buildCard(category, container, layoutOrder)
 	local card = Instance.new("Frame")
 	card.Name = "Card_" .. category.id
 	card.Size = UDim2.new(1, 0, 0, 94)
-	card.BackgroundColor3 = category.cardColor or Color3.fromRGB(94, 68, 48)
+	card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	card.BorderSizePixel = 0
 	card.LayoutOrder = layoutOrder
 	card.Parent = container
 
-	-- Éles, vastag fekete keret (NEM lekerekített)
-	applyStroke(card, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Border)
+	-- A fekete keret a külső frame maga; a színes kártya beljebb van,
+	-- így a scrollframe széle nem tudja levágni a keretet.
+	local inner = Instance.new("Frame")
+	inner.Name = "Inner"
+	inner.Size = UDim2.new(1, -7, 1, -7)
+	inner.Position = UDim2.fromOffset(3.5, 3.5)
+	inner.BackgroundColor3 = category.cardColor or Color3.fromRGB(94, 68, 48)
+	inner.BorderSizePixel = 0
+	inner.Parent = card
 
 	-- Bal oldali éles ikon doboz
 	local iconBox = Instance.new("Frame")
@@ -264,7 +284,7 @@ local function buildCard(category, container, layoutOrder)
 	iconBox.BackgroundColor3 = Color3.fromRGB(20, 15, 12)
 	iconBox.BackgroundTransparency = 0.4
 	iconBox.BorderSizePixel = 0
-	iconBox.Parent = card
+	iconBox.Parent = inner
 	applyStroke(iconBox, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
 
 	local iconLabel = Instance.new("TextLabel")
@@ -272,8 +292,9 @@ local function buildCard(category, container, layoutOrder)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.BorderSizePixel = 0
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = category.emoji or "⚡"
+	iconLabel.Text = "?"
 	iconLabel.TextSize = 40
+	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
 	iconLabel.Parent = iconBox
 
 	-- Középső információs rész
@@ -283,7 +304,7 @@ local function buildCard(category, container, layoutOrder)
 	infoFrame.Size = UDim2.new(1, -245, 1, -16)
 	infoFrame.BackgroundTransparency = 1
 	infoFrame.BorderSizePixel = 0
-	infoFrame.Parent = card
+	infoFrame.Parent = inner
 
 	-- Cím
 	local titleLabel = Instance.new("TextLabel")
@@ -359,9 +380,9 @@ local function buildCard(category, container, layoutOrder)
 
 	-- Jobb oldali éles 3D gomb (MAX vagy ár)
 	local actionBtn = create3DButton(
-		card,
+		inner,
 		UDim2.fromOffset(130, 54),
-		UDim2.new(1, -14, 0.5, 0),
+		UDim2.new(1, -12, 0.5, 0),
 		Vector2.new(1, 0.5),
 		Color3.fromRGB(46, 204, 113),
 		Color3.fromRGB(25, 125, 52),
@@ -369,6 +390,10 @@ local function buildCard(category, container, layoutOrder)
 	)
 
 	actionBtn.button.MouseButton1Click:Connect(function()
+		if isPreview then
+			return
+		end
+
 		local currentId = currentData[category.id]
 		local currentEntry = category.byId[currentId] or category.byOrder[1]
 		local currentOrder = currentEntry and currentEntry.order or 1
@@ -398,61 +423,86 @@ local function buildUI(screenGui)
 	-- 1. HUD Upgrade Gomb (képernyő bal oldalán, éles sarkokkal)
 	local hudContainer = Instance.new("Frame")
 	hudContainer.Name = "HudUpgradeWrapper"
-	hudContainer.Size = UDim2.fromOffset(148, 52)
-	hudContainer.Position = UDim2.new(0, 20, 0.5, -96)
+	hudContainer.Size = UDim2.fromOffset(76, 76)
+	hudContainer.Position = UDim2.new(0, 20, 0.5, -43)
 	hudContainer.AnchorPoint = Vector2.new(0, 0.5)
 	hudContainer.BackgroundTransparency = 1
 	hudContainer.BorderSizePixel = 0
+	hudContainer.ZIndex = 100
 	hudContainer.Parent = screenGui
 
 	local hudBtn3D = create3DButton(
 		hudContainer,
 		UDim2.fromScale(1, 1),
-		UDim2.new(0, 0, 0, 0),
-		Vector2.new(0, 0),
-		Color3.fromRGB(46, 204, 113),
-		Color3.fromRGB(25, 125, 52),
+		UDim2.fromScale(0.5, 0.5),
+		Vector2.new(0.5, 0.5),
+		Color3.fromRGB(24, 24, 28),
+		Color3.fromRGB(4, 4, 6),
 		""
 	)
 
-	local hudChevron = createChevronIcon(hudBtn3D.button, 28)
-	hudChevron.Position = UDim2.new(0, 8, 0.5, -14)
-
 	local hudText = Instance.new("TextLabel")
 	hudText.Name = "Label"
-	hudText.Size = UDim2.new(1, -44, 1, 0)
-	hudText.Position = UDim2.new(0, 40, 0, 0)
+	hudText.Size = UDim2.fromScale(1, 1)
+	hudText.Position = UDim2.fromScale(0, 0)
 	hudText.BackgroundTransparency = 1
 	hudText.BorderSizePixel = 0
 	hudText.Font = Enum.Font.FredokaOne
 	hudText.Text = "UPGRADES"
-	hudText.TextSize = 18
+	hudText.TextSize = 16
 	hudText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hudText.TextXAlignment = Enum.TextXAlignment.Center
 	hudText.Parent = hudBtn3D.button
-	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 3.2, Enum.ApplyStrokeMode.Contextual)
+	UiIcons.decorateMenuButton(hudBtn3D.button, hudText, "upgrade")
 
 	-- Értesítési badge (szintén éles téglalap)
 	notifBadge = Instance.new("Frame")
 	notifBadge.Name = "NotifBadge"
-	notifBadge.Size = UDim2.fromOffset(22, 22)
-	notifBadge.Position = UDim2.new(1, -4, 0, -4)
+	notifBadge.Size = UDim2.fromOffset(16, 16)
+	notifBadge.Position = UDim2.new(1, -3, 0, 3)
+	notifBadge.AnchorPoint = Vector2.new(1, 0)
 	notifBadge.BackgroundColor3 = Color3.fromRGB(240, 50, 50)
 	notifBadge.BorderSizePixel = 0
 	notifBadge.Visible = false
 	notifBadge.ZIndex = 6
-	notifBadge.Parent = hudContainer
-	applyStroke(notifBadge, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
+	notifBadge.Parent = hudBtn3D.container
+	applyStroke(notifBadge, Color3.fromRGB(0, 0, 0), 1.75, Enum.ApplyStrokeMode.Border)
+
+	local notifBadgeGradient = Instance.new("UIGradient")
+	notifBadgeGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 75, 75)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(145, 18, 30)),
+	})
+	notifBadgeGradient.Rotation = 90
+	notifBadgeGradient.Parent = notifBadge
 
 	local notifText = Instance.new("TextLabel")
 	notifText.Size = UDim2.fromScale(1, 1)
 	notifText.BackgroundTransparency = 1
 	notifText.BorderSizePixel = 0
-	notifText.Font = Enum.Font.FredokaOne
+	notifText.FontFace = Font.new(
+		"rbxasset://fonts/families/Montserrat.json",
+		Enum.FontWeight.ExtraBold,
+		Enum.FontStyle.Normal
+	)
 	notifText.Text = "!"
-	notifText.TextSize = 15
+	notifText.TextSize = 14
 	notifText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	notifText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	notifText.TextStrokeTransparency = 0
+	notifText.TextXAlignment = Enum.TextXAlignment.Center
+	notifText.TextYAlignment = Enum.TextYAlignment.Center
 	notifText.Parent = notifBadge
+
+	local notifTextGradient = Instance.new("UIGradient")
+	notifTextGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(145, 145, 155)),
+	})
+	notifTextGradient.Rotation = 90
+	notifTextGradient.Parent = notifText
 
 	hudBtn3D.button.MouseButton1Click:Connect(function()
 		UpgradeController.toggle()
@@ -470,13 +520,11 @@ local function buildUI(screenGui)
 	modalOverlay.BorderSizePixel = 0
 	modalOverlay.Text = ""
 	modalOverlay.AutoButtonColor = false
+	modalOverlay.Active = false
+	modalOverlay.InputSink = Enum.InputSink.None
 	modalOverlay.Visible = false
 	modalOverlay.ZIndex = 10
 	modalOverlay.Parent = screenGui
-
-	modalOverlay.MouseButton1Click:Connect(function()
-		UpgradeController.close()
-	end)
 
 	-- Fő Ablak Doboz (ÉLES SAROK, VASTAG FEKETE KERET)
 	windowFrame = Instance.new("Frame")
@@ -485,6 +533,7 @@ local function buildUI(screenGui)
 	windowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 	windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	windowFrame.BackgroundColor3 = Color3.fromRGB(28, 22, 18) -- sötét háttér
+	windowFrame.BackgroundTransparency = 0.1
 	windowFrame.BorderSizePixel = 0
 	windowFrame.ZIndex = 11
 	windowFrame.Parent = modalOverlay
@@ -501,6 +550,8 @@ local function buildUI(screenGui)
 	windowBlocker.BackgroundTransparency = 1
 	windowBlocker.BorderSizePixel = 0
 	windowBlocker.Text = ""
+	windowBlocker.Active = false
+	windowBlocker.InputSink = Enum.InputSink.None
 	windowBlocker.Parent = windowFrame
 
 	-- ZÖLD FEJLÉC (Éles sarkok, vastag fekete alsó él és keret)
@@ -530,16 +581,11 @@ local function buildUI(screenGui)
 	headerDivider.ZIndex = 15
 	headerDivider.Parent = headerBar
 
-	-- Fejléc chevron ikon
-	local headerChevron = createChevronIcon(headerBar, 50)
-	headerChevron.Position = UDim2.new(0, 14, 0.5, -25)
-	headerChevron.ZIndex = 13
-
 	-- Fejléc Cím: "UPGRADES"
 	local headerTitle = Instance.new("TextLabel")
 	headerTitle.Name = "Title"
-	headerTitle.Size = UDim2.new(0, 250, 1, 0)
-	headerTitle.Position = UDim2.new(0, 72, 0, 0)
+	headerTitle.Size = UDim2.new(1, -84, 1, 0)
+	headerTitle.Position = UDim2.fromOffset(18, 0)
 	headerTitle.BackgroundTransparency = 1
 	headerTitle.BorderSizePixel = 0
 	headerTitle.Font = Enum.Font.FredokaOne
@@ -550,6 +596,15 @@ local function buildUI(screenGui)
 	headerTitle.ZIndex = 13
 	headerTitle.Parent = headerBar
 	applyStroke(headerTitle, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Contextual)
+
+	local headerTitleGradient = Instance.new("UIGradient")
+	headerTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	headerTitleGradient.Rotation = 90
+	headerTitleGradient.Parent = headerTitle
 
 	-- Piros Éles Bezáró Gomb ("X") a jobb oldalon
 	local closeBtn3D = create3DButton(
@@ -563,44 +618,22 @@ local function buildUI(screenGui)
 	)
 	closeBtn3D.container.ZIndex = 13
 	closeBtn3D.button.ZIndex = 14
-	closeBtn3D.button.TextSize = 28
+	closeBtn3D.setTextSize(28)
 	closeBtn3D.button.MouseButton1Click:Connect(function()
 		UpgradeController.close()
 	end)
 
-	-- Aktuális Cash kijelzés
-	local subHeader = Instance.new("Frame")
-	subHeader.Name = "SubHeader"
-	subHeader.Size = UDim2.new(1, -24, 0, 26)
-	subHeader.Position = UDim2.new(0, 12, 0, 76)
-	subHeader.BackgroundTransparency = 1
-	subHeader.BorderSizePixel = 0
-	subHeader.ZIndex = 12
-	subHeader.Parent = windowFrame
-
-	cashLabel = Instance.new("TextLabel")
-	cashLabel.Name = "CashLabel"
-	cashLabel.Size = UDim2.fromScale(1, 1)
-	cashLabel.BackgroundTransparency = 1
-	cashLabel.BorderSizePixel = 0
-	cashLabel.Font = Enum.Font.FredokaOne
-	cashLabel.Text = "Cash: $0"
-	cashLabel.TextSize = 20
-	cashLabel.TextColor3 = Color3.fromRGB(255, 215, 60)
-	cashLabel.TextXAlignment = Enum.TextXAlignment.Right
-	cashLabel.ZIndex = 12
-	cashLabel.Parent = subHeader
-	applyStroke(cashLabel, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
-
 	-- Kártyák Görgethető Listája (ScrollingFrame, éles sarkokkal)
 	local scrollFrame = Instance.new("ScrollingFrame")
 	scrollFrame.Name = "CardsList"
-	scrollFrame.Size = UDim2.new(1, -24, 1, -114)
-	scrollFrame.Position = UDim2.new(0, 12, 0, 106)
+	scrollFrame.Size = UDim2.new(1, -24, 1, -92)
+	scrollFrame.Position = UDim2.new(0, 12, 0, 84)
 	scrollFrame.BackgroundTransparency = 1
 	scrollFrame.BorderSizePixel = 0
 	scrollFrame.ScrollBarThickness = 7
 	scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(75, 62, 52)
+	scrollFrame.ScrollBarImageTransparency = 1
+	scrollFrame.VerticalScrollBarInset = Enum.ScrollBarInset.None
 	scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scrollFrame.ZIndex = 12
@@ -614,7 +647,7 @@ local function buildUI(screenGui)
 	local listPadding = Instance.new("UIPadding")
 	listPadding.PaddingTop = UDim.new(0, 4)
 	listPadding.PaddingBottom = UDim.new(0, 10)
-	listPadding.PaddingLeft = UDim.new(0, 2)
+	listPadding.PaddingLeft = UDim.new(0, 8)
 	listPadding.PaddingRight = UDim.new(0, 8)
 	listPadding.Parent = scrollFrame
 
@@ -628,8 +661,13 @@ end
 
 -- Inicializálás
 function UpgradeController.init(hud)
+	isPreview = hud ~= nil and hud.preview == true
+	MenuCoordinator.register(MENU_NAME, UpgradeController.close)
 	local screenGui = hud and hud.gui or player:WaitForChild("PlayerGui"):WaitForChild("SqueezeHud")
 	buildUI(screenGui)
+	if isPreview then
+		return
+	end
 
 	local remote = Net.get("DataChanged")
 	if remote then

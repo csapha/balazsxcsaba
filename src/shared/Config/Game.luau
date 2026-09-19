@@ -30,15 +30,14 @@ return {
 		PulseIn = 0.06, -- szorítás-pulzus be (mp)
 		PulseOut = 0.10, -- szorítás-pulzus ki (mp)
 		ScrubStart = 0.28, -- az animáció eleji "kézfelemelés" átugrása (itt kezdődik a zárás)
-		ScrubEnd = 0.98, -- az animáció vége (max szorítás)
+		ScrubEnd = 0.64, -- a tényleges kézzáró szakasz vége; utána az animáció már csak kitartja a pózt
 		ScrubSpeed = 14, -- milyen gyorsan simul rá a célpozícióra (1/mp); nagyobb = gyorsabb, simább
-		ScrubCurve = 2.2, -- a kattintás-haladás görbéje: >1 = lassan indul, a végére zár össze teljesen
 	},
 	-- cinematic kamera a szorításhoz
 	Cinematic = {
 		FOV = 60, -- szorítás közbeni látószög
 		TapFOV = 56, -- minden kattintásnál ennyire szűkül (punch)
-		StandDistance = 3.2, -- ilyen messze áll a karakter az asztaltól
+		StandDistance = 2.0, -- távolság a tárgy felületétől; az asztal szélén kívül tartja a karaktert
 		CameraDistance = 7, -- vízszintes eltolás (kicsi: felülről nézünk)
 		CameraHeight = 11, -- magasan, hogy felülről lássuk a jelenetet
 		LookHeight = 1.0, -- az asztal/tárgy szintjére néz

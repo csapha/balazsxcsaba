@@ -7,10 +7,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local RebirthConfig = require(Shared.Config.Rebirth)
 local Format = require(Shared.Format)
 local Net = require(Shared.Net)
+local UiIcons = require(Shared.UiIcons)
+local MenuCoordinator = require(script.Parent.MenuCoordinator)
 
 local player = Players.LocalPlayer
 
 local RebirthController = {}
+local MENU_NAME = "rebirth"
 
 -- Állapot
 local isModalOpen = false
@@ -37,6 +40,7 @@ local skinRewardLabel = nil
 local powerProgressFill = nil
 local powerProgressText = nil
 local actionBtn = nil
+local isPreview = false
 
 -- Segédfüggvény éles fekete UIStroke beállításhoz
 local function applyStroke(instance, color, thickness, mode)
@@ -48,6 +52,15 @@ local function applyStroke(instance, color, thickness, mode)
 	return stroke
 end
 
+-- Szín világosítása/sötétítése (factor > 1 világosít, < 1 sötétít)
+local function shadeColor(color, factor)
+	return Color3.new(
+		math.clamp(color.R * factor, 0, 1),
+		math.clamp(color.G * factor, 0, 1),
+		math.clamp(color.B * factor, 0, 1)
+	)
+end
+
 -- Éles 3D gomb készítése
 local function create3DButton(parent, size, position, anchorPoint, mainColor, shadowColor, text)
 	local shadowFrame = Instance.new("Frame")
@@ -55,7 +68,7 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	shadowFrame.Size = size
 	shadowFrame.Position = position
 	shadowFrame.AnchorPoint = anchorPoint or Vector2.new(0, 0)
-	shadowFrame.BackgroundColor3 = shadowColor or Color3.fromRGB(80, 20, 140)
+	shadowFrame.BackgroundColor3 = shadeColor(shadowColor or Color3.fromRGB(80, 20, 140), 0.7)
 	shadowFrame.BorderSizePixel = 0
 	shadowFrame.Parent = parent
 	applyStroke(shadowFrame, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
@@ -67,37 +80,74 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	topButton.BackgroundColor3 = mainColor or Color3.fromRGB(145, 45, 235)
 	topButton.BorderSizePixel = 0
 	topButton.AutoButtonColor = false
-	topButton.Font = Enum.Font.FredokaOne
-	topButton.Text = text or ""
-	topButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	topButton.TextSize = 20
+	topButton.Text = ""
 	topButton.Parent = shadowFrame
 	applyStroke(topButton, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
-	local defaultTopPos = UDim2.new(0, 0, 0, 0)
-	local pressedTopPos = UDim2.new(0, 0, 0, 4)
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Label"
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.Position = UDim2.fromScale(0, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.BorderSizePixel = 0
+	textLabel.Font = Enum.Font.FredokaOne
+	textLabel.Text = text or ""
+	textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textLabel.TextSize = 20
+	textLabel.Parent = topButton
+	applyStroke(textLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
+
+	local textGradient = Instance.new("UIGradient")
+	textGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	textGradient.Rotation = 90
+	textGradient.Parent = textLabel
+
+	local buttonGradient = Instance.new("UIGradient")
+	buttonGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, shadeColor(topButton.BackgroundColor3, 1.22)),
+		ColorSequenceKeypoint.new(1, topButton.BackgroundColor3),
+	})
+	buttonGradient.Rotation = 90
+	buttonGradient.Parent = topButton
+
+	local pressScale = Instance.new("UIScale")
+	pressScale.Parent = shadowFrame
+
+	local pressDown = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local pressRelease = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 	topButton.MouseButton1Down:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.05), { Position = pressedTopPos }):Play()
+		TweenService:Create(pressScale, pressDown, { Scale = 0.9 }):Play()
 	end)
 
 	topButton.MouseButton1Up:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	topButton.MouseLeave:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	return {
 		container = shadowFrame,
 		button = topButton,
 		setText = function(newText)
-			topButton.Text = newText
+			textLabel.Text = newText
+		end,
+		setTextSize = function(newSize)
+			textLabel.TextSize = newSize
 		end,
 		setColor = function(newMain, newShadow)
 			topButton.BackgroundColor3 = newMain
-			shadowFrame.BackgroundColor3 = newShadow
+			shadowFrame.BackgroundColor3 = shadeColor(newShadow, 0.7)
+			buttonGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, shadeColor(newMain, 1.22)),
+				ColorSequenceKeypoint.new(1, newMain),
+			})
 		end,
 	}
 end
@@ -129,7 +179,7 @@ local function refreshUI()
 	-- Következő kesztyű skin
 	if skinRewardLabel then
 		local nextSkin = RebirthConfig.getSkin(rebirths + 1)
-		skinRewardLabel.Text = string.format("Skin: %s %s", nextSkin.emoji, nextSkin.name)
+		skinRewardLabel.Text = string.format("Skin: %s", nextSkin.name)
 		skinRewardLabel.TextColor3 = nextSkin.color
 	end
 
@@ -159,6 +209,7 @@ function RebirthController.open()
 	if isModalOpen then
 		return
 	end
+	MenuCoordinator.opening(MENU_NAME)
 	isModalOpen = true
 	refreshUI()
 
@@ -166,7 +217,6 @@ function RebirthController.open()
 	modalOverlay.BackgroundTransparency = 1
 	windowScale.Scale = 0.8
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.18), { BackgroundTransparency = 0.5 }):Play()
 	local popTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -180,19 +230,19 @@ function RebirthController.close()
 		return
 	end
 	isModalOpen = false
+	MenuCoordinator.closed(MENU_NAME)
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 	local closeTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 		{ Scale = 0.8 }
 	)
 	closeTween:Play()
-	closeTween.Completed:Wait()
-
-	if not isModalOpen then
-		modalOverlay.Visible = false
-	end
+	closeTween.Completed:Connect(function()
+		if not isModalOpen then
+			modalOverlay.Visible = false
+		end
+	end)
 end
 
 function RebirthController.toggle()
@@ -208,68 +258,86 @@ local function buildUI(screenGui)
 	-- 1. HUD Rebirth Gomb (a CHESTS alatt a bal oldalon)
 	local hudWrapper = Instance.new("Frame")
 	hudWrapper.Name = "RebirthHudWrapper"
-	hudWrapper.Size = UDim2.fromOffset(148, 52)
-	hudWrapper.Position = UDim2.new(0, 20, 0.5, 32)
+	hudWrapper.Size = UDim2.fromOffset(76, 76)
+	hudWrapper.Position = UDim2.new(0, 20, 0.5, 43)
 	hudWrapper.AnchorPoint = Vector2.new(0, 0.5)
 	hudWrapper.BackgroundTransparency = 1
 	hudWrapper.BorderSizePixel = 0
+	hudWrapper.ZIndex = 100
 	hudWrapper.Parent = screenGui
 
 	local hudBtn3D = create3DButton(
 		hudWrapper,
 		UDim2.fromScale(1, 1),
-		UDim2.new(0, 0, 0, 0),
-		Vector2.new(0, 0),
-		Color3.fromRGB(155, 45, 235), -- Rebirth lila
-		Color3.fromRGB(90, 20, 145),
+		UDim2.fromScale(0.5, 0.5),
+		Vector2.new(0.5, 0.5),
+		Color3.fromRGB(24, 24, 28),
+		Color3.fromRGB(4, 4, 6),
 		""
 	)
 
-	local rebirthIcon = Instance.new("TextLabel")
-	rebirthIcon.Size = UDim2.fromOffset(36, 36)
-	rebirthIcon.Position = UDim2.new(0, 8, 0.5, -18)
-	rebirthIcon.BackgroundTransparency = 1
-	rebirthIcon.BorderSizePixel = 0
-	rebirthIcon.Font = Enum.Font.FredokaOne
-	rebirthIcon.Text = "🔄"
-	rebirthIcon.TextSize = 26
-	rebirthIcon.Parent = hudBtn3D.button
-
 	local hudText = Instance.new("TextLabel")
 	hudText.Name = "Label"
-	hudText.Size = UDim2.new(1, -44, 1, 0)
-	hudText.Position = UDim2.new(0, 40, 0, 0)
+	hudText.Size = UDim2.fromScale(1, 1)
+	hudText.Position = UDim2.fromScale(0, 0)
 	hudText.BackgroundTransparency = 1
 	hudText.BorderSizePixel = 0
 	hudText.Font = Enum.Font.FredokaOne
 	hudText.Text = "REBIRTH"
-	hudText.TextSize = 18
+	hudText.TextSize = 16
 	hudText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hudText.TextXAlignment = Enum.TextXAlignment.Center
 	hudText.Parent = hudBtn3D.button
-	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 3.2, Enum.ApplyStrokeMode.Contextual)
+	UiIcons.decorateMenuButton(hudBtn3D.button, hudText, "rebirth")
 
 	-- Értesítő badge ha a játékos elérte a rebirthhez szükséges erőt
 	notifBadge = Instance.new("Frame")
 	notifBadge.Name = "NotifBadge"
-	notifBadge.Size = UDim2.fromOffset(22, 22)
-	notifBadge.Position = UDim2.new(1, -4, 0, -4)
+	notifBadge.Size = UDim2.fromOffset(16, 16)
+	notifBadge.Position = UDim2.new(1, -3, 0, 3)
+	notifBadge.AnchorPoint = Vector2.new(1, 0)
 	notifBadge.BackgroundColor3 = Color3.fromRGB(50, 255, 60)
 	notifBadge.BorderSizePixel = 0
 	notifBadge.Visible = false
 	notifBadge.ZIndex = 6
-	notifBadge.Parent = hudWrapper
-	applyStroke(notifBadge, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
+	notifBadge.Parent = hudBtn3D.container
+	applyStroke(notifBadge, Color3.fromRGB(0, 0, 0), 1.75, Enum.ApplyStrokeMode.Border)
+
+	local notifBadgeGradient = Instance.new("UIGradient")
+	notifBadgeGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 255, 100)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 125, 45)),
+	})
+	notifBadgeGradient.Rotation = 90
+	notifBadgeGradient.Parent = notifBadge
 
 	local notifText = Instance.new("TextLabel")
 	notifText.Size = UDim2.fromScale(1, 1)
 	notifText.BackgroundTransparency = 1
 	notifText.BorderSizePixel = 0
-	notifText.Font = Enum.Font.FredokaOne
+	notifText.FontFace = Font.new(
+		"rbxasset://fonts/families/Montserrat.json",
+		Enum.FontWeight.ExtraBold,
+		Enum.FontStyle.Normal
+	)
 	notifText.Text = "!"
-	notifText.TextSize = 15
-	notifText.TextColor3 = Color3.fromRGB(0, 0, 0)
+	notifText.TextSize = 14
+	notifText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	notifText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	notifText.TextStrokeTransparency = 0
+	notifText.TextXAlignment = Enum.TextXAlignment.Center
+	notifText.TextYAlignment = Enum.TextYAlignment.Center
 	notifText.Parent = notifBadge
+
+	local notifTextGradient = Instance.new("UIGradient")
+	notifTextGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(145, 145, 155)),
+	})
+	notifTextGradient.Rotation = 90
+	notifTextGradient.Parent = notifText
 
 	hudBtn3D.button.MouseButton1Click:Connect(function()
 		RebirthController.toggle()
@@ -287,13 +355,11 @@ local function buildUI(screenGui)
 	modalOverlay.BorderSizePixel = 0
 	modalOverlay.Text = ""
 	modalOverlay.AutoButtonColor = false
+	modalOverlay.Active = false
+	modalOverlay.InputSink = Enum.InputSink.None
 	modalOverlay.Visible = false
 	modalOverlay.ZIndex = 20
 	modalOverlay.Parent = screenGui
-
-	modalOverlay.MouseButton1Click:Connect(function()
-		RebirthController.close()
-	end)
 
 	-- Fő Ablak (ÉLES SAROK, 4px FEKETE KERET)
 	windowFrame = Instance.new("Frame")
@@ -302,6 +368,7 @@ local function buildUI(screenGui)
 	windowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 	windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	windowFrame.BackgroundColor3 = Color3.fromRGB(24, 18, 28)
+	windowFrame.BackgroundTransparency = 0.1
 	windowFrame.BorderSizePixel = 0
 	windowFrame.ZIndex = 21
 	windowFrame.Parent = modalOverlay
@@ -316,6 +383,8 @@ local function buildUI(screenGui)
 	windowBlocker.BackgroundTransparency = 1
 	windowBlocker.BorderSizePixel = 0
 	windowBlocker.Text = ""
+	windowBlocker.Active = false
+	windowBlocker.InputSink = Enum.InputSink.None
 	windowBlocker.Parent = windowFrame
 
 	-- FEJLÉC (Mélylila / cián sáv)
@@ -343,21 +412,10 @@ local function buildUI(screenGui)
 	headerDiv.ZIndex = 23
 	headerDiv.Parent = headerBar
 
-	local headIcon = Instance.new("TextLabel")
-	headIcon.Size = UDim2.fromOffset(48, 48)
-	headIcon.Position = UDim2.new(0, 14, 0.5, -24)
-	headIcon.BackgroundTransparency = 1
-	headIcon.BorderSizePixel = 0
-	headIcon.Font = Enum.Font.FredokaOne
-	headIcon.Text = "🔄"
-	headIcon.TextSize = 36
-	headIcon.ZIndex = 23
-	headIcon.Parent = headerBar
-
 	local headerTitle = Instance.new("TextLabel")
 	headerTitle.Name = "Title"
-	headerTitle.Size = UDim2.new(0, 340, 1, 0)
-	headerTitle.Position = UDim2.new(0, 68, 0, 0)
+	headerTitle.Size = UDim2.new(1, -84, 1, 0)
+	headerTitle.Position = UDim2.fromOffset(18, 0)
 	headerTitle.BackgroundTransparency = 1
 	headerTitle.BorderSizePixel = 0
 	headerTitle.Font = Enum.Font.FredokaOne
@@ -368,6 +426,15 @@ local function buildUI(screenGui)
 	headerTitle.ZIndex = 23
 	headerTitle.Parent = headerBar
 	applyStroke(headerTitle, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Contextual)
+
+	local headerTitleGradient = Instance.new("UIGradient")
+	headerTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	headerTitleGradient.Rotation = 90
+	headerTitleGradient.Parent = headerTitle
 
 	local closeBtn3D = create3DButton(
 		headerBar,
@@ -380,7 +447,7 @@ local function buildUI(screenGui)
 	)
 	closeBtn3D.container.ZIndex = 23
 	closeBtn3D.button.ZIndex = 24
-	closeBtn3D.button.TextSize = 28
+	closeBtn3D.setTextSize(28)
 	closeBtn3D.button.MouseButton1Click:Connect(function()
 		RebirthController.close()
 	end)
@@ -547,7 +614,7 @@ local function buildUI(screenGui)
 	skinRewardLabel.Position = UDim2.fromOffset(12, 72)
 	skinRewardLabel.BackgroundTransparency = 1
 	skinRewardLabel.Font = Enum.Font.FredokaOne
-	skinRewardLabel.Text = "Skin: ✨ Golden Touch"
+	skinRewardLabel.Text = "Skin: Golden Touch"
 	skinRewardLabel.TextSize = 17
 	skinRewardLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 	skinRewardLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -555,26 +622,20 @@ local function buildUI(screenGui)
 	skinRewardLabel.Parent = reqCard
 	applyStroke(skinRewardLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
-	-- 3. Kártya: Figyelmeztetés (Mit resetel és mit tart meg)
-	local warnCard = Instance.new("Frame")
-	warnCard.Name = "WarnCard"
-	warnCard.Size = UDim2.new(1, 0, 0, 48)
-	warnCard.BackgroundColor3 = Color3.fromRGB(30, 16, 16)
-	warnCard.BorderSizePixel = 0
-	warnCard.LayoutOrder = 3
-	warnCard.ZIndex = 22
-	warnCard.Parent = content
-	applyStroke(warnCard, Color3.fromRGB(180, 50, 50), 2, Enum.ApplyStrokeMode.Border)
-
+	-- 3. Figyelmeztetés (csak piros szöveg, háttér és keret nélkül)
 	local warnText = Instance.new("TextLabel")
-	warnText.Size = UDim2.fromScale(1, 1)
+	warnText.Name = "WarnText"
+	warnText.Size = UDim2.new(1, 0, 0, 48)
 	warnText.BackgroundTransparency = 1
+	warnText.BorderSizePixel = 0
 	warnText.Font = Enum.Font.FredokaOne
-	warnText.Text = "⚠️ Resets: Power, Cash & Upgrades • Keeps: Gacha Materials & Multiplier"
+	warnText.Text = "Resets: Power, Cash & Upgrades | Keeps: Gacha Materials & Multiplier"
 	warnText.TextSize = 14
-	warnText.TextColor3 = Color3.fromRGB(255, 210, 210)
+	warnText.TextColor3 = Color3.fromRGB(235, 85, 85)
+	warnText.TextWrapped = true
 	warnText.ZIndex = 23
-	warnText.Parent = warnCard
+	warnText.LayoutOrder = 3
+	warnText.Parent = content
 	applyStroke(warnText, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
 	-- 4. Akció Gomb (REBIRTH NOW!)
@@ -588,17 +649,21 @@ local function buildUI(screenGui)
 	actionBtn = create3DButton(
 		btnHolder,
 		UDim2.new(1, 0, 1, 0),
-		UDim2.new(0, 0, 0, 0),
-		Vector2.new(0, 0),
+		UDim2.fromScale(0.5, 0.5),
+		Vector2.new(0.5, 0.5),
 		Color3.fromRGB(46, 204, 113),
 		Color3.fromRGB(25, 125, 52),
 		"REBIRTH NOW!"
 	)
 	actionBtn.container.ZIndex = 23
 	actionBtn.button.ZIndex = 24
-	actionBtn.button.TextSize = 24
+	actionBtn.setTextSize(24)
 
 	actionBtn.button.MouseButton1Click:Connect(function()
+		if isPreview then
+			return
+		end
+
 		local remote = Net.get("DoRebirth")
 		if remote then
 			remote:FireServer()
@@ -610,8 +675,13 @@ end
 
 -- Inicializálás
 function RebirthController.init(hud)
+	isPreview = hud ~= nil and hud.preview == true
+	MenuCoordinator.register(MENU_NAME, RebirthController.close)
 	local screenGui = hud and hud.gui or player:WaitForChild("PlayerGui"):WaitForChild("SqueezeHud")
 	buildUI(screenGui)
+	if isPreview then
+		return
+	end
 
 	local remote = Net.get("DataChanged")
 	if remote then

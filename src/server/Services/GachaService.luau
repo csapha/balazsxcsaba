@@ -115,12 +115,12 @@ function GachaService.init()
 			-- Különleges bejelentés ritka lelet esetén
 			if materialDef.rarity == "Secret" then
 				broadcast(
-					string.format("🌟 [SECRET] %s unboxed %s (x%.1f multiplier)!", player.DisplayName, materialDef.name, materialDef.multiplier),
+					string.format("[SECRET] %s unboxed %s (x%.1f multiplier)!", player.DisplayName, materialDef.name, materialDef.multiplier),
 					Color3.fromRGB(255, 20, 147)
 				)
 			elseif materialDef.rarity == "Legendary" then
 				broadcast(
-					string.format("⭐ [LEGENDARY] %s unboxed %s (x%.1f multiplier)!", player.DisplayName, materialDef.name, materialDef.multiplier),
+					string.format("[LEGENDARY] %s unboxed %s (x%.1f multiplier)!", player.DisplayName, materialDef.name, materialDef.multiplier),
 					Color3.fromRGB(255, 215, 0)
 				)
 			end

@@ -348,7 +348,7 @@ local function enterCinematic(payload)
 	-- a karakter az asztal elé áll (a tárgy méretéhez igazítva) és felé fordul
 	local flat = Vector3.new(objectPosition.X - root.Position.X, 0, objectPosition.Z - root.Position.Z)
 	local dir = flat.Magnitude > 0.01 and flat.Unit or Vector3.new(0, 0, 1)
-	local standDistance = objectSize * 0.5 + 1.2
+	local standDistance = objectSize * 0.5 + GameConfig.Cinematic.StandDistance
 	local stand = objectPosition - dir * standDistance
 	root.CFrame = CFrame.lookAt(
 		Vector3.new(stand.X, root.Position.Y, stand.Z),
@@ -460,21 +460,25 @@ function SqueezeController.tap()
 	if not session then
 		return
 	end
+	if session.progress >= session.needed then
+		return
+	end
 
 	local now = os.clock()
 	if now - session.lastTick < GameConfig.MinTapInterval then
 		return
 	end
 	session.lastTick = now
-	session.progress += 1
+	session.progress = math.min(session.progress + 1, session.needed)
 	tapPunch()
 	proceduralPulse()
 
-	-- kattintásonként egy kicsit zár össze (a haladás szerint)
+	-- Minden kattintás ugyanakkora, jól látható lépéssel zárja a kezeket.
+	-- Nagyobb erőnél a szerver kisebb `needed` értéket küld, ezért ugyanazt
+	-- a teljes kézzárást kevesebb kattintással éri el a játékos.
 	local cfg = GameConfig.SqueezeAnim
 	local squeezeRatio = math.clamp(session.progress / session.needed, 0, 1)
-	local eased = squeezeRatio ^ cfg.ScrubCurve
-	scrubTarget = cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * eased
+	scrubTarget = cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * squeezeRatio
 
 	if fill then
 		local ratio = math.clamp(session.progress / session.needed, 0, 1)

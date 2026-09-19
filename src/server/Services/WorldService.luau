@@ -77,7 +77,7 @@ local function makeBillboard(part, object)
 	title.TextSize = 18
 	title.TextColor3 = Color3.fromHex(object.color)
 	title.TextStrokeTransparency = 0.35
-	title.Text = object.name .. "  -  " .. Format.weight(object.weight)
+	title.Text = object.name .. "  (" .. Format.weight(object.weight) .. ")"
 	title.Parent = billboard
 
 	local status = Instance.new("TextLabel")

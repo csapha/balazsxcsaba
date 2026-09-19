@@ -8,10 +8,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ObjectsConfig = require(Shared.Config.Objects)
 local Format = require(Shared.Format)
 local Net = require(Shared.Net)
+local UiIcons = require(Shared.UiIcons)
+local MenuCoordinator = require(script.Parent.MenuCoordinator)
 
 local player = Players.LocalPlayer
 
 local TeleportController = {}
+local MENU_NAME = "teleport"
 
 -- State
 local isModalOpen = false
@@ -24,20 +27,8 @@ local windowFrame = nil
 local windowScale = nil
 local userPowerLabel = nil
 
--- Object emojis
-local OBJECT_EMOJIS = {
-	watermelon = "🍉",
-	coconut = "🥥",
-	tire = "🛞",
-	anvil = "🔨",
-	fridge = "🧊",
-	car = "🚗",
-	tank = "🎖️",
-	boulder = "🪨",
-}
-
--- References for dynamic updates
 local cardRefs = {}
+local isPreview = false
 
 -- Helper to apply sharp black retro stroke
 local function applyStroke(instance, color, thickness, mode)
@@ -49,6 +40,15 @@ local function applyStroke(instance, color, thickness, mode)
 	return stroke
 end
 
+-- Szín világosítása/sötétítése (factor > 1 világosít, < 1 sötétít)
+local function shadeColor(color, factor)
+	return Color3.new(
+		math.clamp(color.R * factor, 0, 1),
+		math.clamp(color.G * factor, 0, 1),
+		math.clamp(color.B * factor, 0, 1)
+	)
+end
+
 -- Sharp 3D Button component
 local function create3DButton(parent, size, position, anchorPoint, mainColor, shadowColor, text)
 	local shadowFrame = Instance.new("Frame")
@@ -56,7 +56,7 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	shadowFrame.Size = size
 	shadowFrame.Position = position
 	shadowFrame.AnchorPoint = anchorPoint or Vector2.new(0, 0)
-	shadowFrame.BackgroundColor3 = shadowColor or Color3.fromRGB(0, 115, 160)
+	shadowFrame.BackgroundColor3 = shadeColor(shadowColor or Color3.fromRGB(0, 115, 160), 0.7)
 	shadowFrame.BorderSizePixel = 0
 	shadowFrame.Parent = parent
 	applyStroke(shadowFrame, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
@@ -68,37 +68,77 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	topButton.BackgroundColor3 = mainColor or Color3.fromRGB(0, 185, 235)
 	topButton.BorderSizePixel = 0
 	topButton.AutoButtonColor = false
-	topButton.Font = Enum.Font.FredokaOne
-	topButton.Text = text or ""
-	topButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	topButton.TextSize = 18
+	topButton.Text = ""
 	topButton.Parent = shadowFrame
 	applyStroke(topButton, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
-	local defaultTopPos = UDim2.new(0, 0, 0, 0)
-	local pressedTopPos = UDim2.new(0, 0, 0, 4)
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Label"
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.Position = UDim2.fromScale(0, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.BorderSizePixel = 0
+	textLabel.Font = Enum.Font.FredokaOne
+	textLabel.Text = text or ""
+	textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textLabel.TextSize = 18
+	textLabel.Parent = topButton
+	applyStroke(textLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
+
+	local textGradient = Instance.new("UIGradient")
+	textGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	textGradient.Rotation = 90
+	textGradient.Parent = textLabel
+
+	local buttonGradient = Instance.new("UIGradient")
+	buttonGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, shadeColor(topButton.BackgroundColor3, 1.22)),
+		ColorSequenceKeypoint.new(1, topButton.BackgroundColor3),
+	})
+	buttonGradient.Rotation = 90
+	buttonGradient.Parent = topButton
+
+	local pressScale = Instance.new("UIScale")
+	pressScale.Parent = shadowFrame
+
+	local pressDown = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local pressRelease = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 	topButton.MouseButton1Down:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.05), { Position = pressedTopPos }):Play()
+		TweenService:Create(pressScale, pressDown, { Scale = 0.9 }):Play()
 	end)
 
 	topButton.MouseButton1Up:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	topButton.MouseLeave:Connect(function()
-		TweenService:Create(topButton, TweenInfo.new(0.06), { Position = defaultTopPos }):Play()
+		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
 	return {
 		container = shadowFrame,
 		button = topButton,
 		setText = function(newText)
-			topButton.Text = newText
+			textLabel.Text = newText
+		end,
+		setTextSize = function(newSize)
+			textLabel.TextSize = newSize
 		end,
 		setColor = function(newMain, newShadow)
 			topButton.BackgroundColor3 = newMain
-			shadowFrame.BackgroundColor3 = newShadow
+			shadowFrame.BackgroundColor3 = shadeColor(newShadow, 0.7)
+			buttonGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, shadeColor(newMain, 1.22)),
+				ColorSequenceKeypoint.new(1, newMain),
+			})
+		end,
+		setLabelColor = function(color)
+			textLabel.TextColor3 = color
 		end,
 	}
 end
@@ -118,23 +158,23 @@ local function refreshStatus()
 		local canAfford = currentPower >= cost
 
 		if isUnlocked then
-			statusLabel.Text = "Status: UNLOCKED ✅"
+			statusLabel.Text = "Status: UNLOCKED"
 			statusLabel.TextColor3 = Color3.fromRGB(120, 255, 140)
 			tpBtn.setText("TELEPORT")
 			tpBtn.setColor(Color3.fromRGB(0, 185, 235), Color3.fromRGB(0, 115, 160))
-			tpBtn.button.TextColor3 = Color3.fromRGB(255, 255, 255)
+			tpBtn.setLabelColor(Color3.fromRGB(255, 255, 255))
 		elseif canAfford then
-			statusLabel.Text = string.format("Price: %s Power • UNLOCK READY ⚡", Format.number(cost))
+			statusLabel.Text = string.format("Price: %s Power | UNLOCK READY", Format.number(cost))
 			statusLabel.TextColor3 = Color3.fromRGB(255, 215, 60)
 			tpBtn.setText("UNLOCK")
 			tpBtn.setColor(Color3.fromRGB(46, 204, 113), Color3.fromRGB(25, 125, 52))
-			tpBtn.button.TextColor3 = Color3.fromRGB(255, 255, 255)
+			tpBtn.setLabelColor(Color3.fromRGB(255, 255, 255))
 		else
-			statusLabel.Text = string.format("Req: %s Power • LOCKED 🔒", Format.number(cost))
+			statusLabel.Text = string.format("Req: %s Power | LOCKED", Format.number(cost))
 			statusLabel.TextColor3 = Color3.fromRGB(255, 130, 130)
 			tpBtn.setText("LOCKED")
 			tpBtn.setColor(Color3.fromRGB(60, 48, 55), Color3.fromRGB(36, 28, 32))
-			tpBtn.button.TextColor3 = Color3.fromRGB(180, 150, 155)
+			tpBtn.setLabelColor(Color3.fromRGB(180, 150, 155))
 		end
 	end
 end
@@ -144,6 +184,7 @@ function TeleportController.open()
 	if isModalOpen then
 		return
 	end
+	MenuCoordinator.opening(MENU_NAME)
 	isModalOpen = true
 	refreshStatus()
 
@@ -151,7 +192,6 @@ function TeleportController.open()
 	modalOverlay.BackgroundTransparency = 1
 	windowScale.Scale = 0.8
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.18), { BackgroundTransparency = 0.5 }):Play()
 	local popTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -165,19 +205,19 @@ function TeleportController.close()
 		return
 	end
 	isModalOpen = false
+	MenuCoordinator.closed(MENU_NAME)
 
-	TweenService:Create(modalOverlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
 	local closeTween = TweenService:Create(
 		windowScale,
 		TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 		{ Scale = 0.8 }
 	)
 	closeTween:Play()
-	closeTween.Completed:Wait()
-
-	if not isModalOpen then
-		modalOverlay.Visible = false
-	end
+	closeTween.Completed:Connect(function()
+		if not isModalOpen then
+			modalOverlay.Visible = false
+		end
+	end)
 end
 
 function TeleportController.toggle()
@@ -193,12 +233,22 @@ local function buildObjectCard(object, parent, layoutOrder)
 	local card = Instance.new("Frame")
 	card.Name = "Card_" .. object.id
 	card.Size = UDim2.new(1, 0, 0, 82)
-	card.BackgroundColor3 = Color3.fromRGB(26, 36, 48)
+	card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	card.BorderSizePixel = 0
 	card.LayoutOrder = layoutOrder
 	card.ZIndex = 22
 	card.Parent = parent
-	applyStroke(card, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
+
+	-- A fekete keret a külső frame maga; a színes kártya beljebb van,
+	-- így a scrollframe széle nem tudja levágni a keretet.
+	local inner = Instance.new("Frame")
+	inner.Name = "Inner"
+	inner.Size = UDim2.new(1, -7, 1, -7)
+	inner.Position = UDim2.fromOffset(3.5, 3.5)
+	inner.BackgroundColor3 = Color3.fromRGB(26, 36, 48)
+	inner.BorderSizePixel = 0
+	inner.ZIndex = 22
+	inner.Parent = card
 
 	-- Object icon frame
 	local iconFrame = Instance.new("Frame")
@@ -210,14 +260,15 @@ local function buildObjectCard(object, parent, layoutOrder)
 	iconFrame.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
 	iconFrame.BorderSizePixel = 0
 	iconFrame.ZIndex = 23
-	iconFrame.Parent = card
+	iconFrame.Parent = inner
 	applyStroke(iconFrame, objColor, 2.5, Enum.ApplyStrokeMode.Border)
 
 	local iconLabel = Instance.new("TextLabel")
 	iconLabel.Size = UDim2.fromScale(1, 1)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = OBJECT_EMOJIS[object.id] or "📦"
+	iconLabel.Text = "?"
+	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
 	iconLabel.TextSize = 34
 	iconLabel.ZIndex = 24
 	iconLabel.Parent = iconFrame
@@ -230,7 +281,7 @@ local function buildObjectCard(object, parent, layoutOrder)
 	infoContainer.BackgroundTransparency = 1
 	infoContainer.BorderSizePixel = 0
 	infoContainer.ZIndex = 23
-	infoContainer.Parent = card
+	infoContainer.Parent = inner
 
 	-- Object Name
 	local nameLabel = Instance.new("TextLabel")
@@ -279,7 +330,7 @@ local function buildObjectCard(object, parent, layoutOrder)
 
 	-- 3D Action Button (TELEPORT / UNLOCK / LOCKED)
 	local tpBtn = create3DButton(
-		card,
+		inner,
 		UDim2.fromOffset(116, 48),
 		UDim2.new(1, -12, 0.5, 0),
 		Vector2.new(1, 0.5),
@@ -289,7 +340,7 @@ local function buildObjectCard(object, parent, layoutOrder)
 	)
 	tpBtn.container.ZIndex = 23
 	tpBtn.button.ZIndex = 24
-	tpBtn.button.TextSize = 16
+	tpBtn.setTextSize(16)
 
 	cardRefs[object.id] = {
 		object = object,
@@ -298,6 +349,10 @@ local function buildObjectCard(object, parent, layoutOrder)
 	}
 
 	tpBtn.button.MouseButton1Click:Connect(function()
+		if isPreview then
+			return
+		end
+
 		local isUnlocked = (unlockedTeleports and unlockedTeleports[object.id] == true) or object.id == "watermelon"
 		if isUnlocked then
 			local remote = Net.get("TeleportToObject")
@@ -320,46 +375,38 @@ local function buildUI(screenGui)
 	-- 1. Left HUD Teleport Button (Stacked cleanly under REBIRTH)
 	local hudWrapper = Instance.new("Frame")
 	hudWrapper.Name = "TeleportHudWrapper"
-	hudWrapper.Size = UDim2.fromOffset(148, 52)
-	hudWrapper.Position = UDim2.new(0, 20, 0.5, 96)
+	hudWrapper.Size = UDim2.fromOffset(76, 76)
+	hudWrapper.Position = UDim2.new(0, 106, 0.5, 43)
 	hudWrapper.AnchorPoint = Vector2.new(0, 0.5)
 	hudWrapper.BackgroundTransparency = 1
 	hudWrapper.BorderSizePixel = 0
+	hudWrapper.ZIndex = 100
 	hudWrapper.Parent = screenGui
 
 	local hudBtn3D = create3DButton(
 		hudWrapper,
 		UDim2.fromScale(1, 1),
-		UDim2.new(0, 0, 0, 0),
-		Vector2.new(0, 0),
-		Color3.fromRGB(0, 185, 235), -- Vibrant Cyan
-		Color3.fromRGB(0, 115, 160),
+		UDim2.fromScale(0.5, 0.5),
+		Vector2.new(0.5, 0.5),
+		Color3.fromRGB(24, 24, 28),
+		Color3.fromRGB(4, 4, 6),
 		""
 	)
 
-	local teleportIcon = Instance.new("TextLabel")
-	teleportIcon.Size = UDim2.fromOffset(36, 36)
-	teleportIcon.Position = UDim2.new(0, 8, 0.5, -18)
-	teleportIcon.BackgroundTransparency = 1
-	teleportIcon.BorderSizePixel = 0
-	teleportIcon.Font = Enum.Font.FredokaOne
-	teleportIcon.Text = "🌀"
-	teleportIcon.TextSize = 26
-	teleportIcon.Parent = hudBtn3D.button
-
 	local hudText = Instance.new("TextLabel")
 	hudText.Name = "Label"
-	hudText.Size = UDim2.new(1, -44, 1, 0)
-	hudText.Position = UDim2.new(0, 40, 0, 0)
+	hudText.Size = UDim2.fromScale(1, 1)
+	hudText.Position = UDim2.fromScale(0, 0)
 	hudText.BackgroundTransparency = 1
 	hudText.BorderSizePixel = 0
 	hudText.Font = Enum.Font.FredokaOne
 	hudText.Text = "TELEPORT"
-	hudText.TextSize = 18
+	hudText.TextSize = 16
 	hudText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hudText.TextXAlignment = Enum.TextXAlignment.Center
 	hudText.Parent = hudBtn3D.button
-	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+	applyStroke(hudText, Color3.fromRGB(0, 0, 0), 3.2, Enum.ApplyStrokeMode.Contextual)
+	UiIcons.decorateMenuButton(hudBtn3D.button, hudText, "teleport")
 
 	hudBtn3D.button.MouseButton1Click:Connect(function()
 		TeleportController.toggle()
@@ -377,13 +424,11 @@ local function buildUI(screenGui)
 	modalOverlay.BorderSizePixel = 0
 	modalOverlay.Text = ""
 	modalOverlay.AutoButtonColor = false
+	modalOverlay.Active = false
+	modalOverlay.InputSink = Enum.InputSink.None
 	modalOverlay.Visible = false
 	modalOverlay.ZIndex = 20
 	modalOverlay.Parent = screenGui
-
-	modalOverlay.MouseButton1Click:Connect(function()
-		TeleportController.close()
-	end)
 
 	-- Main Window Frame (Sharp retro corners, thick black border)
 	windowFrame = Instance.new("Frame")
@@ -392,6 +437,7 @@ local function buildUI(screenGui)
 	windowFrame.Position = UDim2.fromScale(0.5, 0.5)
 	windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	windowFrame.BackgroundColor3 = Color3.fromRGB(20, 28, 38)
+	windowFrame.BackgroundTransparency = 0.1
 	windowFrame.BorderSizePixel = 0
 	windowFrame.ZIndex = 21
 	windowFrame.Parent = modalOverlay
@@ -412,19 +458,17 @@ local function buildUI(screenGui)
 	headerBar.Parent = windowFrame
 	applyStroke(headerBar, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
 
-	local headerIcon = Instance.new("TextLabel")
-	headerIcon.Size = UDim2.fromOffset(36, 36)
-	headerIcon.Position = UDim2.new(0, 12, 0.5, -18)
-	headerIcon.BackgroundTransparency = 1
-	headerIcon.Font = Enum.Font.FredokaOne
-	headerIcon.Text = "🌀"
-	headerIcon.TextSize = 28
-	headerIcon.ZIndex = 23
-	headerIcon.Parent = headerBar
+	local headerGradient = Instance.new("UIGradient")
+	headerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 185, 235)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 115, 160)),
+	})
+	headerGradient.Rotation = 90
+	headerGradient.Parent = headerBar
 
 	local headerTitle = Instance.new("TextLabel")
-	headerTitle.Size = UDim2.new(1, -120, 1, 0)
-	headerTitle.Position = UDim2.new(0, 52, 0, 0)
+	headerTitle.Size = UDim2.new(1, -84, 1, 0)
+	headerTitle.Position = UDim2.fromOffset(18, 0)
 	headerTitle.BackgroundTransparency = 1
 	headerTitle.Font = Enum.Font.FredokaOne
 	headerTitle.Text = "TELEPORT TO OBJECTS"
@@ -434,6 +478,15 @@ local function buildUI(screenGui)
 	headerTitle.ZIndex = 23
 	headerTitle.Parent = headerBar
 	applyStroke(headerTitle, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Contextual)
+
+	local headerTitleGradient = Instance.new("UIGradient")
+	headerTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	headerTitleGradient.Rotation = 90
+	headerTitleGradient.Parent = headerTitle
 
 	-- Red 3D Close Button
 	local closeBtn = create3DButton(
@@ -447,7 +500,7 @@ local function buildUI(screenGui)
 	)
 	closeBtn.container.ZIndex = 23
 	closeBtn.button.ZIndex = 24
-	closeBtn.button.TextSize = 22
+	closeBtn.setTextSize(22)
 	closeBtn.button.MouseButton1Click:Connect(function()
 		TeleportController.close()
 	end)
@@ -468,7 +521,7 @@ local function buildUI(screenGui)
 	subHintLabel.Position = UDim2.new(0, 10, 0, 0)
 	subHintLabel.BackgroundTransparency = 1
 	subHintLabel.Font = Enum.Font.FredokaOne
-	subHintLabel.Text = "⚡ Unlock areas with Power to teleport:"
+	subHintLabel.Text = "Unlock areas with Power to teleport:"
 	subHintLabel.TextSize = 14
 	subHintLabel.TextColor3 = Color3.fromRGB(210, 230, 250)
 	subHintLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -498,6 +551,8 @@ local function buildUI(screenGui)
 	scrollFrame.BorderSizePixel = 0
 	scrollFrame.ScrollBarThickness = 7
 	scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 140, 190)
+	scrollFrame.ScrollBarImageTransparency = 1
+	scrollFrame.VerticalScrollBarInset = Enum.ScrollBarInset.None
 	scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scrollFrame.ZIndex = 22
@@ -511,7 +566,7 @@ local function buildUI(screenGui)
 	local listPadding = Instance.new("UIPadding")
 	listPadding.PaddingTop = UDim.new(0, 4)
 	listPadding.PaddingBottom = UDim.new(0, 10)
-	listPadding.PaddingLeft = UDim.new(0, 2)
+	listPadding.PaddingLeft = UDim.new(0, 8)
 	listPadding.PaddingRight = UDim.new(0, 8)
 	listPadding.Parent = scrollFrame
 
@@ -525,8 +580,13 @@ end
 
 -- Initialize Controller
 function TeleportController.init(hud)
+	isPreview = hud ~= nil and hud.preview == true
+	MenuCoordinator.register(MENU_NAME, TeleportController.close)
 	local screenGui = hud and hud.gui or player:WaitForChild("PlayerGui"):WaitForChild("SqueezeHud")
 	buildUI(screenGui)
+	if isPreview then
+		return
+	end
 
 	local remote = Net.get("DataChanged")
 	if remote then
