@@ -26,7 +26,7 @@ local COLORS = GameConfig.Colors
 local SqueezeController = {}
 
 local session = nil -- { objectId, name, needed, progress, lastTick }
-local bar, fill, titleLabel, titleOutline, hintLabel
+local bar, fill, fillGradient, titleLabel, titleOutline, hintLabel
 
 -- cinematic állapot
 local cinematicActive = false
@@ -44,6 +44,14 @@ local function setVisible(visible)
 	if bar then
 		bar.Visible = visible
 	end
+end
+
+local function setFillColor(color)
+	fill.BackgroundColor3 = color
+	fillGradient.Color = ColorSequence.new(
+		color:Lerp(Color3.new(1, 1, 1), 0.25),
+		color:Lerp(Color3.new(0, 0, 0), 0.25)
+	)
 end
 
 local function buildBar(gui)
@@ -98,13 +106,20 @@ local function buildBar(gui)
 	hintLabel.BackgroundTransparency = 1
 	hintLabel.Font = Enum.Font.GothamBold
 	hintLabel.TextSize = 15
-	hintLabel.TextColor3 = COLORS.Gold
+	hintLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hintLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	hintLabel.TextStrokeTransparency = 0
 	hintLabel.TextXAlignment = Enum.TextXAlignment.Right
 	hintLabel.Text = "CLICK / TAP!"
 	hintLabel.Parent = bar
 	Ui.applyDisplay(hintLabel)
+	local hintGradient = Ui.applyTextGradient(hintLabel)
+	hintGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	hintGradient.Rotation = 90
 
 	local track = Instance.new("Frame")
 	track.Position = UDim2.fromOffset(12, 40)
@@ -117,9 +132,13 @@ local function buildBar(gui)
 	fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.fromScale(0, 1)
-	fill.BackgroundColor3 = COLORS.Accent
 	fill.BorderSizePixel = 0
 	fill.Parent = track
+
+	fillGradient = Instance.new("UIGradient")
+	fillGradient.Rotation = 90
+	fillGradient.Parent = fill
+	setFillColor(COLORS.Accent)
 
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.fromScale(1, 1)
@@ -460,32 +479,35 @@ function SqueezeController.tap()
 	if not session then
 		return
 	end
-	if session.progress >= session.needed then
-		return
-	end
 
 	local now = os.clock()
 	if now - session.lastTick < GameConfig.MinTapInterval then
 		return
 	end
 	session.lastTick = now
+
+	local wasFull = session.progress >= session.needed
 	session.progress = math.min(session.progress + 1, session.needed)
-	tapPunch()
-	proceduralPulse()
 
-	-- Minden kattintás ugyanakkora, jól látható lépéssel zárja a kezeket.
-	-- Nagyobb erőnél a szerver kisebb `needed` értéket küld, ezért ugyanazt
-	-- a teljes kézzárást kevesebb kattintással éri el a játékos.
-	local cfg = GameConfig.SqueezeAnim
-	local squeezeRatio = math.clamp(session.progress / session.needed, 0, 1)
-	scrubTarget = cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * squeezeRatio
+	if not wasFull then
+		tapPunch()
+		proceduralPulse()
 
-	if fill then
-		local ratio = math.clamp(session.progress / session.needed, 0, 1)
-		fill.Size = UDim2.fromScale(ratio, 1)
-		fill.BackgroundColor3 = ratio > 0.66 and COLORS.Good or COLORS.Accent
+		-- Minden kattintás ugyanakkora, jól látható lépéssel zárja a kezeket.
+		-- Nagyobb erőnél a szerver kisebb `needed` értéket küld, ezért ugyanazt
+		-- a teljes kézzárást kevesebb kattintással éri el a játékos.
+		local cfg = GameConfig.SqueezeAnim
+		local squeezeRatio = math.clamp(session.progress / session.needed, 0, 1)
+		scrubTarget = cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * squeezeRatio
+
+		if fill then
+			fill.Size = UDim2.fromScale(squeezeRatio, 1)
+			setFillColor(squeezeRatio > 0.66 and COLORS.Good or COLORS.Accent)
+		end
 	end
 
+	-- A tele csík után is tovább küldjük a tappeket: a szerver progressze
+	-- lassabban gyűlik (rate limit + fail decay), és a POP csak ott dől el.
 	local remote = Net.get("SqueezeTick")
 	if remote then
 		remote:FireServer()
@@ -498,19 +520,42 @@ local function onState(payload)
 	end
 
 	if payload.state == "start" then
-		session = {
+		local newSession = {
 			objectId = payload.objectId,
 			name = payload.name,
 			needed = math.max(payload.needed, 1),
 			progress = 0,
 			lastTick = 0,
 		}
+		session = newSession
 		titleLabel.Text = payload.name
 		titleOutline.Text = payload.name
 		fill.Size = UDim2.fromScale(0, 1)
-		fill.BackgroundColor3 = COLORS.Accent
+		setFillColor(COLORS.Accent)
 		setVisible(true)
 		enterCinematic(payload)
+
+		-- Vészfék: ha a csík megtelt és 3 mp-ig sem jön pop/fail, lépjünk ki,
+		-- ne ragadjon bent a játékos a cinematicben.
+		task.spawn(function()
+			while session == newSession and newSession.progress < newSession.needed do
+				task.wait(0.1)
+			end
+			if session ~= newSession then
+				return
+			end
+
+			local fullAt = os.clock()
+			while session == newSession and os.clock() - fullAt < 3 do
+				task.wait(0.1)
+			end
+			if session == newSession then
+				session = nil
+				scrubTarget = 0
+				exitCinematic()
+				setVisible(false)
+			end
+		end)
 	elseif payload.state == "pop" then
 		local object = Objects.byId[payload.objectId]
 		local color = object and Color3.fromHex(object.color) or COLORS.Good
@@ -541,7 +586,7 @@ local function onState(payload)
 			hintLabel.TextColor3 = COLORS.Bad
 			task.delay(0.6, function()
 				hintLabel.Text = "CLICK / TAP!"
-				hintLabel.TextColor3 = COLORS.Gold
+				hintLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 			end)
 		end
 		task.delay(0.35, function()

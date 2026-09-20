@@ -1,7 +1,8 @@
 -- Gacha konfiguráció: Ládák és Kesztyű-anyagok (Design Doc 4.5)
 local Gacha = {}
 
--- Kesztyű-anyagok (szorzók x1.1 - x25)
+-- Kesztyű-anyagok. A szűk x1.1-x3.0 sáv csökkenti a szerencse miatti
+-- progression-szakadékot, miközben a ritka rollok továbbra is érezhetőek.
 Gacha.materials = {
 	Rubber = {
 		id = "Rubber",
@@ -15,7 +16,7 @@ Gacha.materials = {
 	Iron = {
 		id = "Iron",
 		name = "Iron",
-		multiplier = 1.5,
+		multiplier = 1.2,
 		rarity = "Uncommon",
 		color = Color3.fromRGB(130, 170, 210),
 		emoji = "🛡️",
@@ -24,7 +25,7 @@ Gacha.materials = {
 	Titanium = {
 		id = "Titanium",
 		name = "Titanium",
-		multiplier = 2.5,
+		multiplier = 1.4,
 		rarity = "Rare",
 		color = Color3.fromRGB(70, 145, 245),
 		emoji = "⚔️",
@@ -33,7 +34,7 @@ Gacha.materials = {
 	Diamond = {
 		id = "Diamond",
 		name = "Diamond",
-		multiplier = 5.0,
+		multiplier = 1.7,
 		rarity = "Epic",
 		color = Color3.fromRGB(0, 230, 255),
 		emoji = "💎",
@@ -42,7 +43,7 @@ Gacha.materials = {
 	Star = {
 		id = "Star",
 		name = "Star",
-		multiplier = 10.0,
+		multiplier = 2.1,
 		rarity = "Legendary",
 		color = Color3.fromRGB(255, 215, 0),
 		emoji = "⭐",
@@ -51,7 +52,7 @@ Gacha.materials = {
 	Secret = {
 		id = "Secret",
 		name = "Secret Matter",
-		multiplier = 25.0,
+		multiplier = 3.0,
 		rarity = "Secret",
 		color = Color3.fromRGB(255, 20, 147),
 		emoji = "🌌",
@@ -59,8 +60,8 @@ Gacha.materials = {
 	},
 }
 
--- Pity küszöb (20 nyitás után garantált Epic+)
-Gacha.pityThreshold = 20
+-- Pity küszöb (25 nyitás után garantált Epic+)
+Gacha.pityThreshold = 25
 Gacha.pityPool = {
 	{ material = "Diamond", weight = 70 },
 	{ material = "Star", weight = 25 },

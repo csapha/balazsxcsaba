@@ -2,6 +2,13 @@
   "name": "Squeeze",
   "tree": {
     "$className": "DataModel",
+    "Lighting": {
+      "$className": "Lighting",
+      "$ignoreUnknownInstances": false,
+      "$properties": {
+        "Technology": "Future"
+      }
+    },
     "Workspace": {
       "$className": "Workspace",
       "$ignoreUnknownInstances": true

@@ -2,6 +2,7 @@
 -- Minden a szerveren dől el (távolság, gate, kattintás-ütem, progress).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
 local Objects = require(Shared.Config.Objects)
@@ -15,7 +16,79 @@ local SqueezeService = {}
 
 local sessions = {} -- [Player] = { objectId, progress, needed, lastTick }
 
+-- A tárgy vizuális modelljének "összenyomása": a Visual modell partjait
+-- a két kéz irányában keskenyítjük, a többi irányban kidudorítjuk.
+local function captureVisual(root)
+	local visual = root:FindFirstChild("Visual")
+	if not visual then
+		return nil
+	end
+
+	local pivot = visual:GetPivot()
+	local parts = {}
+	for _, p in ipairs(visual:GetDescendants()) do
+		if p:IsA("BasePart") then
+			table.insert(parts, {
+				part = p,
+				size = p.Size,
+				offset = pivot:ToObjectSpace(p.CFrame),
+			})
+		end
+	end
+	return { pivot = pivot, parts = parts, tweens = {} }
+end
+
+local function scaledPartSize(entry, scale)
+	-- The squash scale uses the visual pivot's axes. Detail parts may be
+	-- rotated, so calculate which local Size component points into each axis.
+	local rotation = entry.offset.Rotation
+	local function axisScale(axis)
+		return (axis * scale).Magnitude
+	end
+	return entry.size * Vector3.new(
+		axisScale(rotation.RightVector),
+		axisScale(rotation.UpVector),
+		axisScale(rotation.LookVector)
+	)
+end
+
+local function applySquash(visualData, scale, duration)
+	for _, tween in ipairs(visualData.tweens) do
+		tween:Cancel()
+	end
+	table.clear(visualData.tweens)
+
+	for _, entry in ipairs(visualData.parts) do
+		local p = entry.part
+		if p.Parent then
+			local goal = {
+				Size = scaledPartSize(entry, scale),
+				CFrame = visualData.pivot
+					* CFrame.new(entry.offset.Position * scale)
+					* entry.offset.Rotation,
+			}
+			if duration and duration > 0 then
+				local tween = TweenService:Create(
+					p,
+					TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					goal
+				)
+				table.insert(visualData.tweens, tween)
+				tween:Play()
+			else
+				p.Size = goal.Size
+				p.CFrame = goal.CFrame
+			end
+		end
+	end
+end
+
 local function endSession(player, objectId)
+	local session = sessions[player]
+	if session and session.visual then
+		applySquash(session.visual, Vector3.one, 0.12)
+	end
+
 	sessions[player] = nil
 	local entry = WorldService.getEntry(objectId)
 	if entry and entry.prompt and entry.part and entry.part:GetAttribute("Active") ~= false then
@@ -58,7 +131,7 @@ local function startSqueeze(player, part)
 	end
 
 	local data = PlayerData.get(player)
-	local gate = object.weight * object.gateRatio
+	local gate = Objects.getRequiredPower(object)
 	if data.power < gate then
 		notify(player, ("Need %s Power to squeeze %s"):format(Format.number(gate), object.name),
 			Color3.fromRGB(255, 212, 71))
@@ -72,6 +145,7 @@ local function startSqueeze(player, part)
 		needed = needed,
 		lastTick = os.clock(),
 		started = false,
+		visual = captureVisual(part),
 	}
 
 	-- a prompt ne lógjon bele a cinematic jelenetbe
@@ -79,8 +153,6 @@ local function startSqueeze(player, part)
 	if entry and entry.prompt then
 		entry.prompt.Enabled = false
 	end
-
-	WorldService.setStatus(objectId, "SQUEEZING...", Color3.fromRGB(116, 210, 250))
 
 	local remote = Net.get("SqueezeState")
 	if remote then
@@ -122,16 +194,26 @@ local function tick(player)
 	session.started = true
 	session.progress += 1
 
+	-- Látható összenyomódás: a kezek között keskenyedik és kidudorodik.
+	if session.visual then
+		local t = math.clamp(session.progress / session.needed, 0, 1)
+		local flat = 1 - 0.42 * t
+		local verticalBulge = 1 + 0.18 * t
+		local depthBulge = 1 + 0.12 * t
+		applySquash(session.visual, Vector3.new(flat, verticalBulge, depthBulge), 0.075)
+	end
+
 	if session.progress < session.needed then
 		return
 	end
 
 	-- POP
-	local handsMulti = PlayerData.getHands(player).multiplier
-	local reward = math.floor(object.weight * GameConfig.CashPerWeight * handsMulti)
+	local hands = PlayerData.getHands(player)
+	local cashMultiplier = hands.cashMultiplier or 1
+	local reward = math.floor(Objects.getCashReward(object) * cashMultiplier)
 
 	PlayerData.addCash(player, reward)
-	PlayerData.registerPop(player, object.weight)
+	PlayerData.registerPop(player, object.id, object.weight)
 	PlayerData.sync(player)
 
 	WorldService.popObject(session.objectId)
@@ -171,7 +253,8 @@ function SqueezeService.init()
 			task.wait(1)
 			for player, session in pairs(sessions) do
 				if not player.Parent then
-					sessions[player] = nil
+					endSession(player, session.objectId)
+					WorldService.setStatus(session.objectId, "")
 					continue
 				end
 
@@ -191,12 +274,22 @@ function SqueezeService.init()
 				local idle = os.clock() - session.lastTick
 
 				if session.progress > 0 then
-					-- már elkezdte: fogy a progress, 0-nál megszakad
-					session.progress -= GameConfig.FailDecay
-					if session.progress <= 0 then
-						endSession(player, session.objectId)
-						Net.get("SqueezeState"):FireClient(player, { state = "fail" })
-						WorldService.setStatus(session.objectId, "")
+					-- csak akkor fogy a progress, ha tényleg nem kattint
+					if idle > 0.35 then
+						session.progress -= GameConfig.FailDecay
+						if session.progress > 0 and session.visual then
+							local t = math.clamp(session.progress / session.needed, 0, 1)
+							applySquash(session.visual, Vector3.new(
+								1 - 0.42 * t,
+								1 + 0.18 * t,
+								1 + 0.12 * t
+							), 0.15)
+						end
+						if session.progress <= 0 then
+							endSession(player, session.objectId)
+							Net.get("SqueezeState"):FireClient(player, { state = "fail" })
+							WorldService.setStatus(session.objectId, "")
+						end
 					end
 				elseif idle > GameConfig.StartGrace then
 					-- el sem kezdte kattintani: türelmi idő után lezárjuk

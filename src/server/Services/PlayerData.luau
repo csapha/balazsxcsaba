@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local DailyRewards = require(Shared.Config.DailyRewards)
 local Gacha = require(Shared.Config.Gacha)
@@ -19,11 +20,12 @@ local cache = {} -- [Player] = data
 local function defaultData()
 	return {
 		version = 1,
+		-- Teszteléshez feltöltött kezdő készpénz (Persistence = false, session-only).
 		power = 0,
-		cash = 0,
+		cash = 1000000000000,
 		hands = Upgrades.defaultHands,
 		training = Upgrades.defaultTraining,
-		petSlots = Upgrades.defaultPetSlots,
+		move = Upgrades.defaultMove,
 		speed = Upgrades.defaultSpeed,
 		dailyStreak = 0, -- eddig átvett napok száma (0..7)
 		lastDailyClaim = 0,
@@ -33,6 +35,7 @@ local function defaultData()
 		rebirths = 0,
 		activeSkin = "Skin_Default",
 		unlockedTeleports = { watermelon = true },
+		squeezedObjects = {},
 		stats = { taps = 0, pops = 0, bestWeight = 0 },
 	}
 end
@@ -45,8 +48,8 @@ local function trainingEntry(data)
 	return Upgrades.trainingById[data.training] or Upgrades.trainingById[Upgrades.defaultTraining]
 end
 
-local function petSlotsEntry(data)
-	return Upgrades.petSlotsById[data.petSlots] or Upgrades.petSlotsById[Upgrades.defaultPetSlots]
+local function moveEntry(data)
+	return Upgrades.movesById[data.move] or Upgrades.movesById[Upgrades.defaultMove]
 end
 
 local function speedEntry(data)
@@ -83,9 +86,9 @@ function PlayerData.getTraining(player)
 	return data and trainingEntry(data) or nil
 end
 
-function PlayerData.getPetSlots(player)
+function PlayerData.getMove(player)
 	local data = cache[player]
-	return data and petSlotsEntry(data) or nil
+	return data and moveEntry(data) or nil
 end
 
 function PlayerData.getSpeed(player)
@@ -200,12 +203,16 @@ function PlayerData.unlockTeleport(player, objectId)
 	if not object then
 		return false, "Invalid object"
 	end
+	local previousObject = Objects.list[object.index - 1]
+	if previousObject and not (data.squeezedObjects and data.squeezedObjects[previousObject.id]) then
+		return false, string.format("Squeeze %s first!", previousObject.name)
+	end
 	local cost = Objects.getUnlockCost(object)
 	if data.power < cost then
 		return false, string.format("Need %s Power to unlock %s!", Format.number(cost), object.name)
 	end
 
-	data.power -= cost
+	-- Unlocking does not spend Power: the requirement is just a threshold.
 	data.unlockedTeleports = data.unlockedTeleports or { watermelon = true }
 	data.unlockedTeleports[objectId] = true
 
@@ -229,8 +236,10 @@ function PlayerData.doRebirth(player)
 	data.cash = 0
 	data.hands = Upgrades.defaultHands
 	data.training = Upgrades.defaultTraining
+	data.move = Upgrades.defaultMove
 	data.speed = Upgrades.defaultSpeed
 	data.unlockedTeleports = { watermelon = true }
+	data.squeezedObjects = {}
 	applyWalkSpeed(player)
 
 	data.rebirths = (data.rebirths or 0) + 1
@@ -256,7 +265,12 @@ function PlayerData.getTapGain(player)
 	if not data then
 		return 0
 	end
-	return 1.5 * handsEntry(data).multiplier * trainingEntry(data).tapBonus * materialMultiplier(data) * rebirthMultiplier(data)
+	local multiplier = handsEntry(data).multiplier
+		* trainingEntry(data).tapBonus
+		* moveEntry(data).tapBonus
+		* materialMultiplier(data)
+		* rebirthMultiplier(data)
+	return GameConfig.TrainTapGain * multiplier
 end
 
 function PlayerData.snapshot(player)
@@ -270,10 +284,10 @@ function PlayerData.snapshot(player)
 		cash = data.cash,
 		hands = data.hands,
 		training = data.training,
-		petSlots = data.petSlots,
+		move = data.move,
 		speed = data.speed,
 		walkSpeed = speedEntry(data).speed,
-		petSlotsCount = petSlotsEntry(data).slots,
+		moveTapBonus = moveEntry(data).tapBonus,
 		handsMultiplier = handsEntry(data).multiplier,
 		equippedMaterial = data.equippedMaterial,
 		materialMultiplier = materialMultiplier(data),
@@ -290,6 +304,7 @@ function PlayerData.snapshot(player)
 		lastDailyClaim = data.lastDailyClaim or 0,
 		canClaimDaily = os.time() - (data.lastDailyClaim or 0) >= DailyRewards.cooldown,
 		unlockedTeleports = data.unlockedTeleports or { watermelon = true },
+		squeezedObjects = data.squeezedObjects or {},
 		stats = {
 			taps = data.stats.taps,
 			pops = data.stats.pops,
@@ -340,11 +355,11 @@ function PlayerData.claimDaily(player)
 		end
 	elseif rewardDef.rewardType == "jackpot" then
 		PlayerData.addCash(player, rewardDef.amount)
-		local currentSlotsEntry = petSlotsEntry(data)
-		local currentOrder = currentSlotsEntry and currentSlotsEntry.order or 1
-		local nextSlots = Upgrades.petSlotsByOrder[currentOrder + 1]
-		if nextSlots then
-			PlayerData.setPetSlots(player, nextSlots.id)
+		local currentMoveEntry = moveEntry(data)
+		local currentOrder = currentMoveEntry and currentMoveEntry.order or 1
+		local nextMove = Upgrades.movesByOrder[currentOrder + 1]
+		if nextMove then
+			PlayerData.setMove(player, nextMove.id)
 		end
 	end
 
@@ -416,11 +431,13 @@ function PlayerData.registerTap(player)
 	end
 end
 
-function PlayerData.registerPop(player, weight)
+function PlayerData.registerPop(player, objectId, weight)
 	local data = cache[player]
 	if not data then
 		return
 	end
+	data.squeezedObjects = data.squeezedObjects or {}
+	data.squeezedObjects[objectId] = true
 	data.stats.pops += 1
 	if weight > data.stats.bestWeight then
 		data.stats.bestWeight = weight
@@ -445,12 +462,12 @@ function PlayerData.setTraining(player, id)
 	PlayerData.sync(player)
 end
 
-function PlayerData.setPetSlots(player, id)
+function PlayerData.setMove(player, id)
 	local data = cache[player]
 	if not data then
 		return
 	end
-	data.petSlots = id
+	data.move = id
 	PlayerData.sync(player)
 end
 

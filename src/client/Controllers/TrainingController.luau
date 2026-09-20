@@ -9,6 +9,7 @@ local ContentProvider = game:GetService("ContentProvider")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
+local UpgradesConfig = require(Shared.Config.Upgrades)
 local Net = require(Shared.Net)
 
 local EffectsController = require(script.Parent.EffectsController)
@@ -22,17 +23,33 @@ local trainSession = 0
 local squatTrack = nil
 local squatTrackAnimator = nil
 local squatAnimation = nil
+local squatAnimationId = nil
 local tapGain = 0
+local currentMoveId = UpgradesConfig.defaultMove
+local currentWalkSpeed = UpgradesConfig.speedById[UpgradesConfig.defaultSpeed].speed
 
 local function getAnimator(character)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	return humanoid and humanoid:FindFirstChildOfClass("Animator")
 end
 
+-- Az edzés-animáció mindig a felszerelt mozdulatból jön (Squat -> Situp -> ...).
+local function moveAnimationId()
+	local move = UpgradesConfig.movesById[currentMoveId]
+	return move and move.animationId or GameConfig.SquatAnimationId
+end
+
 local function getSquatAnimation()
-	if not squatAnimation and GameConfig.SquatAnimationId ~= "" then
+	local animationId = moveAnimationId()
+	if squatAnimation and squatAnimationId ~= animationId then
+		squatAnimation = nil
+		squatTrack = nil
+		squatTrackAnimator = nil
+	end
+	if not squatAnimation and animationId ~= "" then
 		squatAnimation = Instance.new("Animation")
-		squatAnimation.AnimationId = GameConfig.SquatAnimationId
+		squatAnimation.AnimationId = animationId
+		squatAnimationId = animationId
 	end
 	return squatAnimation
 end
@@ -90,7 +107,7 @@ local function warmSquatAnimation(character)
 end
 
 local function startSquatAnimation(character)
-	if GameConfig.SquatAnimationId == "" then
+	if moveAnimationId() == "" then
 		return false
 	end
 
@@ -160,7 +177,7 @@ local function setMovement(character, enabled)
 		return
 	end
 	if enabled then
-		humanoid.WalkSpeed = 16
+		humanoid.WalkSpeed = currentWalkSpeed
 		humanoid.JumpPower = 50
 		humanoid.JumpHeight = 7.2
 	else
@@ -243,8 +260,25 @@ function TrainingController.init()
 	local remote = Net.get("DataChanged")
 	if remote then
 		remote.OnClientEvent:Connect(function(snapshot)
-			if snapshot then
-				tapGain = snapshot.tapGain or 0
+			if not snapshot then
+				return
+			end
+			tapGain = snapshot.tapGain or 0
+			currentWalkSpeed = tonumber(snapshot.walkSpeed) or currentWalkSpeed
+
+			-- Ha új edzés-mozdulatot vettél, azonnal cseréljük az animációt.
+			if type(snapshot.move) == "string" and snapshot.move ~= currentMoveId then
+				currentMoveId = snapshot.move
+				if training then
+					local character = player.Character
+					stopSquatAnimation()
+					squatAnimation = nil
+					squatTrack = nil
+					squatTrackAnimator = nil
+					if character and not startSquatAnimation(character) then
+						fallbackPulse(character)
+					end
+				end
 			end
 		end)
 	end

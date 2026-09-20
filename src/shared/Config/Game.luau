@@ -3,9 +3,9 @@ return {
 	Persistence = false, -- session-only egyelőre
 
 	-- edzés
-	TrainTapGain = 1.5, -- ennyi Erő jár egy guggolásért (hand szorzóval)
-	TrainCycle = 1.4, -- automatikus edzés: ennyi mp-enként egy guggolás
-	TrainTapMinInterval = 0.6, -- szerver limit: ennél sűrűbben nem ad Erőt
+	TrainTapGain = 0.8, -- ennyi Erő jár egy guggolásért (hand szorzóval)
+	TrainCycle = 2.4, -- automatikus edzés: ennyi mp-enként egy guggolás
+	TrainTapMinInterval = 2.1, -- kis hálózati tolerancia a 2.4 mp-es kliens ciklushoz
 	PassiveTick = 1, -- passzív Erő ennyi másodpercenként adódik
 
 	-- edzés animációk
@@ -51,22 +51,19 @@ return {
 
 	-- szorítás (minigame)
 	SqueezeRange = 14, -- ezen belül lehet szorítani
-	TapRateLimit = 22, -- max szorítás-kattintás / mp
-	MinTapInterval = 0.045, -- ennyi mp kell két kattintás között (szerver limit)
-	BaseClicks = 3, -- ennyi kattintás kell, ha már erős vagy hozzá (Erő = súly)
-	MaxClicks = 10, -- a leggyengébb állapotban (épp a gate-en) ennyi kell
-	FailDecay = 0.8, -- mp-enként ennyi progresszor vész el, ha nem kattintasz
-	StartGrace = 2.5, -- ennyi mp türelmi idő van az első kattintásig
+	TapRateLimit = 10, -- max szorítás-kattintás / mp
+	MinTapInterval = 0.1, -- ennyi mp kell két kattintás között (szerver limit)
+	BaseClicks = 5, -- ennyi kattintás kell jelentős túlerőnél
+	MaxClicks = 18, -- ennyi kell, amikor a játékos épp eléri a Power gate-et
+	FailDecay = 1.5, -- mp-enként ennyi progress vész el, ha nem kattintasz
+	StartGrace = 1.5, -- ennyi mp türelmi idő van az első kattintásig
 	RespawnTime = 5, -- objektum újra megjelenik ennyi mp után
-
-	-- gazdaság
-	CashPerWeight = 2, -- cash = suly * ez * handMulti
 
 	-- világ
 	MapName = "SqueezeMap",
 	TrainingPadName = "TrainingPad",
 	ObjectFolderName = "Objects",
-	ObjectSpacing = 22, -- stud, az objektumok távolsága a sorból
+	ObjectSpacing = 128, -- stud; each object has its own themed landscape section
 
 	Colors = {
 		Panel = Color3.fromRGB(24, 27, 43),

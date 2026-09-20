@@ -2,6 +2,7 @@
 local Services = script:WaitForChild("Services")
 
 local ClientSync = require(Services:WaitForChild("ClientSync"))
+local LightingService = require(Services:WaitForChild("LightingService"))
 local WorldService = require(Services:WaitForChild("WorldService"))
 local TrainingService = require(Services:WaitForChild("TrainingService"))
 local SqueezeService = require(Services:WaitForChild("SqueezeService"))
@@ -10,6 +11,7 @@ local GachaService = require(Services:WaitForChild("GachaService"))
 local RebirthService = require(Services:WaitForChild("RebirthService"))
 
 -- init sorrend: adat -> világ -> logika
+LightingService.init()
 ClientSync.init()
 WorldService.build()
 TrainingService.init()

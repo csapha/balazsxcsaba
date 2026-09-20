@@ -22,7 +22,7 @@ local currentData = {
 	cash = 0,
 	hands = UpgradesConfig.defaultHands,
 	training = UpgradesConfig.defaultTraining,
-	petSlots = UpgradesConfig.defaultPetSlots,
+	move = UpgradesConfig.defaultMove,
 	speed = UpgradesConfig.defaultSpeed,
 }
 
@@ -333,6 +333,7 @@ local function buildCard(category, container, layoutOrder)
 	local lineLayout = Instance.new("UIListLayout")
 	lineLayout.FillDirection = Enum.FillDirection.Horizontal
 	lineLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	lineLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	lineLayout.Padding = UDim.new(0, 10)
 	lineLayout.Parent = statLine
 
@@ -343,10 +344,11 @@ local function buildCard(category, container, layoutOrder)
 	curValLabel.BorderSizePixel = 0
 	curValLabel.Font = Enum.Font.FredokaOne
 	curValLabel.Text = "20"
-	curValLabel.TextSize = 30
+	curValLabel.TextSize = 24
 	curValLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	curValLabel.AutomaticSize = Enum.AutomaticSize.X
 	curValLabel.Size = UDim2.fromOffset(0, 32)
+	curValLabel.LayoutOrder = 1
 	curValLabel.Parent = statLine
 	applyStroke(curValLabel, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Contextual)
 
@@ -357,10 +359,11 @@ local function buildCard(category, container, layoutOrder)
 	arrowLabel.BorderSizePixel = 0
 	arrowLabel.Font = Enum.Font.FredokaOne
 	arrowLabel.Text = "▶"
-	arrowLabel.TextSize = 24
+	arrowLabel.TextSize = 20
 	arrowLabel.TextColor3 = Color3.fromRGB(135, 215, 255)
 	arrowLabel.AutomaticSize = Enum.AutomaticSize.X
 	arrowLabel.Size = UDim2.fromOffset(0, 32)
+	arrowLabel.LayoutOrder = 2
 	arrowLabel.Parent = statLine
 	applyStroke(arrowLabel, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Contextual)
 
@@ -371,10 +374,11 @@ local function buildCard(category, container, layoutOrder)
 	nextValLabel.BorderSizePixel = 0
 	nextValLabel.Font = Enum.Font.FredokaOne
 	nextValLabel.Text = "20"
-	nextValLabel.TextSize = 30
+	nextValLabel.TextSize = 24
 	nextValLabel.TextColor3 = Color3.fromRGB(50, 255, 60)
 	nextValLabel.AutomaticSize = Enum.AutomaticSize.X
 	nextValLabel.Size = UDim2.fromOffset(0, 32)
+	nextValLabel.LayoutOrder = 3
 	nextValLabel.Parent = statLine
 	applyStroke(nextValLabel, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Contextual)
 
@@ -676,7 +680,7 @@ function UpgradeController.init(hud)
 				currentData.cash = snapshot.cash or currentData.cash
 				currentData.hands = snapshot.hands or currentData.hands
 				currentData.training = snapshot.training or currentData.training
-				currentData.petSlots = snapshot.petSlots or currentData.petSlots
+				currentData.move = snapshot.move or currentData.move
 				currentData.speed = snapshot.speed or currentData.speed
 				refreshAll()
 			end

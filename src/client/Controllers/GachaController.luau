@@ -162,7 +162,7 @@ local function refreshHeaderInfo()
 	if pityLabel then
 		local pity = currentData.pityCount or 0
 		pityLabel.Text = string.format("Pity: %d/%d (Epic+ at %d)", pity, GachaConfig.pityThreshold, GachaConfig.pityThreshold)
-		if pity >= 15 then
+		if pity >= math.ceil(GachaConfig.pityThreshold * 0.75) then
 			pityLabel.TextColor3 = Color3.fromRGB(255, 215, 60)
 		else
 			pityLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
@@ -648,7 +648,7 @@ local function buildUI(screenGui)
 	pityLabel.BackgroundTransparency = 1
 	pityLabel.BorderSizePixel = 0
 	pityLabel.Font = Enum.Font.FredokaOne
-	pityLabel.Text = "Pity: 0/20"
+	pityLabel.Text = string.format("Pity: 0/%d", GachaConfig.pityThreshold)
 	pityLabel.TextSize = 17
 	pityLabel.TextColor3 = Color3.fromRGB(255, 215, 60)
 	pityLabel.TextXAlignment = Enum.TextXAlignment.Right

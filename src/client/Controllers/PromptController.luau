@@ -11,6 +11,7 @@
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -21,6 +22,11 @@ local player = Players.LocalPlayer
 local PromptController = {}
 
 local COLOR_TITLE = Color3.fromRGB(170, 174, 184)
+local MONTSERRAT_BOLD = Font.new(
+	"rbxasset://fonts/families/Montserrat.json",
+	Enum.FontWeight.Bold,
+	Enum.FontStyle.Normal
+)
 
 local billboard, scaleFrame, scale, panel, badgeLabel, titleLabel, actionLabel, actionOutline
 local fadeEntries = {}
@@ -28,12 +34,109 @@ local alphaTweens = {}
 local currentPrompt = nil
 local isShown = false
 local scaleTween, fadeToken = nil, nil
+local infoBillboards = {}
+
+local function setInfoShown(entry, shown)
+	if entry.shown == shown then
+		return
+	end
+	entry.shown = shown
+
+	if entry.scaleTween then
+		entry.scaleTween:Cancel()
+	end
+	if entry.fadeTween then
+		entry.fadeTween:Cancel()
+	end
+
+	if shown then
+		entry.billboard.Enabled = true
+		entry.scale.Scale = 0.7
+		entry.group.GroupTransparency = 1
+		entry.scaleTween = TweenService:Create(
+			entry.scale,
+			TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		)
+		entry.fadeTween = TweenService:Create(
+			entry.group,
+			TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ GroupTransparency = 0 }
+		)
+		entry.scaleTween:Play()
+		entry.fadeTween:Play()
+	else
+		entry.scaleTween = TweenService:Create(
+			entry.scale,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Scale = 0.85 }
+		)
+		entry.fadeTween = TweenService:Create(
+			entry.group,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ GroupTransparency = 1 }
+		)
+		entry.scaleTween:Play()
+		entry.fadeTween:Play()
+		local infoBillboard = entry.billboard
+		task.delay(0.2, function()
+			if infoBillboard.Parent and not entry.shown then
+				infoBillboard.Enabled = false
+			end
+		end)
+	end
+end
+
+local function registerInfoBillboard(candidate)
+	if not candidate:IsA("BillboardGui")
+		or candidate:GetAttribute("AnimatedObjectInfo") ~= true
+		or infoBillboards[candidate] then
+		return
+	end
+
+	local group = candidate:FindFirstChild("ScaleFrame")
+	local infoScale = group and group:FindFirstChild("PopScale")
+	if not group or not group:IsA("CanvasGroup") or not infoScale or not infoScale:IsA("UIScale") then
+		return
+	end
+
+	candidate.Enabled = false
+	group.GroupTransparency = 1
+	local entry = {
+		billboard = candidate,
+		group = group,
+		scale = infoScale,
+		shown = false,
+	}
+	infoBillboards[candidate] = entry
+end
+
+local function registerInfoFromDescendant(candidate)
+	if candidate:IsA("BillboardGui") then
+		registerInfoBillboard(candidate)
+		return
+	end
+	local ancestor = candidate:FindFirstAncestorWhichIsA("BillboardGui")
+	if ancestor then
+		registerInfoBillboard(ancestor)
+	end
+end
+
+local function billboardWorldPosition(infoGui)
+	local adornee = infoGui.Adornee or infoGui.Parent
+	if adornee and adornee:IsA("Attachment") then
+		return adornee.WorldPosition
+	elseif adornee and adornee:IsA("BasePart") then
+		return adornee.Position
+	end
+	return nil
+end
 
 -- fehér gradiens szöveg fekete külső outline-nal (két label egymáson)
 local function makeStyledText(parent, textSize)
 	local outline = Instance.new("TextLabel")
 	outline.BackgroundTransparency = 1
-	outline.Font = Enum.Font.GothamBold
+	outline.FontFace = MONTSERRAT_BOLD
 	outline.TextSize = textSize
 	outline.TextColor3 = Color3.fromRGB(0, 0, 0)
 	outline.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
@@ -44,7 +147,7 @@ local function makeStyledText(parent, textSize)
 
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
+	label.FontFace = MONTSERRAT_BOLD
 	label.TextSize = textSize
 	label.Text = ""
 	label.Parent = parent
@@ -161,7 +264,7 @@ local function build()
 	badgeLabel = Instance.new("TextLabel")
 	badgeLabel.Size = UDim2.fromScale(1, 1)
 	badgeLabel.BackgroundTransparency = 1
-	badgeLabel.Font = Enum.Font.GothamBold
+	badgeLabel.FontFace = MONTSERRAT_BOLD
 	badgeLabel.TextSize = 24
 	badgeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	badgeLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
@@ -174,7 +277,7 @@ local function build()
 	titleLabel.Position = UDim2.fromOffset(66, 12)
 	titleLabel.Size = UDim2.new(1, -80, 0, 15)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.FontFace = MONTSERRAT_BOLD
 	titleLabel.TextSize = 13
 	titleLabel.TextColor3 = COLOR_TITLE
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -274,6 +377,35 @@ end
 
 function PromptController.init()
 	build()
+
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		registerInfoBillboard(descendant)
+	end
+	workspace.DescendantAdded:Connect(registerInfoFromDescendant)
+
+	local infoUpdateElapsed = 0
+	RunService.RenderStepped:Connect(function(dt)
+		infoUpdateElapsed += dt
+		if infoUpdateElapsed < 0.1 then
+			return
+		end
+		infoUpdateElapsed = 0
+
+		local currentCamera = workspace.CurrentCamera
+		if not currentCamera then
+			return
+		end
+		for infoGui, entry in pairs(infoBillboards) do
+			local worldPosition = billboardWorldPosition(infoGui)
+			if not infoGui.Parent or not worldPosition then
+				infoBillboards[infoGui] = nil
+			else
+				local distance = (currentCamera.CFrame.Position - worldPosition).Magnitude
+				local displayDistance = infoGui:GetAttribute("DisplayDistance") or 55
+				setInfoShown(entry, distance <= displayDistance)
+			end
+		end
+	end)
 
 	ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 		if not prompt.Parent then

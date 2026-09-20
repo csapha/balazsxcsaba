@@ -33,13 +33,13 @@ local CATEGORY_HANDLERS = {
 		set = PlayerData.setTraining,
 		prefix = "Training: ",
 	},
-	petSlots = {
-		byId = Upgrades.petSlotsById,
+	move = {
+		byId = Upgrades.movesById,
 		getCurrent = function(data)
-			return data.petSlots
+			return data.move
 		end,
-		set = PlayerData.setPetSlots,
-		prefix = "Pet Slots: ",
+		set = PlayerData.setMove,
+		prefix = "Muscle: ",
 	},
 	speed = {
 		byId = Upgrades.speedById,

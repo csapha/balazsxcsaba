@@ -20,6 +20,7 @@ local MENU_NAME = "teleport"
 local isModalOpen = false
 local currentPower = 0
 local unlockedTeleports = { watermelon = true }
+local squeezedObjects = {}
 
 local hudButton = nil
 local modalOverlay = nil
@@ -156,6 +157,8 @@ local function refreshStatus()
 		local cost = ObjectsConfig.getUnlockCost(object)
 		local isUnlocked = (unlockedTeleports and unlockedTeleports[objectId] == true) or objectId == "watermelon"
 		local canAfford = currentPower >= cost
+		local previousObject = ObjectsConfig.list[object.index - 1]
+		local hasRequiredSqueeze = not previousObject or squeezedObjects[previousObject.id] == true
 
 		if isUnlocked then
 			statusLabel.Text = "Status: UNLOCKED"
@@ -163,12 +166,18 @@ local function refreshStatus()
 			tpBtn.setText("TELEPORT")
 			tpBtn.setColor(Color3.fromRGB(0, 185, 235), Color3.fromRGB(0, 115, 160))
 			tpBtn.setLabelColor(Color3.fromRGB(255, 255, 255))
-		elseif canAfford then
+		elseif canAfford and hasRequiredSqueeze then
 			statusLabel.Text = string.format("Price: %s Power | UNLOCK READY", Format.number(cost))
 			statusLabel.TextColor3 = Color3.fromRGB(255, 215, 60)
 			tpBtn.setText("UNLOCK")
 			tpBtn.setColor(Color3.fromRGB(46, 204, 113), Color3.fromRGB(25, 125, 52))
 			tpBtn.setLabelColor(Color3.fromRGB(255, 255, 255))
+		elseif not hasRequiredSqueeze then
+			statusLabel.Text = string.format("Squeeze %s first | LOCKED", previousObject.name)
+			statusLabel.TextColor3 = Color3.fromRGB(255, 130, 130)
+			tpBtn.setText("LOCKED")
+			tpBtn.setColor(Color3.fromRGB(60, 48, 55), Color3.fromRGB(36, 28, 32))
+			tpBtn.setLabelColor(Color3.fromRGB(180, 150, 155))
 		else
 			statusLabel.Text = string.format("Req: %s Power | LOCKED", Format.number(cost))
 			statusLabel.TextColor3 = Color3.fromRGB(255, 130, 130)
@@ -597,6 +606,9 @@ function TeleportController.init(hud)
 				end
 				if snapshot.unlockedTeleports ~= nil then
 					unlockedTeleports = snapshot.unlockedTeleports
+				end
+				if snapshot.squeezedObjects ~= nil then
+					squeezedObjects = snapshot.squeezedObjects
 				end
 				refreshStatus()
 			end

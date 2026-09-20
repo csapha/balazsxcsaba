@@ -3,38 +3,39 @@ local Format = require(script.Parent.Parent.Format)
 local Upgrades = {}
 
 Upgrades.hands = {
-	{ id = "Bare",   name = "Bare Hands",     cost = 0,     multiplier = 1.0 },
-	{ id = "Gloves", name = "Grip Gloves",    cost = 100,   multiplier = 1.5 },
-	{ id = "Iron",   name = "Iron Grip",      cost = 600,   multiplier = 2.5 },
-	{ id = "Titan",  name = "Titan Hands",    cost = 3500,  multiplier = 4.0 },
-	{ id = "Diamond",name = "Diamond Grip",   cost = 20000, multiplier = 7.0 },
-	{ id = "Star",   name = "Star Squeeze",   cost = 120000,multiplier = 15.0 },
+	{ id = "Bare",    name = "Bare Hands",   cost = 0,       multiplier = 1.0,  cashMultiplier = 1.0 },
+	{ id = "Gloves",  name = "Grip Gloves",  cost = 300,     multiplier = 1.25, cashMultiplier = 1.08 },
+	{ id = "Iron",    name = "Iron Grip",    cost = 4000,    multiplier = 1.6,  cashMultiplier = 1.18 },
+	{ id = "Titan",   name = "Titan Hands",  cost = 45000,   multiplier = 2.1,  cashMultiplier = 1.32 },
+	{ id = "Diamond", name = "Diamond Grip", cost = 500000,  multiplier = 2.8,  cashMultiplier = 1.5 },
+	{ id = "Star",    name = "Star Squeeze", cost = 5000000, multiplier = 4.0,  cashMultiplier = 1.75 },
 }
 
 Upgrades.training = {
-	{ id = "Couch",    name = "Couch Potato", cost = 0,     passive = 0,    tapBonus = 1.0 },
-	{ id = "Jogger",   name = "Jogger",       cost = 150,   passive = 3,    tapBonus = 1.5 },
-	{ id = "GymRat",   name = "Gym Rat",      cost = 900,   passive = 20,   tapBonus = 2.5 },
-	{ id = "Athlete",  name = "Athlete",      cost = 5000,  passive = 150,  tapBonus = 4.0 },
-	{ id = "Champion", name = "Champion",     cost = 30000, passive = 1200, tapBonus = 7.0 },
+	{ id = "Couch",    name = "Couch Potato", cost = 0,      passive = 0,   tapBonus = 1.0 },
+	{ id = "Jogger",   name = "Jogger",       cost = 500,    passive = 0.5, tapBonus = 1.2 },
+	{ id = "GymRat",   name = "Gym Rat",      cost = 6000,   passive = 3,   tapBonus = 1.5 },
+	{ id = "Athlete",  name = "Athlete",      cost = 70000,  passive = 15,  tapBonus = 1.9 },
+	{ id = "Champion", name = "Champion",     cost = 800000, passive = 60,  tapBonus = 2.4 },
 }
 
-Upgrades.petSlots = {
-	{ id = "Slots3", name = "3 Pet Slots", cost = 0,      slots = 3 },
-	{ id = "Slots4", name = "4 Pet Slots", cost = 400,    slots = 4 },
-	{ id = "Slots5", name = "5 Pet Slots", cost = 2000,   slots = 5 },
-	{ id = "Slots6", name = "6 Pet Slots", cost = 10000,  slots = 6 },
-	{ id = "Slots7", name = "7 Pet Slots", cost = 50000,  slots = 7 },
-	{ id = "Slots8", name = "8 Pet Slots", cost = 250000, slots = 8 },
+-- Edzés-mozdulatok: a guggolástól a handstand pushupig. Mindegyik saját
+-- animációt és nagyobb Erő-bónuszt ad edzés közben.
+Upgrades.moves = {
+	{ id = "Squat",     name = "Squat",     cost = 0,       animationId = "rbxassetid://140689504024158", tapBonus = 1.0 },
+	{ id = "Situp",     name = "Situp",     cost = 750,     animationId = "rbxassetid://111720251209023", tapBonus = 1.15 },
+	{ id = "Pushup",    name = "Pushup",    cost = 9000,    animationId = "rbxassetid://101165503163457", tapBonus = 1.4 },
+	{ id = "OneArm",    name = "1-Arm",     cost = 100000,  animationId = "rbxassetid://98177146527941",  tapBonus = 1.75 },
+	{ id = "Handstand", name = "Handstand", cost = 1200000, animationId = "rbxassetid://75146374626778",  tapBonus = 2.2 },
 }
 
 Upgrades.speed = {
-	{ id = "Speed1", name = "Normal (16)",    cost = 0,     speed = 16 },
-	{ id = "Speed2", name = "Fast (20)",      cost = 120,   speed = 20 },
-	{ id = "Speed3", name = "Jogger (24)",    cost = 500,   speed = 24 },
-	{ id = "Speed4", name = "Runner (28)",    cost = 2200,  speed = 28 },
-	{ id = "Speed5", name = "Sprint (34)",    cost = 9000,  speed = 34 },
-	{ id = "Speed6", name = "Lightning (42)", cost = 40000, speed = 42 },
+	{ id = "Speed1", name = "Normal (16)",    cost = 0,      speed = 16 },
+	{ id = "Speed2", name = "Fast (20)",      cost = 350,    speed = 20 },
+	{ id = "Speed3", name = "Jogger (24)",    cost = 1500,   speed = 24 },
+	{ id = "Speed4", name = "Runner (28)",    cost = 6500,   speed = 28 },
+	{ id = "Speed5", name = "Sprint (34)",    cost = 27000,  speed = 34 },
+	{ id = "Speed6", name = "Lightning (42)", cost = 120000, speed = 42 },
 }
 
 local function indexBy(list)
@@ -49,12 +50,12 @@ end
 
 Upgrades.handsById, Upgrades.handsByOrder = indexBy(Upgrades.hands)
 Upgrades.trainingById, Upgrades.trainingByOrder = indexBy(Upgrades.training)
-Upgrades.petSlotsById, Upgrades.petSlotsByOrder = indexBy(Upgrades.petSlots)
+Upgrades.movesById, Upgrades.movesByOrder = indexBy(Upgrades.moves)
 Upgrades.speedById, Upgrades.speedByOrder = indexBy(Upgrades.speed)
 
 Upgrades.defaultHands = "Bare"
 Upgrades.defaultTraining = "Couch"
-Upgrades.defaultPetSlots = "Slots3"
+Upgrades.defaultMove = "Squat"
 Upgrades.defaultSpeed = "Speed1"
 
 -- UI konfiguráció a kategóriákhoz (színek, címek, ikonok)
@@ -64,7 +65,6 @@ Upgrades.categories = {
 		title = "Grip Strength",
 		cardColor = Color3.fromRGB(115, 80, 56), -- meleg barna (mint a referenciaképen az 1. kártya)
 		icon = "rbxassetid://10709791437",
-		emoji = "🥊",
 		levels = Upgrades.hands,
 		byOrder = Upgrades.handsByOrder,
 		byId = Upgrades.handsById,
@@ -77,7 +77,6 @@ Upgrades.categories = {
 		title = "Workout Training",
 		cardColor = Color3.fromRGB(182, 70, 48), -- rozsda/narancs-vörös (mint a 2. kártya)
 		icon = "rbxassetid://10709791133",
-		emoji = "🏋️",
 		levels = Upgrades.training,
 		byOrder = Upgrades.trainingByOrder,
 		byId = Upgrades.trainingById,
@@ -86,16 +85,18 @@ Upgrades.categories = {
 		end,
 	},
 	{
-		id = "petSlots",
-		title = "Pet Slots",
-		cardColor = Color3.fromRGB(118, 42, 155), -- mélylila (mint a referenciaképen a 3. kártya)
+		id = "move",
+		title = "Muscle",
+		cardColor = Color3.fromRGB(118, 42, 155), -- mélylila
 		icon = "rbxassetid://10709791133",
-		emoji = "🐾",
-		levels = Upgrades.petSlots,
-		byOrder = Upgrades.petSlotsByOrder,
-		byId = Upgrades.petSlotsById,
+		levels = Upgrades.moves,
+		byOrder = Upgrades.movesByOrder,
+		byId = Upgrades.movesById,
 		getValueString = function(entry)
-			return tostring(entry.slots)
+			-- Ne a mozdulat nevét írjuk ki (hosszú), hanem az Erő-szorzót.
+			local text = string.format("%.2f", entry.tapBonus)
+			text = text:gsub("0+$", ""):gsub("%.$", "")
+			return "x" .. text
 		end,
 	},
 	{
@@ -103,7 +104,6 @@ Upgrades.categories = {
 		title = "Player Speed",
 		cardColor = Color3.fromRGB(32, 130, 180), -- óceánkék / villám
 		icon = "rbxassetid://10709791133",
-		emoji = "⚡",
 		levels = Upgrades.speed,
 		byOrder = Upgrades.speedByOrder,
 		byId = Upgrades.speedById,

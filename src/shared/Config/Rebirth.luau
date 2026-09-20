@@ -1,16 +1,17 @@
 -- Rebirth ("New Hands") Configuration (Design Doc 4.7)
 local Rebirth = {}
 
-Rebirth.multiplierPerRebirth = 1.5
+-- Multiplikatív, hogy az endgame gyorsuljon, de az első rebirth ne ugorjon 2.5x-re.
+Rebirth.multiplierBase = 1.8
 
 -- Power requirements for each rebirth level
 Rebirth.requirements = {
-	[1] = 50000, -- Rebirth 1
-	[2] = 250000, -- Rebirth 2
-	[3] = 1500000, -- Rebirth 3
-	[4] = 10000000, -- Rebirth 4
-	[5] = 75000000, -- Rebirth 5
-	[6] = 500000000, -- Rebirth 6
+	[1] = 300000, -- Fridge után
+	[2] = 5000000, -- Car környékén
+	[3] = 80000000, -- Tank után
+	[4] = 1200000000, -- Boulder / endgame
+	[5] = 18000000000,
+	[6] = 270000000000,
 }
 
 function Rebirth.getPowerRequired(currentRebirths)
@@ -19,11 +20,11 @@ function Rebirth.getPowerRequired(currentRebirths)
 		return Rebirth.requirements[targetRebirth]
 	end
 	-- Exponential scaling for higher tiers
-	return math.floor(500000000 * (4 ^ (targetRebirth - 6)))
+	return math.floor(270000000000 * (15 ^ (targetRebirth - 6)))
 end
 
 function Rebirth.getMultiplier(currentRebirths)
-	return 1.0 + (currentRebirths * Rebirth.multiplierPerRebirth)
+	return Rebirth.multiplierBase ^ currentRebirths
 end
 
 -- Exclusive glove skins unlocked per rebirth

@@ -41,6 +41,13 @@ local function onTap(player)
 		return
 	end
 
+	-- A kliens csak akkor kaphat Power-t, ha a szerver szerint is kézben van a Train Tool.
+	local character = player.Character
+	local equippedTool = character and character:FindFirstChild(TOOL_NAME)
+	if not equippedTool or not equippedTool:IsA("Tool") then
+		return
+	end
+
 	local now = os.clock()
 	if now - (lastTap[player.UserId] or 0) < GameConfig.TrainTapMinInterval then
 		return
@@ -68,6 +75,10 @@ function TrainingService.init()
 	for _, player in ipairs(Players:GetPlayers()) do
 		give(player)
 	end
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastTap[player.UserId] = nil
+	end)
 
 	-- passzív Erő minden másodpercben
 	task.spawn(function()

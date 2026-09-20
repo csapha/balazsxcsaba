@@ -2,6 +2,7 @@
 -- Minden procedurálisan jön létre, nem kell Studio-ban kézzel építeni.
 
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -10,6 +11,8 @@ local Objects = require(Shared.Config.Objects)
 local Format = require(Shared.Format)
 local Net = require(Shared.Net)
 local PlayerData = require(script.Parent.PlayerData)
+local MapScenery = require(script.Parent.MapScenery)
+local StationModels = require(script.Parent.StationModels)
 
 local WorldService = {}
 
@@ -17,80 +20,69 @@ local mapFolder = nil
 local objectFolder = nil
 local tableFolder = nil
 local byId = {} -- [objectId] = { part = BasePart, ... }
+local gateEntries = {}
+local lastGateNotify = {}
 
 local TABLE_HEIGHT = 3.0 -- az asztallap teteje ennyi magasan van (stud)
-
-local function makeTable(position, objectSize)
-	-- kisebb asztal, hogy a karakter közel tudjon állni és elérje a tárgyat
-	local topSize = Vector3.new(objectSize + 1.4, 0.5, objectSize + 1.4)
-
-	local top = Instance.new("Part")
-	top.Name = "TableTop"
-	top.Size = topSize
-	top.Color = Color3.fromRGB(122, 84, 48)
-	top.Material = Enum.Material.Wood
-	top.Anchored = true
-	top.CanCollide = true
-	top.CanTouch = false
-	top.CanQuery = false
-	top.CFrame = CFrame.new(position.X, TABLE_HEIGHT - 0.25, position.Z)
-	top.Parent = tableFolder
-
-	for _, offset in ipairs({
-		Vector3.new(1, 0, 1),
-		Vector3.new(-1, 0, 1),
-		Vector3.new(1, 0, -1),
-		Vector3.new(-1, 0, -1),
-	}) do
-		local leg = Instance.new("Part")
-		leg.Name = "Leg"
-		leg.Size = Vector3.new(0.5, TABLE_HEIGHT - 0.5, 0.5)
-		leg.Color = Color3.fromRGB(92, 62, 36)
-		leg.Material = Enum.Material.Wood
-		leg.Anchored = true
-		leg.CanCollide = true
-		leg.CanTouch = false
-		leg.CanQuery = false
-		leg.CFrame = CFrame.new(
-			position.X + offset.X * (topSize.X * 0.5 - 0.4),
-			(TABLE_HEIGHT - 0.5) * 0.5,
-			position.Z + offset.Z * (topSize.Z * 0.5 - 0.4)
-		)
-		leg.Parent = tableFolder
-	end
-end
 
 local function makeBillboard(part, object)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Info"
-	billboard.Size = UDim2.fromOffset(220, 64)
+	-- Scale components are world-space studs. This keeps the label in the same
+	-- proportion to the object instead of making it look huge after zooming out.
+	billboard.Size = UDim2.fromScale(6.2, 1.8)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, object.size * 0.9 + 1.2, 0)
 	billboard.AlwaysOnTop = false
 	billboard.MaxDistance = 120
+	billboard:SetAttribute("DisplayDistance", 55)
+	billboard.Enabled = false
+	billboard:SetAttribute("AnimatedObjectInfo", true)
 	billboard.Parent = part
+
+	local scaleFrame = Instance.new("CanvasGroup")
+	scaleFrame.Name = "ScaleFrame"
+	scaleFrame.Size = UDim2.fromScale(1, 1)
+	scaleFrame.BackgroundTransparency = 1
+	scaleFrame.Parent = billboard
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Name = "PopScale"
+	uiScale.Parent = scaleFrame
 
 	local title = Instance.new("TextLabel")
 	title.Name = "Title"
-	title.Size = UDim2.new(1, 0, 0, 26)
+	title.Size = UDim2.fromScale(1, 0.55)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 18
-	title.TextColor3 = Color3.fromHex(object.color)
-	title.TextStrokeTransparency = 0.35
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	title.TextStrokeTransparency = 0
 	title.Text = object.name .. "  (" .. Format.weight(object.weight) .. ")"
-	title.Parent = billboard
+	title.Parent = scaleFrame
+
+	-- ugyanaz a fehér -> szürke gradiens, mint a többi UI szövegnél
+	local titleGradient = Instance.new("UIGradient")
+	titleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(246, 246, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(198, 198, 206)),
+	})
+	titleGradient.Rotation = 90
+	titleGradient.Parent = title
 
 	local status = Instance.new("TextLabel")
 	status.Name = "Status"
-	status.Position = UDim2.fromOffset(0, 28)
-	status.Size = UDim2.new(1, 0, 0, 22)
+	status.Position = UDim2.fromScale(0, 0.55)
+	status.Size = UDim2.fromScale(1, 0.45)
 	status.BackgroundTransparency = 1
-	status.Font = Enum.Font.Gotham
-	status.TextSize = 15
-	status.TextColor3 = Color3.fromRGB(235, 240, 255)
-	status.TextStrokeTransparency = 0.4
+	status.Font = Enum.Font.FredokaOne
+	status.TextScaled = true
+	status.TextColor3 = Color3.fromRGB(255, 212, 71)
+	status.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	status.TextStrokeTransparency = 0
 	status.Text = ""
-	status.Parent = billboard
+	status.Parent = scaleFrame
 
 	return billboard
 end
@@ -110,13 +102,19 @@ local function makePrompt(part, object)
 	return prompt
 end
 
-local function shapeFor(object)
-	if object.shape == "Ball" then
-		return Enum.PartType.Ball
-	elseif object.shape == "Cylinder" then
-		return Enum.PartType.Cylinder
+local function tryUnlockZone(player, objectId)
+	local success, costOrErr, object = PlayerData.unlockTeleport(player, objectId)
+	local notifyRemote = Net.get("Notify")
+	if success and notifyRemote and object then
+		notifyRemote:FireClient(
+			player,
+			string.format("Unlocked %s for %s Power!", object.name, Format.number(costOrErr)),
+			Color3.fromRGB(80, 255, 120)
+		)
+	elseif not success and notifyRemote then
+		notifyRemote:FireClient(player, tostring(costOrErr), Color3.fromRGB(255, 100, 100))
 	end
-	return Enum.PartType.Block
+	return success
 end
 
 function WorldService.build()
@@ -126,6 +124,7 @@ function WorldService.build()
 		mapFolder.Name = GameConfig.MapName
 		mapFolder.Parent = Workspace
 	end
+	local scenery = MapScenery.build(mapFolder, Objects.list, GameConfig.ObjectSpacing)
 
 	objectFolder = mapFolder:FindFirstChild(GameConfig.ObjectFolderName)
 	if not objectFolder then
@@ -141,28 +140,19 @@ function WorldService.build()
 		tableFolder.Parent = mapFolder
 	end
 
+	-- Replace edit-mode station previews when the server starts.
+	objectFolder:ClearAllChildren()
+	tableFolder:ClearAllChildren()
+	byId = {}
+
 	for _, object in ipairs(Objects.list) do
 		local baseX = 30 + (object.index - 1) * GameConfig.ObjectSpacing
 		local baseZ = 0
 
 		-- asztal az objektum alá
-		makeTable(Vector3.new(baseX, 0, baseZ), object.size)
-
-		local part = Instance.new("Part")
-		part.Name = object.name
-		part.Shape = shapeFor(object)
-		part.Size = Vector3.new(object.size, object.size, object.size)
-		part.Color = Color3.fromHex(object.color)
-		part.Material = Enum.Material.SmoothPlastic
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanTouch = false
-		part.CanQuery = false
-		part.CastShadow = true
-		part.CFrame = CFrame.new(baseX, TABLE_HEIGHT + object.size * 0.5, baseZ)
-		part:SetAttribute("ObjectId", object.id)
-		part:SetAttribute("Weight", object.weight)
-		part:SetAttribute("Active", true)
+		local stationTable = StationModels.createTable(object, Vector3.new(baseX, 0, baseZ), TABLE_HEIGHT)
+		stationTable.Parent = tableFolder
+		local part = StationModels.createObject(object, Vector3.new(baseX, TABLE_HEIGHT + object.size * 0.5, baseZ))
 
 		local billboard = makeBillboard(part, object)
 		local prompt = makePrompt(part, object)
@@ -171,11 +161,37 @@ function WorldService.build()
 		byId[object.id] = {
 			part = part,
 			billboard = billboard,
-			status = billboard:FindFirstChild("Status"),
+			status = billboard:FindFirstChild("Status", true),
 			prompt = prompt,
 			object = object,
 			spawnCFrame = part.CFrame,
 		}
+	end
+
+	gateEntries = {}
+	local gates = scenery:FindFirstChild("ZoneGates")
+	if gates then
+		for _, gate in ipairs(gates:GetChildren()) do
+			local prompt = gate:FindFirstChild("ZoneUnlockPrompt", true)
+			local blocker = gate:FindFirstChild("ZoneBlocker")
+			local targetObjectId = gate:GetAttribute("TargetObjectId")
+			local boundaryX = gate:GetAttribute("BoundaryX")
+			if prompt and prompt:IsA("ProximityPrompt") and blocker and targetObjectId and boundaryX then
+				table.insert(gateEntries, {
+					model = gate,
+					blocker = blocker,
+					prompt = prompt,
+					targetObjectId = targetObjectId,
+					boundaryX = boundaryX,
+				})
+				prompt.Triggered:Connect(function(player)
+					tryUnlockZone(player, targetObjectId)
+				end)
+			end
+		end
+		table.sort(gateEntries, function(a, b)
+			return a.boundaryX < b.boundaryX
+		end)
 	end
 end
 
@@ -197,7 +213,7 @@ function WorldService.setStatus(objectId, text, color)
 	entry.status.TextColor3 = color or Color3.fromRGB(235, 240, 255)
 end
 
--- pop: eltűnik és RespawnTime múlva visszajön (visszaszámlálással)
+-- pop: eltűnik, majd azonnal újra megjelenik (nincs visszaszámlálás).
 function WorldService.popObject(objectId)
 	local entry = byId[objectId]
 	if not entry then
@@ -206,23 +222,12 @@ function WorldService.popObject(objectId)
 
 	entry.part:SetAttribute("Active", false)
 	entry.prompt.Enabled = false
-	entry.part.Transparency = 1
+	StationModels.setVisible(entry.part, false)
 	entry.part.CanQuery = false
 	entry.part.CanTouch = false
 
-	task.spawn(function()
-		local remaining = GameConfig.RespawnTime
-		while remaining > 0 do
-			local minutes = math.floor(remaining / 60)
-			local seconds = remaining % 60
-			WorldService.setStatus(objectId,
-				string.format("Refresh In %d:%02d", minutes, seconds),
-				Color3.fromRGB(255, 212, 71))
-			task.wait(1)
-			remaining -= 1
-		end
-
-		entry.part.Transparency = 0
+	task.delay(0.25, function()
+		StationModels.setVisible(entry.part, true)
 		entry.part.CanQuery = false
 		entry.part.CanTouch = false
 		entry.part:SetAttribute("Active", true)
@@ -286,22 +291,50 @@ task.spawn(function()
 	local unlockRemote = Net.get("UnlockTeleport")
 	if unlockRemote then
 		unlockRemote.OnServerEvent:Connect(function(player, objectId)
-			local success, costOrErr, object = PlayerData.unlockTeleport(player, objectId)
-			local notifyRemote = Net.get("Notify")
-			if success and notifyRemote and object then
-				notifyRemote:FireClient(
-					player,
-					string.format("Unlocked %s for %s Power!", object.name, Format.number(costOrErr)),
-					Color3.fromRGB(80, 255, 120)
-				)
-			elseif not success and notifyRemote then
-				notifyRemote:FireClient(
-					player,
-					tostring(costOrErr),
-					Color3.fromRGB(255, 100, 100)
-				)
-			end
+			tryUnlockZone(player, objectId)
 		end)
+	end
+end)
+
+-- Server-side fallback: locked zones cannot be bypassed around the visual gate.
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if not root or not PlayerData.isLoaded(player) then
+				continue
+			end
+
+			for _, gate in ipairs(gateEntries) do
+				if not PlayerData.isTeleportUnlocked(player, gate.targetObjectId)
+					and root.Position.X > gate.boundaryX then
+					local safePosition = Vector3.new(gate.boundaryX - 4, root.Position.Y, root.Position.Z)
+					root.CFrame = CFrame.lookAt(
+						safePosition,
+						Vector3.new(gate.boundaryX, root.Position.Y, root.Position.Z)
+					)
+					root.AssemblyLinearVelocity = Vector3.zero
+					root.AssemblyAngularVelocity = Vector3.zero
+
+					local now = os.clock()
+					if now - (lastGateNotify[player] or 0) > 2 then
+						lastGateNotify[player] = now
+						local target = Objects.byId[gate.targetObjectId]
+						local notifyRemote = Net.get("Notify")
+						if target and notifyRemote then
+							notifyRemote:FireClient(
+								player,
+								"Unlock " .. target.name .. " Zone first!",
+								Color3.fromRGB(255, 100, 100)
+							)
+						end
+					end
+					break
+				end
+			end
+		end
 	end
 end)
 

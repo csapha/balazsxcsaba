@@ -176,10 +176,10 @@ local function refreshUI()
 		rebirthCountLabel.Text = string.format("Rebirths: %d", rebirths)
 	end
 
-	-- Következő kesztyű skin
+	-- Következő kesztyű skin ("Skin:" fehér, a név a skin színével)
 	if skinRewardLabel then
 		local nextSkin = RebirthConfig.getSkin(rebirths + 1)
-		skinRewardLabel.Text = string.format("Skin: %s", nextSkin.name)
+		skinRewardLabel.Text = nextSkin.name
 		skinRewardLabel.TextColor3 = nextSkin.color
 	end
 
@@ -524,7 +524,7 @@ local function buildUI(screenGui)
 	currentMultiLabel.BackgroundTransparency = 1
 	currentMultiLabel.Font = Enum.Font.FredokaOne
 	currentMultiLabel.Text = "1.0x"
-	currentMultiLabel.TextSize = 26
+	currentMultiLabel.TextSize = 20
 	currentMultiLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	currentMultiLabel.ZIndex = 23
 	currentMultiLabel.Parent = multiRow
@@ -536,7 +536,7 @@ local function buildUI(screenGui)
 	arrowLabel.BackgroundTransparency = 1
 	arrowLabel.Font = Enum.Font.FredokaOne
 	arrowLabel.Text = "▶"
-	arrowLabel.TextSize = 22
+	arrowLabel.TextSize = 16
 	arrowLabel.TextColor3 = Color3.fromRGB(120, 215, 255)
 	arrowLabel.ZIndex = 23
 	arrowLabel.Parent = multiRow
@@ -548,7 +548,7 @@ local function buildUI(screenGui)
 	nextMultiLabel.BackgroundTransparency = 1
 	nextMultiLabel.Font = Enum.Font.FredokaOne
 	nextMultiLabel.Text = "2.5x"
-	nextMultiLabel.TextSize = 26
+	nextMultiLabel.TextSize = 20
 	nextMultiLabel.TextColor3 = Color3.fromRGB(50, 255, 60)
 	nextMultiLabel.ZIndex = 23
 	nextMultiLabel.Parent = multiRow
@@ -608,18 +608,48 @@ local function buildUI(screenGui)
 	powerProgressText.Parent = barTrack
 	applyStroke(powerProgressText, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
-	-- Jutalom skin felirat
+	-- Jutalom skin felirat: "Skin:" fehéren, a név a skin színével
+	local skinRow = Instance.new("Frame")
+	skinRow.Name = "SkinRow"
+	skinRow.Size = UDim2.new(1, -24, 0, 26)
+	skinRow.Position = UDim2.fromOffset(12, 72)
+	skinRow.BackgroundTransparency = 1
+	skinRow.ZIndex = 23
+	skinRow.Parent = reqCard
+
+	local skinRowLayout = Instance.new("UIListLayout")
+	skinRowLayout.FillDirection = Enum.FillDirection.Horizontal
+	skinRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	skinRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	skinRowLayout.Padding = UDim.new(0, 6)
+	skinRowLayout.Parent = skinRow
+
+	local skinPrefix = Instance.new("TextLabel")
+	skinPrefix.Name = "SkinPrefix"
+	skinPrefix.LayoutOrder = 1
+	skinPrefix.AutomaticSize = Enum.AutomaticSize.X
+	skinPrefix.Size = UDim2.fromOffset(0, 26)
+	skinPrefix.BackgroundTransparency = 1
+	skinPrefix.Font = Enum.Font.FredokaOne
+	skinPrefix.Text = "Skin:"
+	skinPrefix.TextSize = 17
+	skinPrefix.TextColor3 = Color3.fromRGB(255, 255, 255)
+	skinPrefix.ZIndex = 23
+	skinPrefix.Parent = skinRow
+	applyStroke(skinPrefix, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
+
 	skinRewardLabel = Instance.new("TextLabel")
-	skinRewardLabel.Size = UDim2.new(1, -24, 0, 26)
-	skinRewardLabel.Position = UDim2.fromOffset(12, 72)
+	skinRewardLabel.Name = "SkinName"
+	skinRewardLabel.LayoutOrder = 2
+	skinRewardLabel.AutomaticSize = Enum.AutomaticSize.X
+	skinRewardLabel.Size = UDim2.fromOffset(0, 26)
 	skinRewardLabel.BackgroundTransparency = 1
 	skinRewardLabel.Font = Enum.Font.FredokaOne
-	skinRewardLabel.Text = "Skin: Golden Touch"
+	skinRewardLabel.Text = "Golden Touch"
 	skinRewardLabel.TextSize = 17
 	skinRewardLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-	skinRewardLabel.TextXAlignment = Enum.TextXAlignment.Left
 	skinRewardLabel.ZIndex = 23
-	skinRewardLabel.Parent = reqCard
+	skinRewardLabel.Parent = skinRow
 	applyStroke(skinRewardLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
 	-- 3. Figyelmeztetés (csak piros szöveg, háttér és keret nélkül)
