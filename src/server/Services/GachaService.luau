@@ -75,7 +75,6 @@ function GachaService.init()
 			local rolledMatId = nil
 
 			if pity + 1 >= Gacha.pityThreshold then
-				-- Pity aktiválódik: garantált Epic vagy jobb!
 				wasPity = true
 				rolledMatId = rollWeighted(Gacha.pityPool)
 			else
@@ -88,20 +87,18 @@ function GachaService.init()
 				rolledMatId = "Rubber"
 			end
 
-			-- Pity számláló frissítése
 			local newPity = pity + 1
 			if materialDef.tier >= 4 then
-				-- Epic, Legendary vagy Secret esetén a pity lenullázódik
 				newPity = 0
 				PlayerData.setPity(player, 0)
 			else
 				PlayerData.setPity(player, newPity)
 			end
 
-			-- Anyag hozzáadása a játékoshoz
 			PlayerData.addMaterial(player, rolledMatId)
 
-			-- Eredmény visszaküldése a kliensnek
+			print(string.format("[GACHA] %s opened %s -> %s (x%.1f)", player.DisplayName, chest.name, materialDef.name, materialDef.multiplier))
+
 			local openedRemote = Net.get("ChestOpened")
 			if openedRemote then
 				openedRemote:FireClient(player, {
@@ -112,7 +109,6 @@ function GachaService.init()
 				})
 			end
 
-			-- Különleges bejelentés ritka lelet esetén
 			if materialDef.rarity == "Secret" then
 				broadcast(
 					string.format("[SECRET] %s unboxed %s (x%.1f multiplier)!", player.DisplayName, materialDef.name, materialDef.multiplier),

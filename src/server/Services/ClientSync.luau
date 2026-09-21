@@ -46,12 +46,26 @@ function ClientSync.init()
 		end
 	end)
 
+	local function syncToPlayer(player)
+		task.delay(0.5, function()
+			if not player:IsDescendantOf(Players) then
+				return
+			end
+			local remote = Net.get("DataChanged")
+			if remote and PlayerData.isLoaded(player) then
+				remote:FireClient(player, PlayerData.snapshot(player))
+			end
+		end)
+	end
+
 	Players.PlayerAdded:Connect(function(player)
 		ensureLeaderstats(player)
+		syncToPlayer(player)
 	end)
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		ensureLeaderstats(player)
+		syncToPlayer(player)
 	end
 end
 

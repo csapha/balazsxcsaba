@@ -24,6 +24,7 @@ local function notify(container, text)
 	toast.Name = "Toast"
 	toast.Size = UDim2.new(1, 0, 0, 28)
 	toast.BorderSizePixel = 0
+	toast.ZIndex = 201
 	toast.Parent = container
 	Ui.applyFadeBackground(toast, 0.2)
 
@@ -36,6 +37,7 @@ local function notify(container, text)
 	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	label.TextStrokeTransparency = 0
 	label.Text = text
+	label.ZIndex = 202
 	label.Parent = toast
 	Ui.applyDisplay(label)
 
@@ -76,6 +78,7 @@ function HudController.init()
 	notifications.Position = UDim2.new(0.5, 0, 0, 74)
 	notifications.Size = UDim2.fromOffset(460, 200)
 	notifications.BackgroundTransparency = 1
+	notifications.ZIndex = 200
 	notifications.Parent = gui
 
 	-- Felső középső cash kijelző: kis, lágy (középen fekete, szélein áttűnő) háttér.

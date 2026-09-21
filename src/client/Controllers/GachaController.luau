@@ -1,6 +1,8 @@
--- GachaController: Ládák (Chests), kesztyű-anyagok és pity UI (éles sarkokkal)
+-- GachaController: Ládák (Chests), kesztyű-anyagok, pity UI és autentikus Case Opening Roulette
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -10,6 +12,7 @@ local Format = require(Shared.Format)
 local Net = require(Shared.Net)
 local UiIcons = require(Shared.UiIcons)
 local MenuCoordinator = require(script.Parent.MenuCoordinator)
+local EffectsController = require(script.Parent.EffectsController)
 
 local player = Players.LocalPlayer
 
@@ -18,6 +21,7 @@ local MENU_NAME = "chests"
 
 -- Állapot
 local isModalOpen = false
+local isSpinning = false
 local currentData = {
 	cash = 0,
 	equippedMaterial = nil,
@@ -26,14 +30,13 @@ local currentData = {
 	pityCount = 0,
 }
 
+local activeScreenGui = nil
 local hudButton = nil
 local modalOverlay = nil
 local windowFrame = nil
 local windowScale = nil
 local equippedLabel = nil
 local pityLabel = nil
-local revealCard = nil
-local revealScale = nil
 local isPreview = false
 
 -- Segédfüggvény éles fekete UIStroke beállításhoz
@@ -55,7 +58,22 @@ local function shadeColor(color, factor)
 	)
 end
 
--- Éles 3D gomb készítése
+-- Hang lejátszása védett módon (nem dob hibát, ha asset nem elérhető)
+local function playSound(soundId, volume, pitch)
+	pcall(function()
+		local sound = Instance.new("Sound")
+		sound.SoundId = soundId
+		sound.Volume = volume or 0.5
+		sound.PlaybackSpeed = pitch or 1.0
+		sound.Parent = SoundService
+		sound:Play()
+		sound.Ended:Connect(function()
+			sound:Destroy()
+		end)
+	end)
+end
+
+-- Éles 3D gomb készítése (Retro Arcade stílus, 0 UICorner)
 local function create3DButton(parent, size, position, anchorPoint, mainColor, shadowColor, text)
 	local shadowFrame = Instance.new("Frame")
 	shadowFrame.Name = "Button3D"
@@ -75,6 +93,8 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	topButton.BorderSizePixel = 0
 	topButton.AutoButtonColor = false
 	topButton.Text = ""
+	topButton.Active = true
+	topButton.Selectable = true
 	topButton.Parent = shadowFrame
 	applyStroke(topButton, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
@@ -84,6 +104,8 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 	textLabel.Position = UDim2.fromScale(0, 0)
 	textLabel.BackgroundTransparency = 1
 	textLabel.BorderSizePixel = 0
+	textLabel.Active = false
+	textLabel.Selectable = false
 	textLabel.Font = Enum.Font.FredokaOne
 	textLabel.Text = text or ""
 	textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -126,9 +148,24 @@ local function create3DButton(parent, size, position, anchorPoint, mainColor, sh
 		TweenService:Create(pressScale, pressRelease, { Scale = 1 }):Play()
 	end)
 
+	local function bindClick(fn)
+		local lastClickTime = 0
+		local function handler()
+			local now = os.clock()
+			if now - lastClickTime < 0.25 then
+				return
+			end
+			lastClickTime = now
+			fn()
+		end
+		topButton.Activated:Connect(handler)
+		topButton.MouseButton1Click:Connect(handler)
+	end
+
 	return {
 		container = shadowFrame,
 		button = topButton,
+		onClick = bindClick,
 		setText = function(newText)
 			textLabel.Text = newText
 		end,
@@ -175,6 +212,7 @@ function GachaController.open()
 	if isModalOpen then
 		return
 	end
+	isSpinning = false
 	MenuCoordinator.opening(MENU_NAME)
 	isModalOpen = true
 	refreshHeaderInfo()
@@ -219,144 +257,623 @@ function GachaController.toggle()
 	end
 end
 
--- Ládanyitás Eredmény Popup
-local function showRevealPopup(result)
-	local mat = result.material
-	if not mat then
-		return
+-- Véletlenszerű anyag kiválasztása súlyozott láda poolból
+local function pickRandomMaterial(chestDef, isPity)
+	local pool = (isPity and GachaConfig.pityPool) or (chestDef and chestDef.pool)
+	if not pool or #pool == 0 then
+		return GachaConfig.materials.Rubber
 	end
+	local totalWeight = 0
+	for _, entry in ipairs(pool) do
+		totalWeight += entry.weight
+	end
+	local rand = math.random() * totalWeight
+	local cumulative = 0
+	for _, entry in ipairs(pool) do
+		cumulative += entry.weight
+		if rand <= cumulative then
+			return GachaConfig.materials[entry.material] or GachaConfig.materials.Rubber
+		end
+	end
+	return GachaConfig.materials[pool[#pool].material] or GachaConfig.materials.Rubber
+end
 
-	local popupOverlay = Instance.new("TextButton")
-	popupOverlay.Name = "RevealOverlay"
-	popupOverlay.Size = UDim2.fromScale(1, 1)
-	popupOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	popupOverlay.BackgroundTransparency = 0.35
-	popupOverlay.BorderSizePixel = 0
-	popupOverlay.Text = ""
-	popupOverlay.AutoButtonColor = false
-	popupOverlay.ZIndex = 30
-	popupOverlay.Parent = modalOverlay
-
+-- Egy kártya létrehozása a forgó rulett szalagon
+local function buildRouletteCard(parent, matDef)
 	local card = Instance.new("Frame")
-	card.Name = "RevealCard"
-	card.Size = UDim2.fromOffset(380, 360)
-	card.Position = UDim2.new(0.5, 0, 0.5, 0)
-	card.AnchorPoint = Vector2.new(0.5, 0.5)
-	card.BackgroundColor3 = Color3.fromRGB(24, 20, 18)
+	card.Name = "ReelCard_" .. (matDef.id or "Item")
+	card.Size = UDim2.fromScale(1, 1)
+	card.BackgroundColor3 = Color3.fromRGB(24, 20, 28)
 	card.BorderSizePixel = 0
-	card.ZIndex = 31
-	card.Parent = popupOverlay
-	applyStroke(card, mat.color or Color3.fromRGB(0, 0, 0), 4, Enum.ApplyStrokeMode.Border)
+	card.ZIndex = 53
+	card.Parent = parent
 
-	local cScale = Instance.new("UIScale")
-	cScale.Scale = 0.6
-	cScale.Parent = card
+	local matColor = matDef.color or Color3.fromRGB(180, 180, 180)
+	local stroke = applyStroke(card, matColor, 3, Enum.ApplyStrokeMode.Border)
 
-	-- Fejléc
-	local topBar = Instance.new("Frame")
-	topBar.Size = UDim2.new(1, 0, 0, 48)
-	topBar.BackgroundColor3 = mat.color or Color3.fromRGB(70, 140, 220)
-	topBar.BorderSizePixel = 0
-	topBar.ZIndex = 32
-	topBar.Parent = card
+	-- Felső ritkaság sáv
+	local topStripe = Instance.new("Frame")
+	topStripe.Name = "TopStripe"
+	topStripe.Size = UDim2.new(1, 0, 0, 20)
+	topStripe.BackgroundColor3 = matColor
+	topStripe.BorderSizePixel = 0
+	topStripe.ZIndex = 54
+	topStripe.Parent = card
 
-	local topText = Instance.new("TextLabel")
-	topText.Size = UDim2.fromScale(1, 1)
-	topText.BackgroundTransparency = 1
-	topText.Font = Enum.Font.FredokaOne
-	topText.Text = result.wasPity and "PITY GUARANTEE!" or "YOU UNBOXED!"
-	topText.TextSize = 20
-	topText.TextColor3 = Color3.fromRGB(255, 255, 255)
-	topText.ZIndex = 33
-	topText.Parent = topBar
-	applyStroke(topText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+	local rarityLabel = Instance.new("TextLabel")
+	rarityLabel.Size = UDim2.fromScale(1, 1)
+	rarityLabel.BackgroundTransparency = 1
+	rarityLabel.Font = Enum.Font.FredokaOne
+	rarityLabel.Text = (matDef.rarity or "COMMON"):upper()
+	rarityLabel.TextSize = 11
+	rarityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	rarityLabel.ZIndex = 55
+	rarityLabel.Parent = topStripe
+	applyStroke(rarityLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
-	-- Ikon doboz
-	local iconFrame = Instance.new("Frame")
-	iconFrame.Size = UDim2.fromOffset(100, 100)
-	iconFrame.Position = UDim2.new(0.5, 0, 0.35, 0)
-	iconFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	iconFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 10)
-	iconFrame.BorderSizePixel = 0
-	iconFrame.ZIndex = 32
-	iconFrame.Parent = card
-	applyStroke(iconFrame, mat.color or Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Border)
-
+	-- Ikon / Emoji
 	local iconLabel = Instance.new("TextLabel")
-	iconLabel.Size = UDim2.fromScale(1, 1)
+	iconLabel.Name = "Icon"
+	iconLabel.Size = UDim2.new(1, 0, 0, 56)
+	iconLabel.Position = UDim2.new(0, 0, 0, 22)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = "?"
-	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
-	iconLabel.TextSize = 58
-	iconLabel.ZIndex = 33
-	iconLabel.Parent = iconFrame
+	iconLabel.Text = matDef.emoji or "?"
+	iconLabel.TextSize = 40
+	iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	iconLabel.ZIndex = 54
+	iconLabel.Parent = card
 
-	-- Anyag név
+	-- Anyagnév
 	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, 0, 0, 32)
-	nameLabel.Position = UDim2.new(0, 0, 0.56, 0)
+	nameLabel.Name = "Name"
+	nameLabel.Size = UDim2.new(1, -8, 0, 20)
+	nameLabel.Position = UDim2.new(0, 4, 0, 80)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Font = Enum.Font.FredokaOne
-	nameLabel.Text = mat.name
-	nameLabel.TextSize = 28
-	nameLabel.TextColor3 = mat.color
-	nameLabel.ZIndex = 32
+	nameLabel.Text = matDef.name or "Material"
+	nameLabel.TextSize = 14
+	nameLabel.TextColor3 = matColor
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.ZIndex = 54
 	nameLabel.Parent = card
-	applyStroke(nameLabel, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Contextual)
+	applyStroke(nameLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
-	-- Szorzó és ritkaság
+	-- Szorzó
 	local multiLabel = Instance.new("TextLabel")
-	multiLabel.Size = UDim2.new(1, 0, 0, 26)
-	multiLabel.Position = UDim2.new(0, 0, 0.68, 0)
+	multiLabel.Name = "Multiplier"
+	multiLabel.Size = UDim2.new(1, 0, 0, 18)
+	multiLabel.Position = UDim2.new(0, 0, 0, 102)
 	multiLabel.BackgroundTransparency = 1
 	multiLabel.Font = Enum.Font.FredokaOne
-	multiLabel.Text = string.format("[%s] x%.1f MULTIPLIER", mat.rarity:upper(), mat.multiplier)
-	multiLabel.TextSize = 20
-	multiLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	multiLabel.ZIndex = 32
+	multiLabel.Text = string.format("x%.1f", matDef.multiplier or 1.0)
+	multiLabel.TextSize = 14
+	multiLabel.TextColor3 = Color3.fromRGB(255, 230, 90)
+	multiLabel.ZIndex = 54
 	multiLabel.Parent = card
-	applyStroke(multiLabel, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+	applyStroke(multiLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
-	-- Felszerelés / Bezárás gomb
-	local equipBtn = create3DButton(
-		card,
-		UDim2.fromOffset(160, 48),
-		UDim2.new(0.5, 0, 0.86, 0),
-		Vector2.new(0.5, 0.5),
-		Color3.fromRGB(46, 204, 113),
-		Color3.fromRGB(25, 125, 52),
-		"EQUIP"
-	)
-	equipBtn.container.ZIndex = 34
-	equipBtn.button.ZIndex = 35
+	-- Alsó színes díszsáv
+	local bottomStripe = Instance.new("Frame")
+	bottomStripe.Name = "BottomStripe"
+	bottomStripe.Size = UDim2.new(1, 0, 0, 4)
+	bottomStripe.Position = UDim2.new(0, 0, 1, -4)
+	bottomStripe.BackgroundColor3 = matColor
+	bottomStripe.BorderSizePixel = 0
+	bottomStripe.ZIndex = 54
+	bottomStripe.Parent = card
 
-	local function closePopup()
-		TweenService:Create(cScale, TweenInfo.new(0.12), { Scale = 0.6 }):Play()
-		task.wait(0.12)
-		popupOverlay:Destroy()
+	return card, stroke
+end
+
+-- Autentikus CS:GO / Pet Simulator stílusú Ládanyitás (Case Opening Roulette)
+local function startCaseOpening(result)
+	if isSpinning then
+		return
+	end
+	isSpinning = true
+
+	local mat = result.material or GachaConfig.materials.Rubber
+	local chestDef = result.chest or GachaConfig.chests[1]
+	local wasPity = result.wasPity == true
+
+	print(string.format("[GACHA] %s opened %s -> %s (x%.1f)", player.DisplayName, chestDef.name, mat.name, mat.multiplier or 1.0))
+
+	local targetGui = activeScreenGui or (modalOverlay and modalOverlay.Parent)
+
+	-- Eltüntetjük a háttérben a ládanyitó ablakot a forgás alatt
+	if modalOverlay then
+		modalOverlay.Visible = false
 	end
 
-	equipBtn.button.MouseButton1Click:Connect(function()
-		if isPreview then
-			closePopup()
+	-- 1. Fullscreen Sötétítő Stage Overlay
+	local stageOverlay = Instance.new("TextButton")
+	stageOverlay.Name = "CaseOpeningStage"
+	stageOverlay.Size = UDim2.fromScale(1, 1)
+	stageOverlay.Position = UDim2.fromScale(0, 0)
+	stageOverlay.BackgroundColor3 = Color3.fromRGB(10, 8, 14)
+	stageOverlay.BackgroundTransparency = 0.15
+	stageOverlay.BorderSizePixel = 0
+	stageOverlay.Text = ""
+	stageOverlay.AutoButtonColor = false
+	stageOverlay.ZIndex = 100
+	stageOverlay.Parent = targetGui
+
+	-- 2. Fejléc: Nyitott láda neve és Pity infó
+	local headerContainer = Instance.new("Frame")
+	headerContainer.Name = "OpeningHeader"
+	headerContainer.Size = UDim2.new(0.85, 0, 0, 75)
+	headerContainer.Position = UDim2.new(0.5, 0, 0.16, 0)
+	headerContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+	headerContainer.BackgroundTransparency = 1
+	headerContainer.BorderSizePixel = 0
+	headerContainer.ZIndex = 52
+	headerContainer.Parent = stageOverlay
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "Title"
+	titleLabel.Size = UDim2.new(1, 0, 0, 38)
+	titleLabel.Position = UDim2.new(0, 0, 0, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Font = Enum.Font.FredokaOne
+	titleLabel.Text = string.format("OPENING %s...", (chestDef.name or "CHEST"):upper())
+	titleLabel.TextSize = 32
+	titleLabel.TextColor3 = chestDef.color or Color3.fromRGB(255, 215, 60)
+	titleLabel.ZIndex = 53
+	titleLabel.Parent = headerContainer
+	applyStroke(titleLabel, Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Contextual)
+
+	local subLabel = Instance.new("TextLabel")
+	subLabel.Name = "Subtitle"
+	subLabel.Size = UDim2.new(1, 0, 0, 24)
+	subLabel.Position = UDim2.new(0, 0, 0, 40)
+	subLabel.BackgroundTransparency = 1
+	subLabel.Font = Enum.Font.FredokaOne
+	if wasPity then
+		subLabel.Text = "★ PITY GUARANTEE ACTIVATED! (GUARANTEED EPIC+) ★"
+		subLabel.TextColor3 = Color3.fromRGB(255, 215, 60)
+	else
+		subLabel.Text = "GOOD LUCK!"
+		subLabel.TextColor3 = Color3.fromRGB(210, 215, 225)
+	end
+	subLabel.TextSize = 18
+	subLabel.ZIndex = 53
+	subLabel.Parent = headerContainer
+	applyStroke(subLabel, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+
+	-- 3. SKIP gomb a jobb felső sarokban
+	local skipBtn = create3DButton(
+		stageOverlay,
+		UDim2.fromOffset(115, 42),
+		UDim2.new(1, -24, 0, 24),
+		Vector2.new(1, 0),
+		Color3.fromRGB(240, 140, 30),
+		Color3.fromRGB(150, 75, 10),
+		"SKIP >>"
+	)
+	skipBtn.container.ZIndex = 55
+	skipBtn.button.ZIndex = 56
+	skipBtn.setTextSize(18)
+
+	-- 4. Rulett Keret & Viewport
+	local rouletteContainer = Instance.new("Frame")
+	rouletteContainer.Name = "RouletteContainer"
+	rouletteContainer.Size = UDim2.fromOffset(660, 172)
+	rouletteContainer.Position = UDim2.new(0.5, 0, 0.45, 0)
+	rouletteContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+	rouletteContainer.BackgroundColor3 = Color3.fromRGB(18, 15, 22)
+	rouletteContainer.BorderSizePixel = 0
+	rouletteContainer.ZIndex = 51
+	rouletteContainer.Parent = stageOverlay
+	applyStroke(rouletteContainer, Color3.fromRGB(0, 0, 0), 4, Enum.ApplyStrokeMode.Border)
+
+	-- Díszítő arany keretsávok (fent és lent)
+	local topBarAccent = Instance.new("Frame")
+	topBarAccent.Size = UDim2.new(1, 0, 0, 4)
+	topBarAccent.Position = UDim2.new(0, 0, 0, 0)
+	topBarAccent.BackgroundColor3 = Color3.fromRGB(255, 205, 45)
+	topBarAccent.BorderSizePixel = 0
+	topBarAccent.ZIndex = 52
+	topBarAccent.Parent = rouletteContainer
+
+	local btmBarAccent = Instance.new("Frame")
+	btmBarAccent.Size = UDim2.new(1, 0, 0, 4)
+	btmBarAccent.Position = UDim2.new(0, 0, 1, -4)
+	btmBarAccent.BackgroundColor3 = Color3.fromRGB(255, 205, 45)
+	btmBarAccent.BorderSizePixel = 0
+	btmBarAccent.ZIndex = 52
+	btmBarAccent.Parent = rouletteContainer
+
+	-- Belső Viewport (kivágja a kilógó kártyákat)
+	local viewportFrame = Instance.new("Frame")
+	viewportFrame.Name = "Viewport"
+	viewportFrame.Size = UDim2.new(1, -16, 1, -16)
+	viewportFrame.Position = UDim2.fromScale(0.5, 0.5)
+	viewportFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	viewportFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 15)
+	viewportFrame.BorderSizePixel = 0
+	viewportFrame.ClipsDescendants = true
+	viewportFrame.ZIndex = 52
+	viewportFrame.Parent = rouletteContainer
+
+	-- Középső aranyszínű vonal (Center Line)
+	local centerLine = Instance.new("Frame")
+	centerLine.Name = "CenterLine"
+	centerLine.Size = UDim2.new(0, 3, 1, 0)
+	centerLine.Position = UDim2.new(0.5, -1, 0, 0)
+	centerLine.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+	centerLine.BorderSizePixel = 0
+	centerLine.ZIndex = 56
+	centerLine.Parent = viewportFrame
+
+	-- Felső arany nyíl (▼)
+	local topNeedle = Instance.new("TextLabel")
+	topNeedle.Name = "TopNeedle"
+	topNeedle.Size = UDim2.fromOffset(26, 22)
+	topNeedle.Position = UDim2.new(0.5, 0, 0, -2)
+	topNeedle.AnchorPoint = Vector2.new(0.5, 0)
+	topNeedle.BackgroundTransparency = 1
+	topNeedle.Font = Enum.Font.FredokaOne
+	topNeedle.Text = "▼"
+	topNeedle.TextSize = 24
+	topNeedle.TextColor3 = Color3.fromRGB(255, 215, 0)
+	topNeedle.ZIndex = 57
+	topNeedle.Parent = viewportFrame
+	applyStroke(topNeedle, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+
+	-- Alsó arany nyíl (▲)
+	local bottomNeedle = Instance.new("TextLabel")
+	bottomNeedle.Name = "BottomNeedle"
+	bottomNeedle.Size = UDim2.fromOffset(26, 22)
+	bottomNeedle.Position = UDim2.new(0.5, 0, 1, 2)
+	bottomNeedle.AnchorPoint = Vector2.new(0.5, 1)
+	bottomNeedle.BackgroundTransparency = 1
+	bottomNeedle.Font = Enum.Font.FredokaOne
+	bottomNeedle.Text = "▲"
+	bottomNeedle.TextSize = 24
+	bottomNeedle.TextColor3 = Color3.fromRGB(255, 215, 0)
+	bottomNeedle.ZIndex = 57
+	bottomNeedle.Parent = viewportFrame
+	applyStroke(bottomNeedle, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+
+	-- 5. Kártyaszalag és elemek generálása
+	local CARD_WIDTH = 110
+	local CARD_HEIGHT = 136
+	local CARD_SPACING = 10
+	local PITCH = CARD_WIDTH + CARD_SPACING -- 120px
+	local TOTAL_CARDS = 46
+	local WIN_INDEX = 36
+	local viewportWidth = 644
+	local viewportCenter = viewportWidth / 2 -- 322px
+
+	local canvas = Instance.new("Frame")
+	canvas.Name = "ReelCanvas"
+	canvas.Size = UDim2.new(0, TOTAL_CARDS * PITCH + 20, 0, CARD_HEIGHT)
+	canvas.Position = UDim2.fromOffset(viewportCenter - (CARD_WIDTH / 2), 10)
+	canvas.BackgroundTransparency = 1
+	canvas.BorderSizePixel = 0
+	canvas.ZIndex = 53
+	canvas.Parent = viewportFrame
+
+	local winningCardFrame = nil
+	local winningCardStroke = nil
+
+	for i = 1, TOTAL_CARDS do
+		local cardMat = nil
+		if i == WIN_INDEX then
+			cardMat = mat
+		elseif i == WIN_INDEX - 1 and math.random() <= 0.45 then
+			-- Izgalomfokozó "near-miss": közvetlenül a nyertes előtt egy ritka tárgy (Epic/Legendary/Secret)
+			local teasers = { GachaConfig.materials.Diamond, GachaConfig.materials.Star, GachaConfig.materials.Secret }
+			cardMat = teasers[math.random(1, #teasers)]
+		else
+			cardMat = pickRandomMaterial(chestDef, wasPity)
+		end
+
+		local itemHolder = Instance.new("Frame")
+		itemHolder.Name = "ItemHolder_" .. i
+		itemHolder.Size = UDim2.fromOffset(CARD_WIDTH, CARD_HEIGHT)
+		itemHolder.Position = UDim2.fromOffset((i - 1) * PITCH, 0)
+		itemHolder.BackgroundTransparency = 1
+		itemHolder.BorderSizePixel = 0
+		itemHolder.ZIndex = 53
+		itemHolder.Parent = canvas
+
+		local _, stroke = buildRouletteCard(itemHolder, cardMat)
+		if i == WIN_INDEX then
+			winningCardFrame = itemHolder
+			winningCardStroke = stroke
+		end
+	end
+
+	-- Célkoordináták kiszámítása természetes jitterrel (-28px .. +28px)
+	local jitter = math.random(-26, 26)
+	local winningCardCenter = (WIN_INDEX - 1) * PITCH + (CARD_WIDTH / 2)
+	local targetX = viewportCenter - winningCardCenter - jitter
+
+	-- 6. Animáció & Eseménykezelés
+	local isSkipped = false
+	local hasRevealed = false
+	local spinTween = nil
+	local tickConnection = nil
+
+	-- Reveal Popup (Kinyitott tárgy részletes ablaka)
+	local function triggerReveal()
+		if hasRevealed then
 			return
 		end
+		hasRevealed = true
 
-		local remote = Net.get("EquipMaterial")
-		if remote then
-			remote:FireServer(mat.id)
+		if tickConnection then
+			tickConnection:Disconnect()
+			tickConnection = nil
 		end
-		closePopup()
+
+		-- Győzelmi fanfare hang
+		playSound("rbxassetid://9114222045", 0.7, 1.0)
+
+		-- Nyertes kártya felvillantása a szalagon
+		if winningCardStroke then
+			local origColor = winningCardStroke.Color
+			task.spawn(function()
+				for _ = 1, 3 do
+					winningCardStroke.Color = Color3.fromRGB(255, 255, 255)
+					winningCardStroke.Thickness = 5
+					task.wait(0.08)
+					winningCardStroke.Color = Color3.fromRGB(255, 220, 40)
+					task.wait(0.08)
+				end
+				winningCardStroke.Color = origColor
+				winningCardStroke.Thickness = 3
+			end)
+		end
+
+		-- Részecske effekt (ha van játékos karakter)
+		local char = player and player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if root then
+			EffectsController.burst(root.Position + Vector3.new(0, 1.5, 0), mat.color, 35)
+		end
+
+		if not isSkipped then
+			task.wait(0.45)
+		end
+
+		-- 7. Részletes Reveal Modal Felépítése
+		local card = Instance.new("Frame")
+		card.Name = "RevealCard"
+		card.Size = UDim2.fromOffset(400, 420)
+		card.Position = UDim2.new(0.5, 0, 0.5, 0)
+		card.AnchorPoint = Vector2.new(0.5, 0.5)
+		card.BackgroundColor3 = Color3.fromRGB(22, 18, 26)
+		card.BorderSizePixel = 0
+		card.ZIndex = 65
+		card.Parent = stageOverlay
+		applyStroke(card, mat.color or Color3.fromRGB(255, 215, 60), 4.5, Enum.ApplyStrokeMode.Border)
+
+		local cScale = Instance.new("UIScale")
+		cScale.Scale = 0.6
+		cScale.Parent = card
+
+		-- Felső Fejléc Sáv
+		local topBar = Instance.new("Frame")
+		topBar.Size = UDim2.new(1, 0, 0, 52)
+		topBar.BackgroundColor3 = mat.color or Color3.fromRGB(70, 140, 220)
+		topBar.BorderSizePixel = 0
+		topBar.ZIndex = 66
+		topBar.Parent = card
+
+		local topText = Instance.new("TextLabel")
+		topText.Size = UDim2.fromScale(1, 1)
+		topText.BackgroundTransparency = 1
+		topText.Font = Enum.Font.FredokaOne
+		topText.Text = wasPity and "★ PITY GUARANTEE! ★" or "★ YOU UNBOXED! ★"
+		topText.TextSize = 22
+		topText.TextColor3 = Color3.fromRGB(255, 255, 255)
+		topText.ZIndex = 67
+		topText.Parent = topBar
+		applyStroke(topText, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+
+		-- Ritkaság jelvény
+		local rarityBadge = Instance.new("TextLabel")
+		rarityBadge.Size = UDim2.new(1, 0, 0, 26)
+		rarityBadge.Position = UDim2.new(0, 0, 0, 60)
+		rarityBadge.BackgroundTransparency = 1
+		rarityBadge.Font = Enum.Font.FredokaOne
+		rarityBadge.Text = string.format("★ %s MATERIAL ★", (mat.rarity or "COMMON"):upper())
+		rarityBadge.TextSize = 16
+		rarityBadge.TextColor3 = mat.color or Color3.fromRGB(255, 215, 60)
+		rarityBadge.ZIndex = 66
+		rarityBadge.Parent = card
+		applyStroke(rarityBadge, Color3.fromRGB(0, 0, 0), 2.2, Enum.ApplyStrokeMode.Contextual)
+
+		-- Nagy Ikon Keret
+		local iconFrame = Instance.new("Frame")
+		iconFrame.Size = UDim2.fromOffset(116, 116)
+		iconFrame.Position = UDim2.new(0.5, 0, 0, 150)
+		iconFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+		iconFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 18)
+		iconFrame.BorderSizePixel = 0
+		iconFrame.ZIndex = 66
+		iconFrame.Parent = card
+		applyStroke(iconFrame, mat.color or Color3.fromRGB(0, 0, 0), 3.5, Enum.ApplyStrokeMode.Border)
+
+		local iconLabel = Instance.new("TextLabel")
+		iconLabel.Size = UDim2.fromScale(1, 1)
+		iconLabel.BackgroundTransparency = 1
+		iconLabel.Font = Enum.Font.FredokaOne
+		iconLabel.Text = mat.emoji or "?"
+		iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		iconLabel.TextSize = 64
+		iconLabel.ZIndex = 67
+		iconLabel.Parent = iconFrame
+
+		-- Anyag Neve
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Size = UDim2.new(1, 0, 0, 34)
+		nameLabel.Position = UDim2.new(0, 0, 0, 222)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Font = Enum.Font.FredokaOne
+		nameLabel.Text = mat.name
+		nameLabel.TextSize = 30
+		nameLabel.TextColor3 = mat.color
+		nameLabel.ZIndex = 66
+		nameLabel.Parent = card
+		applyStroke(nameLabel, Color3.fromRGB(0, 0, 0), 3, Enum.ApplyStrokeMode.Contextual)
+
+		-- Statisztika Doboz (Szorzó)
+		local statBox = Instance.new("Frame")
+		statBox.Size = UDim2.new(0.85, 0, 0, 42)
+		statBox.Position = UDim2.new(0.5, 0, 0, 268)
+		statBox.AnchorPoint = Vector2.new(0.5, 0)
+		statBox.BackgroundColor3 = Color3.fromRGB(30, 24, 36)
+		statBox.BorderSizePixel = 0
+		statBox.ZIndex = 66
+		statBox.Parent = card
+		applyStroke(statBox, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
+
+		local statLabel = Instance.new("TextLabel")
+		statLabel.Size = UDim2.fromScale(1, 1)
+		statLabel.BackgroundTransparency = 1
+		statLabel.Font = Enum.Font.FredokaOne
+		statLabel.Text = string.format("GLOVE MULTIPLIER: x%.1f", mat.multiplier)
+		statLabel.TextSize = 19
+		statLabel.TextColor3 = Color3.fromRGB(255, 230, 80)
+		statLabel.ZIndex = 67
+		statLabel.Parent = statBox
+		applyStroke(statLabel, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
+
+		-- Alsó Gombok Tárolója (EQUIP + CLAIM)
+		local btnRow = Instance.new("Frame")
+		btnRow.Size = UDim2.new(1, -36, 0, 50)
+		btnRow.Position = UDim2.new(0.5, 0, 0.88, 0)
+		btnRow.AnchorPoint = Vector2.new(0.5, 0.5)
+		btnRow.BackgroundTransparency = 1
+		btnRow.BorderSizePixel = 0
+		btnRow.ZIndex = 66
+		btnRow.Parent = card
+
+		local equipBtn = create3DButton(
+			btnRow,
+			UDim2.new(0.5, -6, 1, 0),
+			UDim2.new(0, 0, 0, 0),
+			Vector2.new(0, 0),
+			Color3.fromRGB(46, 204, 113),
+			Color3.fromRGB(25, 125, 52),
+			"EQUIP"
+		)
+		equipBtn.container.ZIndex = 68
+		equipBtn.button.ZIndex = 69
+		equipBtn.setTextSize(20)
+
+		local claimBtn = create3DButton(
+			btnRow,
+			UDim2.new(0.5, -6, 1, 0),
+			UDim2.new(0.5, 6, 0, 0),
+			Vector2.new(0, 0),
+			Color3.fromRGB(70, 140, 220),
+			Color3.fromRGB(35, 75, 125),
+			"CLAIM"
+		)
+		claimBtn.container.ZIndex = 68
+		claimBtn.button.ZIndex = 69
+		claimBtn.setTextSize(20)
+
+		local function closeStage()
+			TweenService:Create(cScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.5 }):Play()
+			local fade = TweenService:Create(stageOverlay, TweenInfo.new(0.15), { BackgroundTransparency = 1 })
+			fade:Play()
+			fade.Completed:Connect(function()
+				stageOverlay:Destroy()
+				isSpinning = false
+				refreshHeaderInfo()
+				-- Chest menü automatikus újranyitása
+				GachaController.open()
+			end)
+		end
+
+		equipBtn.onClick(function()
+			if not isPreview then
+				local remote = Net.get("EquipMaterial")
+				if remote then
+					remote:FireServer(mat.id)
+				end
+			end
+			currentData.equippedMaterial = mat.id
+			currentData.materialMultiplier = mat.multiplier
+			closeStage()
+		end)
+
+		claimBtn.onClick(function()
+			closeStage()
+		end)
+
+		stageOverlay.MouseButton1Click:Connect(function()
+			closeStage()
+		end)
+
+		TweenService:Create(
+			cScale,
+			TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Scale = 1.0 }
+		):Play()
+	end
+
+	-- SKIP gomb kattintása: azonnal leállítja a pörgést és felfedi az eredményt
+	skipBtn.onClick(function()
+		if isSkipped or hasRevealed then
+			return
+		end
+		isSkipped = true
+		if spinTween then
+			spinTween:Cancel()
+		end
+		if tickConnection then
+			tickConnection:Disconnect()
+			tickConnection = nil
+		end
+		canvas.Position = UDim2.fromOffset(targetX, 10)
+		playSound("rbxassetid://9114223170", 0.5, 1.2)
+		triggerReveal()
 	end)
 
-	popupOverlay.MouseButton1Click:Connect(closePopup)
+	-- Tikkelő hang és mutató mozgás követése (RunService.RenderStepped)
+	local lastTickIndex = 1
+	tickConnection = RunService.RenderStepped:Connect(function()
+		if not canvas or not canvas.Parent then
+			if tickConnection then
+				tickConnection:Disconnect()
+			end
+			return
+		end
+		local currentOffset = viewportCenter - canvas.Position.X.Offset
+		local currentIndex = math.clamp(math.floor(currentOffset / PITCH) + 1, 1, TOTAL_CARDS)
+		if currentIndex ~= lastTickIndex then
+			lastTickIndex = currentIndex
+			playSound("rbxassetid://9114223170", 0.45, 0.95 + math.random() * 0.1)
+			if topNeedle and bottomNeedle then
+				topNeedle.Position = UDim2.new(0.5, 0, 0, -4)
+				bottomNeedle.Position = UDim2.new(0.5, 0, 1, 4)
+				TweenService:Create(topNeedle, TweenInfo.new(0.08), { Position = UDim2.new(0.5, 0, 0, -2) }):Play()
+				TweenService:Create(bottomNeedle, TweenInfo.new(0.08), { Position = UDim2.new(0.5, 0, 1, 2) }):Play()
+			end
+		end
+	end)
 
-	TweenService:Create(
-		cScale,
-		TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{ Scale = 1.0 }
-	):Play()
+	-- 4.3 másodperces sima exponenciális lassulás (CS:GO stílus)
+	spinTween = TweenService:Create(
+		canvas,
+		TweenInfo.new(4.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+		{ Position = UDim2.fromOffset(targetX, 10) }
+	)
+
+	spinTween.Completed:Connect(function()
+		if not isSkipped then
+			triggerReveal()
+		end
+	end)
+
+	spinTween:Play()
 end
 
 -- Egy Láda Kártya létrehozása
@@ -367,6 +884,7 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	card.BorderSizePixel = 0
 	card.LayoutOrder = layoutOrder
+	card.ZIndex = 15
 	card.Parent = parent
 
 	-- A fekete keret a külső frame maga; a színes kártya beljebb van,
@@ -377,6 +895,7 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	inner.Position = UDim2.fromOffset(3.5, 3.5)
 	inner.BackgroundColor3 = chestDef.color
 	inner.BorderSizePixel = 0
+	inner.ZIndex = 16
 	inner.Parent = card
 
 	-- Bal oldali láda doboz
@@ -387,6 +906,7 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	iconBox.BackgroundColor3 = Color3.fromRGB(20, 16, 12)
 	iconBox.BackgroundTransparency = 0.35
 	iconBox.BorderSizePixel = 0
+	iconBox.ZIndex = 17
 	iconBox.Parent = inner
 	applyStroke(iconBox, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Border)
 
@@ -394,9 +914,10 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	iconLabel.Size = UDim2.fromScale(1, 1)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.Font = Enum.Font.FredokaOne
-	iconLabel.Text = "?"
-	iconLabel.TextColor3 = Color3.fromRGB(190, 190, 200)
-	iconLabel.TextSize = 42
+	iconLabel.Text = chestDef.icon or "?"
+	iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	iconLabel.TextSize = 38
+	iconLabel.ZIndex = 18
 	iconLabel.Parent = iconBox
 
 	-- Középső információs rész
@@ -405,6 +926,7 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	infoFrame.Size = UDim2.new(1, -250, 1, -16)
 	infoFrame.BackgroundTransparency = 1
 	infoFrame.BorderSizePixel = 0
+	infoFrame.ZIndex = 17
 	infoFrame.Parent = inner
 
 	local nameLabel = Instance.new("TextLabel")
@@ -415,15 +937,16 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	nameLabel.TextSize = 24
 	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.ZIndex = 18
 	nameLabel.Parent = infoFrame
 	applyStroke(nameLabel, Color3.fromRGB(0, 0, 0), 2.5, Enum.ApplyStrokeMode.Contextual)
 
 	-- Esélyek leírása
 	local oddsSummary = {}
 	for _, entry in ipairs(chestDef.pool) do
-		local mat = GachaConfig.materials[entry.material]
-		if mat then
-			table.insert(oddsSummary, mat.name)
+		local m = GachaConfig.materials[entry.material]
+		if m then
+			table.insert(oddsSummary, m.name)
 		end
 	end
 
@@ -437,10 +960,12 @@ local function createChestCard(parent, chestDef, layoutOrder)
 	descLabel.TextColor3 = Color3.fromRGB(255, 255, 210)
 	descLabel.TextXAlignment = Enum.TextXAlignment.Left
 	descLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	descLabel.ZIndex = 18
 	descLabel.Parent = infoFrame
 	applyStroke(descLabel, Color3.fromRGB(0, 0, 0), 2, Enum.ApplyStrokeMode.Contextual)
 
 	-- Jobb oldali éles 3D OPEN gomb
+	local costLabelText = (chestDef.cost == 0 and "FREE") or Format.money(chestDef.cost)
 	local openBtn = create3DButton(
 		inner,
 		UDim2.fromOffset(130, 52),
@@ -448,23 +973,63 @@ local function createChestCard(parent, chestDef, layoutOrder)
 		Vector2.new(1, 0.5),
 		Color3.fromRGB(46, 204, 113),
 		Color3.fromRGB(25, 125, 52),
-		Format.money(chestDef.cost)
+		costLabelText
 	)
+	openBtn.container.ZIndex = 18
+	openBtn.button.ZIndex = 19
 
-	openBtn.button.MouseButton1Click:Connect(function()
-		if isPreview then
+	local lastOpenClick = 0
+	local function triggerChestOpen()
+		local now = os.clock()
+		if now - lastOpenClick < 0.3 then
+			return
+		end
+		lastOpenClick = now
+
+		if isSpinning then
 			return
 		end
 
+		-- Kliens-oldali cash ellenőrzés
+		if chestDef.cost > 0 and currentData.cash < chestDef.cost then
+			return
+		end
+
+		-- Szerver értesítése (adatmentés, pity, stb.) — háttérben fut
 		local remote = Net.get("OpenChest")
 		if remote then
 			remote:FireServer(chestDef.id)
 		end
-	end)
+
+		-- Kliens-oldali cash levonás az azonnali UI frissítéshez
+		currentData.cash = math.max(0, currentData.cash - chestDef.cost)
+
+		-- Chest UI bezárása
+		GachaController.close()
+
+		-- Kliens-oldali roll (vizuális animációhoz)
+		local rolledMat = pickRandomMaterial(chestDef, false)
+
+		-- Case opening animáció azonnali indítása!
+		local ok, err = pcall(startCaseOpening, {
+			material = rolledMat,
+			wasPity = false,
+			pity = currentData.pityCount or 0,
+			chest = chestDef,
+		})
+		if not ok then
+			warn("[GACHA-CLIENT] startCaseOpening ERROR:", tostring(err))
+			isSpinning = false
+		end
+	end
+
+	openBtn.onClick(triggerChestOpen)
 end
 
 -- A teljes felület felépítése
 local function buildUI(screenGui)
+	activeScreenGui = screenGui
+
 	-- 1. HUD Gomb (Képernyő bal oldalán, az Upgrades gomb alatt)
 	local hudWrapper = Instance.new("Frame")
 	hudWrapper.Name = "GachaHudWrapper"
@@ -540,15 +1105,6 @@ local function buildUI(screenGui)
 	windowScale.Scale = 1
 	windowScale.Parent = windowFrame
 
-	local windowBlocker = Instance.new("TextButton")
-	windowBlocker.Size = UDim2.fromScale(1, 1)
-	windowBlocker.BackgroundTransparency = 1
-	windowBlocker.BorderSizePixel = 0
-	windowBlocker.Text = ""
-	windowBlocker.Active = false
-	windowBlocker.InputSink = Enum.InputSink.None
-	windowBlocker.Parent = windowFrame
-
 	-- FEJLÉC (Meleg bronz-arany sáv)
 	local headerBar = Instance.new("Frame")
 	headerBar.Name = "HeaderBar"
@@ -616,7 +1172,7 @@ local function buildUI(screenGui)
 		GachaController.close()
 	end)
 
-	-- SubHeader: Felszerelt kesztyű-anyag és Pity állapot (csak szöveg, háttér nélkül)
+	-- SubHeader: Felszerelt kesztyű-anyag és Pity állapot
 	local subHeader = Instance.new("Frame")
 	subHeader.Name = "SubHeader"
 	subHeader.Size = UDim2.new(1, -24, 0, 30)
@@ -717,18 +1273,16 @@ function GachaController.init(hud)
 		end)
 	end
 
-	-- Ládanyitás eredményének fogadása
+	-- Ládanyitás eredményének fogadása — csak adat-szinkron (animáció kliens-oldalon már lefutott)
 	local openedRemote = Net.get("ChestOpened")
 	if openedRemote then
 		openedRemote.OnClientEvent:Connect(function(result)
 			if result then
 				currentData.pityCount = result.pity or currentData.pityCount
 				refreshHeaderInfo()
-				showRevealPopup(result)
 			end
 		end)
 	end
 end
 
 return GachaController
-

@@ -73,7 +73,7 @@ Gacha.chests = {
 	{
 		id = "Wooden",
 		name = "Wooden Chest",
-		cost = 1000,
+		cost = 0,
 		color = Color3.fromRGB(139, 90, 43),
 		icon = "📦",
 		pool = {
