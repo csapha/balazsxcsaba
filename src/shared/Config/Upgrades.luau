@@ -19,6 +19,14 @@ Upgrades.training = {
 	{ id = "Champion", name = "Champion",     cost = 800000, passive = 60,  tapBonus = 2.4 },
 }
 
+Upgrades.trainingSpeed = {
+	{ id = "TrainSpeed1", name = "Basic Pace",     cost = 0,      trainCycle = 2.0 },
+	{ id = "TrainSpeed2", name = "Quick Reps",     cost = 400,    trainCycle = 1.75 },
+	{ id = "TrainSpeed3", name = "Fast Reps",      cost = 5000,   trainCycle = 1.5 },
+	{ id = "TrainSpeed4", name = "Rapid Reps",     cost = 60000,  trainCycle = 1.25 },
+	{ id = "TrainSpeed5", name = "Lightning Reps", cost = 700000, trainCycle = 1.0 },
+}
+
 -- Edzés-mozdulatok: a guggolástól a handstand pushupig. Mindegyik saját
 -- animációt és nagyobb Erő-bónuszt ad edzés közben.
 Upgrades.moves = {
@@ -50,11 +58,13 @@ end
 
 Upgrades.handsById, Upgrades.handsByOrder = indexBy(Upgrades.hands)
 Upgrades.trainingById, Upgrades.trainingByOrder = indexBy(Upgrades.training)
+Upgrades.trainingSpeedById, Upgrades.trainingSpeedByOrder = indexBy(Upgrades.trainingSpeed)
 Upgrades.movesById, Upgrades.movesByOrder = indexBy(Upgrades.moves)
 Upgrades.speedById, Upgrades.speedByOrder = indexBy(Upgrades.speed)
 
 Upgrades.defaultHands = "Bare"
 Upgrades.defaultTraining = "Couch"
+Upgrades.defaultTrainingSpeed = "TrainSpeed1"
 Upgrades.defaultMove = "Squat"
 Upgrades.defaultSpeed = "Speed1"
 
@@ -81,7 +91,26 @@ Upgrades.categories = {
 		byOrder = Upgrades.trainingByOrder,
 		byId = Upgrades.trainingById,
 		getValueString = function(entry)
-			return "+" .. Format.number(entry.passive) .. "/s"
+			-- A Format.number az 1000 alatti értékeket egészre kerekíti, ezért
+			-- például a Jogger 0.5/s bónusza hibásan 0/s-ként jelent meg.
+			local passive = entry.passive
+			local value = if passive > 0 and passive < 1
+				then string.format("%.2f", passive):gsub("0+$", ""):gsub("%.$", "")
+				else Format.number(passive)
+			return "+" .. value .. "/s"
+		end,
+	},
+	{
+		id = "trainingSpeed",
+		title = "Training Speed",
+		cardColor = Color3.fromRGB(205, 139, 35),
+		icon = "rbxassetid://10709791133",
+		levels = Upgrades.trainingSpeed,
+		byOrder = Upgrades.trainingSpeedByOrder,
+		byId = Upgrades.trainingSpeedById,
+		getValueString = function(entry)
+			local cycle = string.format("%.2f", entry.trainCycle):gsub("0+$", ""):gsub("%.$", "")
+			return cycle .. "s"
 		end,
 	},
 	{

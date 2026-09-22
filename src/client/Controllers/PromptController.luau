@@ -13,6 +13,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Ui = require(Shared.Ui)
@@ -21,20 +22,42 @@ local player = Players.LocalPlayer
 
 local PromptController = {}
 
-local COLOR_TITLE = Color3.fromRGB(170, 174, 184)
+local COLOR_PANEL_TOP = Color3.fromRGB(38, 41, 50)
+local COLOR_PANEL_BOTTOM = Color3.fromRGB(18, 20, 26)
+local COLOR_TITLE = Color3.fromRGB(184, 188, 200)
 local MONTSERRAT_BOLD = Font.new(
 	"rbxasset://fonts/families/Montserrat.json",
 	Enum.FontWeight.Bold,
 	Enum.FontStyle.Normal
 )
 
-local billboard, scaleFrame, scale, panel, badgeLabel, titleLabel, actionLabel, actionOutline
+local billboard, scaleFrame, scale, panel, badgeLabel, keyScale, titleLabel, actionLabel, actionOutline
 local fadeEntries = {}
 local alphaTweens = {}
 local currentPrompt = nil
 local isShown = false
-local scaleTween, fadeToken = nil, nil
+local scaleTween, fadeToken, keyPressTween = nil, nil, nil
 local infoBillboards = {}
+
+local function setKeyPressed(pressed)
+	if not keyScale then
+		return
+	end
+	if keyPressTween then
+		keyPressTween:Cancel()
+	end
+
+	local tweenInfo
+	if pressed then
+		tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	else
+		tweenInfo = TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+	end
+	keyPressTween = TweenService:Create(keyScale, tweenInfo, {
+		Scale = pressed and 0.9 or 1,
+	})
+	keyPressTween:Play()
+end
 
 local function setInfoShown(entry, shown)
 	if entry.shown == shown then
@@ -230,7 +253,7 @@ end
 local function build()
 	billboard = Instance.new("BillboardGui")
 	billboard.Name = "SqueezePrompt"
-	billboard.Size = UDim2.fromOffset(240, 68)
+	billboard.Size = UDim2.fromOffset(222, 62)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 60
@@ -247,49 +270,88 @@ local function build()
 	scale.Parent = scaleFrame
 
 	panel = Instance.new("Frame")
-	panel.Size = UDim2.fromScale(1, 1)
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(210, 50)
+	panel.BackgroundColor3 = COLOR_PANEL_TOP
+	panel.BackgroundTransparency = 0.35
 	panel.BorderSizePixel = 0
 	panel.Parent = scaleFrame
 
-	-- középen fekete, bal/jobb felé szépen áttűnő háttér
-	Ui.applyFadeBackground(panel, 0.08)
+	local panelGradient = Instance.new("UIGradient")
+	panelGradient.Color = ColorSequence.new(COLOR_PANEL_TOP, COLOR_PANEL_BOTTOM)
+	panelGradient.Rotation = 90
+	panelGradient.Parent = panel
 
-	-- billentyű badge: csak a betű, háttér nélkül
+	local outerStroke = Instance.new("UIStroke")
+	outerStroke.Color = Color3.fromRGB(0, 0, 0)
+	outerStroke.Thickness = 2
+	outerStroke.Transparency = 0.08
+	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	outerStroke.Parent = panel
+
+	local innerStroke = Instance.new("UIStroke")
+	innerStroke.Color = Color3.fromRGB(255, 255, 255)
+	innerStroke.Thickness = 1
+	innerStroke.Transparency = 0.82
+	innerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	innerStroke.Parent = panel
+
 	local badge = Instance.new("Frame")
-	badge.Position = UDim2.fromOffset(14, 14)
-	badge.Size = UDim2.fromOffset(40, 40)
-	badge.BackgroundTransparency = 1
+	badge.AnchorPoint = Vector2.new(0.5, 0.5)
+	badge.Position = UDim2.fromOffset(25, 25)
+	badge.Size = UDim2.fromOffset(38, 38)
+	badge.BackgroundColor3 = Color3.fromRGB(43, 47, 58)
+	badge.BorderSizePixel = 0
 	badge.Parent = panel
+
+	local badgeGradient = Instance.new("UIGradient")
+	badgeGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(58, 63, 76)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 31, 39)),
+	})
+	badgeGradient.Rotation = 90
+	badgeGradient.Parent = badge
 
 	badgeLabel = Instance.new("TextLabel")
 	badgeLabel.Size = UDim2.fromScale(1, 1)
 	badgeLabel.BackgroundTransparency = 1
 	badgeLabel.FontFace = MONTSERRAT_BOLD
-	badgeLabel.TextSize = 24
+	badgeLabel.TextSize = 21
 	badgeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	badgeLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	badgeLabel.TextStrokeTransparency = 0
+	badgeLabel.TextStrokeTransparency = 0.35
 	badgeLabel.Text = "E"
 	badgeLabel.Parent = badge
 	Ui.applyDisplay(badgeLabel)
 
+	keyScale = Instance.new("UIScale")
+	keyScale.Scale = 1
+	keyScale.Parent = badge
+
 	titleLabel = Instance.new("TextLabel")
-	titleLabel.Position = UDim2.fromOffset(66, 12)
-	titleLabel.Size = UDim2.new(1, -80, 0, 15)
+	titleLabel.Position = UDim2.fromOffset(54, 5)
+	titleLabel.Size = UDim2.new(1, -62, 0, 16)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.FontFace = MONTSERRAT_BOLD
-	titleLabel.TextSize = 13
+	titleLabel.TextSize = 11
 	titleLabel.TextColor3 = COLOR_TITLE
+	titleLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	titleLabel.TextStrokeTransparency = 0.62
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextYAlignment = Enum.TextYAlignment.Center
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	titleLabel.Text = ""
 	titleLabel.Parent = panel
 	Ui.applyDisplay(titleLabel)
 
-	actionOutline, actionLabel = makeStyledText(panel, 18)
+	actionOutline, actionLabel = makeStyledText(panel, 17)
 	for _, label in ipairs({ actionOutline, actionLabel }) do
-		label.Position = UDim2.fromOffset(66, 29)
-		label.Size = UDim2.new(1, -80, 0, 25)
+		label.Position = UDim2.fromOffset(54, 20)
+		label.Size = UDim2.new(1, -62, 0, 24)
 		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.TextTruncate = Enum.TextTruncate.AtEnd
 	end
 
 	local button = Instance.new("TextButton")
@@ -372,7 +434,7 @@ local function applyPrompt(prompt, inputType)
 	actionLabel.Text = prompt.ActionText
 	local key = keyText(prompt, inputType)
 	badgeLabel.Text = key
-	badgeLabel.TextSize = #key > 1 and 13 or 24
+	badgeLabel.TextSize = #key > 1 and 11 or 21
 end
 
 function PromptController.init()
@@ -425,11 +487,27 @@ function PromptController.init()
 			return
 		end
 		currentPrompt = nil
+		setKeyPressed(false)
 		popOut()
+	end)
+
+	UserInputService.InputBegan:Connect(function(input)
+		local prompt = currentPrompt
+		if prompt and input.KeyCode == prompt.KeyboardKeyCode then
+			setKeyPressed(true)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		local prompt = currentPrompt
+		if prompt and input.KeyCode == prompt.KeyboardKeyCode then
+			setKeyPressed(false)
+		end
 	end)
 
 	player.CharacterAdded:Connect(function()
 		currentPrompt = nil
+		setKeyPressed(false)
 		popOut()
 	end)
 end

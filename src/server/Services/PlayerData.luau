@@ -25,6 +25,7 @@ local function defaultData()
 		cash = 1000000000000,
 		hands = Upgrades.defaultHands,
 		training = Upgrades.defaultTraining,
+		trainingSpeed = Upgrades.defaultTrainingSpeed,
 		move = Upgrades.defaultMove,
 		speed = Upgrades.defaultSpeed,
 		dailyStreak = 0, -- eddig átvett napok száma (0..7)
@@ -46,6 +47,11 @@ end
 
 local function trainingEntry(data)
 	return Upgrades.trainingById[data.training] or Upgrades.trainingById[Upgrades.defaultTraining]
+end
+
+local function trainingSpeedEntry(data)
+	return Upgrades.trainingSpeedById[data.trainingSpeed]
+		or Upgrades.trainingSpeedById[Upgrades.defaultTrainingSpeed]
 end
 
 local function moveEntry(data)
@@ -236,6 +242,7 @@ function PlayerData.doRebirth(player)
 	data.cash = 0
 	data.hands = Upgrades.defaultHands
 	data.training = Upgrades.defaultTraining
+	data.trainingSpeed = Upgrades.defaultTrainingSpeed
 	data.move = Upgrades.defaultMove
 	data.speed = Upgrades.defaultSpeed
 	data.unlockedTeleports = { watermelon = true }
@@ -257,6 +264,14 @@ function PlayerData.getPassivePerSecond(player)
 		return 0
 	end
 	return trainingEntry(data).passive * handsEntry(data).multiplier * materialMultiplier(data) * rebirthMultiplier(data)
+end
+
+function PlayerData.getTrainCycle(player)
+	local data = cache[player]
+	if not data then
+		return GameConfig.TrainCycle
+	end
+	return math.max(tonumber(trainingSpeedEntry(data).trainCycle) or GameConfig.TrainCycle, 0.1)
 end
 
 -- egy kattintásért járó Erő (kesztyű-anyag és rebirth szorzóval)
@@ -284,6 +299,7 @@ function PlayerData.snapshot(player)
 		cash = data.cash,
 		hands = data.hands,
 		training = data.training,
+		trainingSpeed = data.trainingSpeed,
 		move = data.move,
 		speed = data.speed,
 		walkSpeed = speedEntry(data).speed,
@@ -300,6 +316,7 @@ function PlayerData.snapshot(player)
 		canRebirth = data.power >= reqPower,
 		passive = PlayerData.getPassivePerSecond(player),
 		tapGain = PlayerData.getTapGain(player),
+		trainCycle = PlayerData.getTrainCycle(player),
 		dailyStreak = data.dailyStreak or 1,
 		lastDailyClaim = data.lastDailyClaim or 0,
 		canClaimDaily = os.time() - (data.lastDailyClaim or 0) >= DailyRewards.cooldown,
@@ -459,6 +476,15 @@ function PlayerData.setTraining(player, id)
 		return
 	end
 	data.training = id
+	PlayerData.sync(player)
+end
+
+function PlayerData.setTrainingSpeed(player, id)
+	local data = cache[player]
+	if not data then
+		return
+	end
+	data.trainingSpeed = id
 	PlayerData.sync(player)
 end
 

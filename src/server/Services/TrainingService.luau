@@ -12,7 +12,14 @@ local PlayerData = require(script.Parent.PlayerData)
 local TrainingService = {}
 
 local TOOL_NAME = "Train"
+local EQUIP_SYNC_GRACE = 0.3
 local lastTap = {} -- [userId] = os.clock()
+
+local function hasEquippedTrainTool(player)
+	local character = player.Character
+	local equippedTool = character and character:FindFirstChild(TOOL_NAME)
+	return equippedTool ~= nil and equippedTool:IsA("Tool")
+end
 
 local function buildTrainTool()
 	local tool = Instance.new("Tool")
@@ -40,16 +47,30 @@ local function onTap(player)
 	if not PlayerData.isLoaded(player) then
 		return
 	end
-
-	-- A kliens csak akkor kaphat Power-t, ha a szerver szerint is kézben van a Train Tool.
-	local character = player.Character
-	local equippedTool = character and character:FindFirstChild(TOOL_NAME)
-	if not equippedTool or not equippedTool:IsA("Tool") then
+	if player:GetAttribute("IsSqueezing") == true then
 		return
 	end
 
+	-- Az Equipped kliens-esemény egy pillanattal hamarabb érkezhet, mint ahogy a
+	-- Tool áthelyezése a szerveren replikálódik. Rövid türelmi idő után ismét
+	-- ellenőrizzük, de Power továbbra is csak ténylegesen felszerelt Toolért jár.
+	if not hasEquippedTrainTool(player) then
+		local deadline = os.clock() + EQUIP_SYNC_GRACE
+		repeat
+			task.wait()
+		until player:GetAttribute("IsSqueezing") == true
+			or hasEquippedTrainTool(player)
+			or os.clock() >= deadline
+
+		if player:GetAttribute("IsSqueezing") == true or not hasEquippedTrainTool(player) then
+			return
+		end
+	end
+
 	local now = os.clock()
-	if now - (lastTap[player.UserId] or 0) < GameConfig.TrainTapMinInterval then
+	local previousTap = lastTap[player.UserId]
+	local minInterval = math.max(PlayerData.getTrainCycle(player) - GameConfig.TrainTapTolerance, 0.1)
+	if previousTap and now - previousTap < minInterval then
 		return
 	end
 	lastTap[player.UserId] = now

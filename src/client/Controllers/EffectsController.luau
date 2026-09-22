@@ -10,6 +10,91 @@ local SPARKLE_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 
 local EffectsController = {}
 
+local INNER_COLORS = {
+	watermelon = Color3.fromRGB(236, 55, 71),
+	coconut = Color3.fromRGB(245, 239, 218),
+	tire = Color3.fromRGB(24, 27, 31),
+	anvil = Color3.fromRGB(165, 177, 181),
+	fridge = Color3.fromRGB(224, 239, 240),
+	car = Color3.fromRGB(128, 33, 29),
+	tank = Color3.fromRGB(92, 105, 64),
+	boulder = Color3.fromRGB(118, 118, 118),
+}
+
+local FRAGMENT_MATERIALS = {
+	tire = Enum.Material.Rubber,
+	anvil = Enum.Material.Metal,
+	fridge = Enum.Material.Metal,
+	car = Enum.Material.Metal,
+	tank = Enum.Material.Metal,
+	boulder = Enum.Material.Slate,
+}
+
+function EffectsController.shatter(position, object)
+	local random = Random.new()
+	local objectSize = math.max(tonumber(object.size) or 2, 1)
+	local count = math.clamp(9 + math.floor(objectSize * 1.5), 10, 18)
+	local shellColor = Color3.fromHex(object.color)
+	local innerColor = INNER_COLORS[object.id] or shellColor:Lerp(Color3.new(1, 1, 1), 0.18)
+	local material = FRAGMENT_MATERIALS[object.id] or Enum.Material.SmoothPlastic
+
+	for index = 1, count do
+		local fragment = index % 3 == 0 and Instance.new("WedgePart") or Instance.new("Part")
+		fragment.Name = "SqueezeFragment"
+		local scale = objectSize * random:NextNumber(0.075, 0.16)
+		fragment.Size = Vector3.new(
+			scale * random:NextNumber(0.65, 1.35),
+			scale * random:NextNumber(0.45, 1.05),
+			scale * random:NextNumber(0.65, 1.35)
+		)
+		if fragment:IsA("Part") and index % 4 == 0 then
+			fragment.Shape = Enum.PartType.Ball
+		end
+		fragment.Color = index % 3 == 0 and shellColor or innerColor
+		fragment.Material = material
+		fragment.Anchored = false
+		fragment.CanCollide = false
+		fragment.CanTouch = false
+		fragment.CanQuery = false
+		fragment.CastShadow = true
+		fragment.CFrame = CFrame.new(position + Vector3.new(
+			random:NextNumber(-0.18, 0.18) * objectSize,
+			random:NextNumber(-0.08, 0.18) * objectSize,
+			random:NextNumber(-0.18, 0.18) * objectSize
+		)) * CFrame.Angles(
+			random:NextNumber(-math.pi, math.pi),
+			random:NextNumber(-math.pi, math.pi),
+			random:NextNumber(-math.pi, math.pi)
+		)
+		fragment.Parent = Workspace
+
+		local outward = Vector3.new(
+			random:NextNumber(-1, 1),
+			random:NextNumber(0.45, 1.15),
+			random:NextNumber(-1, 1)
+		).Unit
+		fragment.AssemblyLinearVelocity = outward * random:NextNumber(7, 12 + objectSize)
+		fragment.AssemblyAngularVelocity = Vector3.new(
+			random:NextNumber(-12, 12),
+			random:NextNumber(-12, 12),
+			random:NextNumber(-12, 12)
+		)
+
+		task.delay(0.65, function()
+			if fragment.Parent then
+				TweenService:Create(
+					fragment,
+					TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{ Transparency = 1, Size = fragment.Size * 0.55 }
+				):Play()
+			end
+		end)
+		task.delay(1.3, function()
+			fragment:Destroy()
+		end)
+	end
+end
+
 function EffectsController.burst(position, color, count)
 	local part = Instance.new("Part")
 	part.Name = "FxBurst"

@@ -18,6 +18,7 @@ local Net = require(Shared.Net)
 local Ui = require(Shared.Ui)
 
 local EffectsController = require(script.Parent.EffectsController)
+local TrainingController = require(script.Parent.TrainingController)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -57,37 +58,40 @@ end
 local function buildBar(gui)
 	bar = Instance.new("Frame")
 	bar.Name = "SqueezeBar"
-	bar.AnchorPoint = Vector2.new(0.5, 1)
-	bar.Position = UDim2.new(0.5, 0, 1, -90)
-	bar.Size = UDim2.fromOffset(420, 74)
+	bar.AnchorPoint = Vector2.new(0, 0.5)
+	bar.Position = UDim2.new(0, 205, 0.5, 0)
+	bar.Size = UDim2.fromOffset(126, 340)
 	bar.BorderSizePixel = 0
 	bar.Visible = false
 	bar.Parent = gui
-	-- középen fekete, a széleken szépen áttűnő háttér
-	Ui.applyFadeBackground(bar, 0.12)
+	-- Bal oldali, függőleges panel; a menügombok mellett marad, nem takarja a játékot.
+	local backgroundGradient = Ui.applyFadeBackground(bar, 0.12)
+	backgroundGradient.Rotation = 90
 
 	-- cím: fehér gradiens + fekete outline (mint a prompt/hotbar szövegek)
 	titleOutline = Instance.new("TextLabel")
-	titleOutline.Size = UDim2.new(1, -20, 0, 24)
-	titleOutline.Position = UDim2.fromOffset(12, 6)
+	titleOutline.Size = UDim2.new(1, -12, 0, 42)
+	titleOutline.Position = UDim2.fromOffset(6, 8)
 	titleOutline.BackgroundTransparency = 1
 	titleOutline.Font = Enum.Font.GothamBold
-	titleOutline.TextSize = 18
+	titleOutline.TextSize = 16
 	titleOutline.TextColor3 = Color3.fromRGB(0, 0, 0)
 	titleOutline.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	titleOutline.TextStrokeTransparency = 0
-	titleOutline.TextXAlignment = Enum.TextXAlignment.Left
+	titleOutline.TextXAlignment = Enum.TextXAlignment.Center
+	titleOutline.TextWrapped = true
 	titleOutline.Text = ""
 	titleOutline.Parent = bar
 	Ui.applyDisplay(titleOutline)
 
 	titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, -20, 0, 24)
-	titleLabel.Position = UDim2.fromOffset(12, 6)
+	titleLabel.Size = UDim2.new(1, -12, 0, 42)
+	titleLabel.Position = UDim2.fromOffset(6, 8)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextSize = 18
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.TextSize = 16
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+	titleLabel.TextWrapped = true
 	titleLabel.Text = ""
 	titleLabel.Parent = bar
 	Ui.applyDisplay(titleLabel)
@@ -100,16 +104,17 @@ local function buildBar(gui)
 	titleGradient.Rotation = 90
 
 	hintLabel = Instance.new("TextLabel")
-	hintLabel.AnchorPoint = Vector2.new(1, 0)
-	hintLabel.Position = UDim2.new(1, -12, 0, 6)
-	hintLabel.Size = UDim2.fromOffset(150, 24)
+	hintLabel.AnchorPoint = Vector2.new(0.5, 1)
+	hintLabel.Position = UDim2.new(0.5, 0, 1, -9)
+	hintLabel.Size = UDim2.new(1, -12, 0, 34)
 	hintLabel.BackgroundTransparency = 1
 	hintLabel.Font = Enum.Font.GothamBold
-	hintLabel.TextSize = 15
+	hintLabel.TextSize = 14
 	hintLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hintLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	hintLabel.TextStrokeTransparency = 0
-	hintLabel.TextXAlignment = Enum.TextXAlignment.Right
+	hintLabel.TextXAlignment = Enum.TextXAlignment.Center
+	hintLabel.TextWrapped = true
 	hintLabel.Text = "CLICK / TAP!"
 	hintLabel.Parent = bar
 	Ui.applyDisplay(hintLabel)
@@ -122,8 +127,9 @@ local function buildBar(gui)
 	hintGradient.Rotation = 90
 
 	local track = Instance.new("Frame")
-	track.Position = UDim2.fromOffset(12, 40)
-	track.Size = UDim2.new(1, -24, 0, 18)
+	track.AnchorPoint = Vector2.new(0.5, 0)
+	track.Position = UDim2.new(0.5, 0, 0, 58)
+	track.Size = UDim2.fromOffset(24, 236)
 	track.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	track.BackgroundTransparency = 0.45
 	track.BorderSizePixel = 0
@@ -131,12 +137,14 @@ local function buildBar(gui)
 
 	fill = Instance.new("Frame")
 	fill.Name = "Fill"
-	fill.Size = UDim2.fromScale(0, 1)
+	fill.AnchorPoint = Vector2.new(0, 1)
+	fill.Position = UDim2.fromScale(0, 1)
+	fill.Size = UDim2.fromScale(1, 0)
 	fill.BorderSizePixel = 0
 	fill.Parent = track
 
 	fillGradient = Instance.new("UIGradient")
-	fillGradient.Rotation = 90
+	fillGradient.Rotation = 0
 	fillGradient.Parent = fill
 	setFillColor(COLORS.Accent)
 
@@ -410,6 +418,7 @@ local function enterCinematic(payload)
 end
 
 local function exitCinematic()
+	TrainingController.setBlocked(false)
 	if not cinematicActive then
 		return
 	end
@@ -501,7 +510,7 @@ function SqueezeController.tap()
 		scrubTarget = cfg.ScrubStart + (cfg.ScrubEnd - cfg.ScrubStart) * squeezeRatio
 
 		if fill then
-			fill.Size = UDim2.fromScale(squeezeRatio, 1)
+			fill.Size = UDim2.fromScale(1, squeezeRatio)
 			setFillColor(squeezeRatio > 0.66 and COLORS.Good or COLORS.Accent)
 		end
 	end
@@ -520,6 +529,7 @@ local function onState(payload)
 	end
 
 	if payload.state == "start" then
+		TrainingController.setBlocked(true)
 		local newSession = {
 			objectId = payload.objectId,
 			name = payload.name,
@@ -530,7 +540,7 @@ local function onState(payload)
 		session = newSession
 		titleLabel.Text = payload.name
 		titleOutline.Text = payload.name
-		fill.Size = UDim2.fromScale(0, 1)
+		fill.Size = UDim2.fromScale(1, 0)
 		setFillColor(COLORS.Accent)
 		setVisible(true)
 		enterCinematic(payload)
@@ -561,6 +571,9 @@ local function onState(payload)
 		local color = object and Color3.fromHex(object.color) or COLORS.Good
 		if payload.position then
 			EffectsController.burst(payload.position, color, 34)
+			if object then
+				EffectsController.shatter(payload.position, object)
+			end
 			EffectsController.floatingText(payload.position, "+" .. Format.money(payload.reward), COLORS.Gold)
 		end
 		popPunch()

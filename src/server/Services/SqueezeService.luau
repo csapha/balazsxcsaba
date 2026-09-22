@@ -16,6 +16,15 @@ local SqueezeService = {}
 
 local sessions = {} -- [Player] = { objectId, progress, needed, lastTick }
 
+local function squashScale(progressRatio)
+	local t = math.clamp(progressRatio, 0, 1) ^ 1.25
+	return Vector3.new(
+		1 - 0.62 * t,
+		1 + 0.25 * t,
+		1 + 0.18 * t
+	)
+end
+
 -- A tárgy vizuális modelljének "összenyomása": a Visual modell partjait
 -- a két kéz irányában keskenyítjük, a többi irányban kidudorítjuk.
 local function captureVisual(root)
@@ -90,6 +99,7 @@ local function endSession(player, objectId)
 	end
 
 	sessions[player] = nil
+	player:SetAttribute("IsSqueezing", false)
 	local entry = WorldService.getEntry(objectId)
 	if entry and entry.prompt and entry.part and entry.part:GetAttribute("Active") ~= false then
 		entry.prompt.Enabled = true
@@ -147,6 +157,14 @@ local function startSqueeze(player, part)
 		started = false,
 		visual = captureVisual(part),
 	}
+	player:SetAttribute("IsSqueezing", true)
+
+	-- A TRAIN Tool squeeze közben nem maradhat felszerelve.
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid:UnequipTools()
+	end
 
 	-- a prompt ne lógjon bele a cinematic jelenetbe
 	local entry = WorldService.getEntry(objectId)
@@ -197,10 +215,7 @@ local function tick(player)
 	-- Látható összenyomódás: a kezek között keskenyedik és kidudorodik.
 	if session.visual then
 		local t = math.clamp(session.progress / session.needed, 0, 1)
-		local flat = 1 - 0.42 * t
-		local verticalBulge = 1 + 0.18 * t
-		local depthBulge = 1 + 0.12 * t
-		applySquash(session.visual, Vector3.new(flat, verticalBulge, depthBulge), 0.075)
+		applySquash(session.visual, squashScale(t), 0.075)
 	end
 
 	if session.progress < session.needed then
@@ -279,11 +294,7 @@ function SqueezeService.init()
 						session.progress -= GameConfig.FailDecay
 						if session.progress > 0 and session.visual then
 							local t = math.clamp(session.progress / session.needed, 0, 1)
-							applySquash(session.visual, Vector3.new(
-								1 - 0.42 * t,
-								1 + 0.18 * t,
-								1 + 0.12 * t
-							), 0.15)
+							applySquash(session.visual, squashScale(t), 0.15)
 						end
 						if session.progress <= 0 then
 							endSession(player, session.objectId)

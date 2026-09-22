@@ -3,6 +3,11 @@ local Format = {}
 
 local SUFFIXES = { "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc" }
 
+local function truncate(n, decimalPlaces)
+	local scale = 10 ^ decimalPlaces
+	return math.floor(n * scale) / scale
+end
+
 function Format.number(n)
 	n = tonumber(n) or 0
 	local negative = n < 0
@@ -16,15 +21,20 @@ function Format.number(n)
 
 	local text
 	if suffixIndex == 1 then
-		text = string.format("%.0f", n)
+		text = string.format("%.0f", math.floor(n))
 	else
+		local decimalPlaces
 		if n >= 100 then
-			text = string.format("%.0f", n)
+			decimalPlaces = 0
 		elseif n >= 10 then
-			text = string.format("%.1f", n)
+			decimalPlaces = 1
 		else
-			text = string.format("%.2f", n)
+			decimalPlaces = 2
 		end
+
+		-- A Roblox leaderstats lefelé rövidít (pl. 999,999,999,500 -> 999B),
+		-- ezért itt sem kerekítünk fel 1000B-re.
+		text = string.format("%." .. decimalPlaces .. "f", truncate(n, decimalPlaces))
 		-- Felesleges záró nullák és tizedespont levágása (pl. 1.000.000 -> 1M, 5.200.000.000 -> 5.2B)
 		if string.find(text, "%.") then
 			text = text:gsub("0+$", "")

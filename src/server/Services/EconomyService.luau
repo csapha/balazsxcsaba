@@ -33,6 +33,14 @@ local CATEGORY_HANDLERS = {
 		set = PlayerData.setTraining,
 		prefix = "Training: ",
 	},
+	trainingSpeed = {
+		byId = Upgrades.trainingSpeedById,
+		getCurrent = function(data)
+			return data.trainingSpeed
+		end,
+		set = PlayerData.setTrainingSpeed,
+		prefix = "Training speed: ",
+	},
 	move = {
 		byId = Upgrades.movesById,
 		getCurrent = function(data)

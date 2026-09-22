@@ -22,6 +22,7 @@ local currentData = {
 	cash = 0,
 	hands = UpgradesConfig.defaultHands,
 	training = UpgradesConfig.defaultTraining,
+	trainingSpeed = UpgradesConfig.defaultTrainingSpeed,
 	move = UpgradesConfig.defaultMove,
 	speed = UpgradesConfig.defaultSpeed,
 }
@@ -680,6 +681,7 @@ function UpgradeController.init(hud)
 				currentData.cash = snapshot.cash or currentData.cash
 				currentData.hands = snapshot.hands or currentData.hands
 				currentData.training = snapshot.training or currentData.training
+				currentData.trainingSpeed = snapshot.trainingSpeed or currentData.trainingSpeed
 				currentData.move = snapshot.move or currentData.move
 				currentData.speed = snapshot.speed or currentData.speed
 				refreshAll()

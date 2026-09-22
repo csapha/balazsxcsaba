@@ -19,6 +19,7 @@ local player = Players.LocalPlayer
 local TrainingController = {}
 
 local training = false
+local trainingBlocked = false
 local trainSession = 0
 local squatTrack = nil
 local squatTrackAnimator = nil
@@ -27,6 +28,7 @@ local squatAnimationId = nil
 local tapGain = 0
 local currentMoveId = UpgradesConfig.defaultMove
 local currentWalkSpeed = UpgradesConfig.speedById[UpgradesConfig.defaultSpeed].speed
+local currentTrainCycle = GameConfig.TrainCycle
 
 local function getAnimator(character)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -79,6 +81,24 @@ local function loadSquatTrack(character)
 	return track
 end
 
+-- A publikált animációk hossza eltérő lehet. Úgy állítjuk a lejátszási
+-- sebességet, hogy egy látható ismétlés pontosan egy TrainCycle legyen.
+local function syncTrackToTrainCycle(track)
+	task.spawn(function()
+		local deadline = os.clock() + 3
+		while squatTrack == track and track.Length <= 0 and os.clock() < deadline do
+			task.wait()
+		end
+
+		if squatTrack ~= track or track.Length <= 0 then
+			return
+		end
+
+		local cycle = math.max(currentTrainCycle, 0.05)
+		track:AdjustSpeed(track.Length / cycle)
+	end)
+end
+
 local function warmSquatAnimation(character)
 	local animation = getSquatAnimation()
 	if not animation then
@@ -119,6 +139,7 @@ local function startSquatAnimation(character)
 	if not track.IsPlaying then
 		track:Play(0.15)
 	end
+	syncTrackToTrainCycle(track)
 	return true
 end
 
@@ -167,7 +188,7 @@ local function trainLoop(character, session)
 				Color3.fromRGB(255, 212, 71))
 		end
 
-		task.wait(GameConfig.TrainCycle)
+		task.wait(currentTrainCycle)
 	end
 end
 
@@ -206,6 +227,17 @@ local function setTraining(character, value)
 	end
 end
 
+local function stopTraining()
+	local character = player.Character
+	if character then
+		setTraining(character, false)
+	elseif training then
+		training = false
+		trainSession += 1
+		stopSquatAnimation()
+	end
+end
+
 local function hookTool(tool)
 	if tool.Name ~= "Train" or tool:GetAttribute("TrainHooked") then
 		return
@@ -215,14 +247,37 @@ local function hookTool(tool)
 	-- elővételre (1-es gomb / hotbar) automatikusan indul, nem kell kattintani
 	tool.Equipped:Connect(function()
 		local character = player.Character
+		if trainingBlocked then
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				task.defer(function()
+					humanoid:UnequipTools()
+				end)
+			end
+			return
+		end
 		if character then
 			setTraining(character, true)
 		end
 	end)
 
 	tool.Unequipped:Connect(function()
-		setTraining(player.Character, false)
+		stopTraining()
 	end)
+end
+
+function TrainingController.setBlocked(blocked)
+	trainingBlocked = blocked == true
+	if not trainingBlocked then
+		return
+	end
+
+	stopTraining()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid:UnequipTools()
+	end
 end
 
 local function hookContainer(container)
@@ -265,6 +320,11 @@ function TrainingController.init()
 			end
 			tapGain = snapshot.tapGain or 0
 			currentWalkSpeed = tonumber(snapshot.walkSpeed) or currentWalkSpeed
+			local previousTrainCycle = currentTrainCycle
+			currentTrainCycle = tonumber(snapshot.trainCycle) or currentTrainCycle
+			if training and squatTrack and currentTrainCycle ~= previousTrainCycle then
+				syncTrackToTrainCycle(squatTrack)
+			end
 
 			-- Ha új edzés-mozdulatot vettél, azonnal cseréljük az animációt.
 			if type(snapshot.move) == "string" and snapshot.move ~= currentMoveId then

@@ -213,7 +213,7 @@ function WorldService.setStatus(objectId, text, color)
 	entry.status.TextColor3 = color or Color3.fromRGB(235, 240, 255)
 end
 
--- pop: eltűnik, majd azonnal újra megjelenik (nincs visszaszámlálás).
+-- POP után a darab-effektnek marad ideje lefutni, majd a tárgy újraterem.
 function WorldService.popObject(objectId)
 	local entry = byId[objectId]
 	if not entry then
@@ -226,7 +226,7 @@ function WorldService.popObject(objectId)
 	entry.part.CanQuery = false
 	entry.part.CanTouch = false
 
-	task.delay(0.25, function()
+	task.delay(math.max(GameConfig.RespawnTime or 0.25, 0.25), function()
 		StationModels.setVisible(entry.part, true)
 		entry.part.CanQuery = false
 		entry.part.CanTouch = false

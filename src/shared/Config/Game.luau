@@ -3,9 +3,9 @@ return {
 	Persistence = false, -- session-only egyelőre
 
 	-- edzés
-	TrainTapGain = 0.8, -- ennyi Erő jár egy guggolásért (hand szorzóval)
-	TrainCycle = 2.4, -- automatikus edzés: ennyi mp-enként egy guggolás
-	TrainTapMinInterval = 2.1, -- kis hálózati tolerancia a 2.4 mp-es kliens ciklushoz
+	TrainTapGain = 1, -- legalább 1 látható Erő jár minden guggolásért (hand szorzóval)
+	TrainCycle = 2.0, -- fallback; az aktuális sebességet a Workout Training upgrade adja
+	TrainTapTolerance = 0.15, -- hálózati tolerancia a dinamikus edzésciklushoz
 	PassiveTick = 1, -- passzív Erő ennyi másodpercenként adódik
 
 	-- edzés animációk
@@ -57,7 +57,7 @@ return {
 	MaxClicks = 18, -- ennyi kell, amikor a játékos épp eléri a Power gate-et
 	FailDecay = 1.5, -- mp-enként ennyi progress vész el, ha nem kattintasz
 	StartGrace = 1.5, -- ennyi mp türelmi idő van az első kattintásig
-	RespawnTime = 5, -- objektum újra megjelenik ennyi mp után
+	RespawnTime = 0.25, -- POP után gyakorlatilag azonnal újraterem
 
 	-- világ
 	MapName = "SqueezeMap",
