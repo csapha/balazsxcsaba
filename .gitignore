@@ -1,0 +1,13 @@
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+# Generated
+sourcemap.json
+/*.rbxl
+/*.rbxlx
+Packages/
+ServerPackages/
+
+# Blender automatikus biztonsági mentések
+*.blend1

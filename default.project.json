@@ -1,0 +1,52 @@
+{
+  "name": "Schnitzel",
+  "tree": {
+    "$className": "DataModel",
+    "Workspace": {
+      "$className": "Workspace",
+      "$ignoreUnknownInstances": true
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$ignoreUnknownInstances": true
+    },
+    "ReplicatedFirst": {
+      "$className": "ReplicatedFirst",
+      "$ignoreUnknownInstances": true
+    },
+    "ReplicatedStorage": {
+      "$ignoreUnknownInstances": true,
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
+      }
+    },
+    "ServerScriptService": {
+      "$ignoreUnknownInstances": true,
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "ServerStorage": {
+      "$ignoreUnknownInstances": true,
+      "Packages": {
+        "$path": "ServerPackages"
+      }
+    },
+    "StarterGui": {
+      "$className": "StarterGui",
+      "$ignoreUnknownInstances": true
+    },
+    "StarterPlayer": {
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$ignoreUnknownInstances": true,
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
