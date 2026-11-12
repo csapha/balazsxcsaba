@@ -1,7 +1,9 @@
 -- Kliens belépési pont.
-local Controllers = script:FindFirstChild("Controllers")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-for _, module in if Controllers then Controllers:GetChildren() else {} do
+local Controllers = script:WaitForChild("Controllers")
+
+for _, module in Controllers:GetChildren() do
 	if module:IsA("ModuleScript") then
 		local controller = require(module)
 		if type(controller) == "table" and controller.init then
@@ -10,4 +12,6 @@ for _, module in if Controllers then Controllers:GetChildren() else {} do
 	end
 end
 
-require(script:WaitForChild("UI"):WaitForChild("Hud")).mount()
+-- A Data require addig vár, amíg a szerver elküldi a játékos adatát.
+local data = require(ReplicatedStorage.Shared.Data).client
+require(script:WaitForChild("UI"):WaitForChild("Hud")).mount(data)

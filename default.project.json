@@ -20,7 +20,7 @@
         "$path": "src/shared"
       },
       "Packages": {
-        "$path": "Packages"
+        "$path": { "optional": "Packages" }
       }
     },
     "ServerScriptService": {
@@ -32,7 +32,7 @@
     "ServerStorage": {
       "$ignoreUnknownInstances": true,
       "Packages": {
-        "$path": "ServerPackages"
+        "$path": { "optional": "ServerPackages" }
       }
     },
     "StarterGui": {
