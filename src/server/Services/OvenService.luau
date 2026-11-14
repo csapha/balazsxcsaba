@@ -233,7 +233,7 @@ local function showMergePops(state: PlotService.PlotState)
 			maxDistance = 120,
 			lines = { { name = "Text", color = Palette.Lemon, height = 1 } },
 		})
-		labels.Text.Text = `Lv {level} – {Formulas.levelInfo(level).Name}!`
+		labels.Text.Text = `Lv {level}: {Formulas.levelInfo(level).Name}!`
 		local gui = labels.Text.Parent :: BillboardGui
 		gui.Name = "MergePop"
 		gui.AlwaysOnTop = true
@@ -266,13 +266,13 @@ local function render(state: PlotService.PlotState, raw: any)
 		local price = Formulas.ovenPriceSum(raw.generation, raw.generationBought, count)
 		-- GDD 3.2: ha tele a sor, a gomb piros → "Merge-elj!" (az Auto Merge gomb sosem akad el)
 		local full = not hasFree and not pad.AutoMerge
-		label.Title.Text = if full then "TELE! Merge-elj!" else pad.Title
+		label.Title.Text = if full then "FULL! Merge!" else pad.Title
 		label.Title.TextColor3 = if full then Palette.Danger else Palette.White
 		label.Info.Text = NumberFormat.money(price)
 		label.Info.TextColor3 = if not full and raw.money >= price then Palette.Money else Palette.Danger
 	end
 
-	labels.Merge.Info.Text = if merges > 0 then `{merges} összevonás` else "nincs pár"
+	labels.Merge.Info.Text = if merges > 0 then `{merges} merge{if merges == 1 then "" else "s"}` else "no pairs"
 	labels.Merge.Info.TextColor3 = if merges > 0 then Palette.Lemon else Palette.White
 end
 

@@ -276,7 +276,7 @@ local function render(state: PlotService.PlotState, raw: any)
 	local count = raw.chefs.count
 	local hire = labels.ChefHire
 	if count >= Formulas.maxChefs(raw.rebirths) then
-		hire.Title.Text = `Chefek: {count}/{Formulas.maxChefs(raw.rebirths)}`
+		hire.Title.Text = `Chefs: {count}/{Formulas.maxChefs(raw.rebirths)}`
 		hire.Info.Text = "MAX"
 		hire.Info.TextColor3 = Palette.Lemon
 	else

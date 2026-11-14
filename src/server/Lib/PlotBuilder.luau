@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local Billboard = require(script.Parent.Billboard)
 
@@ -210,7 +211,7 @@ function PlotBuilder.build(index: number, parent: Instance): PlotRefs
 		size = Vector2.new(10, 1.4),
 		lines = { { name = "Title", color = Palette.White, height = 1 } },
 	})
-	restLabel.Title.Text = "Chef pihenő"
+	restLabel.Title.Text = "Chef Rest"
 
 	local chefs = Instance.new("Folder")
 	chefs.Name = "Chefs"
@@ -299,7 +300,7 @@ function PlotBuilder.build(index: number, parent: Instance): PlotRefs
 		maxDistance = 300,
 		lines = { { name = "Owner", color = Palette.Lemon, height = 1 } },
 	}).Owner
-	refs.sign.Text = "Szabad telek"
+	refs.sign.Text = "Free Plot"
 
 	model.Parent = parent
 	return refs
@@ -337,7 +338,7 @@ function PlotBuilder.buildRarityBoard(boardPart: BasePart)
 		normalChance -= rarities[i].Chance
 	end
 
-	local entries = { { "Esély", "ritkaság", Palette.White } }
+	local entries = { { "Chance", "rarity", Palette.White } }
 	for i, rarity in rarities do
 		local chance = if i == 1 then normalChance else rarity.Chance
 		table.insert(entries, { rarity.Name, formatChance(chance), rarity.Color })
@@ -360,8 +361,7 @@ function PlotBuilder.buildRarityBoard(boardPart: BasePart)
 			label.TextWrapped = true
 			label.Text = line[1]
 			label.TextColor3 = if row == 1 then entry[3] else Palette.White
-			label.TextStrokeColor3 = Palette.Stroke
-			label.TextStrokeTransparency = 0
+			Ui.worldText(label)
 			label.Parent = column
 		end
 	end
@@ -401,13 +401,12 @@ function PlotBuilder.buildGenerationBoard(board: BasePart): { [string]: GuiObjec
 		label.Font = Enum.Font.FredokaOne
 		label.TextScaled = true
 		label.TextColor3 = line[3]
-		label.TextStrokeColor3 = Palette.Stroke
-		label.TextStrokeTransparency = 0
+		Ui.worldText(label)
 		label.Text = ""
 		label.Parent = gui
 		refs[line[1]] = label
 	end
-	refs.Title.Text = "SÜTŐ-GENERÁCIÓ"
+	refs.Title.Text = "OVEN GENERATION"
 
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"

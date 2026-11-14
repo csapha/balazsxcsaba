@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
@@ -205,8 +206,7 @@ local function showPickup(picked: { { rarity: number, units: number } })
 			then `+{NumberFormat.grouped(entry.units)}`
 			else `+{NumberFormat.grouped(entry.units)} {rarity.Name}`
 		label.TextColor3 = if entry.rarity == 1 then Palette.Gold else rarity.Color
-		label.TextStrokeColor3 = Palette.Stroke
-		label.TextStrokeTransparency = 0
+		Ui.worldText(label)
 		label.Parent = gui
 		table.insert(labels, label)
 	end
@@ -215,7 +215,7 @@ local function showPickup(picked: { { rarity: number, units: number } })
 	local info = TweenInfo.new(POPUP_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	TweenService:Create(gui, info, { StudsOffset = gui.StudsOffset + Vector3.new(0, 2.5, 0) }):Play()
 	for _, label in labels do
-		TweenService:Create(label, info, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		Ui.fadeText(label, info)
 	end
 	task.delay(POPUP_TIME, function()
 		gui:Destroy()

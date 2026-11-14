@@ -198,7 +198,7 @@ local function spawnCustomer(state: PlotService.PlotState, guest: Guest?): Custo
 	model.Name = "Customer"
 	root.Anchored = false
 	humanoid.WalkSpeed = Settings.WalkSpeed
-	humanoid.DisplayName = if guest then guest.name else "Vendég"
+	humanoid.DisplayName = if guest then guest.name else "Guest"
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
 	humanoid.NameDisplayDistance = 60
 	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
@@ -294,14 +294,14 @@ function CustomerService.endCritic()
 	critic.active = false
 end
 
--- A VIP vendég: alap avatar arany koronával, "⭐ Ételkritikus" névvel.
+-- A VIP vendég: alap avatar arany koronával, "⭐ Food Critic" névvel.
 local function spawnCritic(state: PlotService.PlotState): Customer?
 	local customer = spawnCustomer(state, nil)
 	if not customer then
 		return nil
 	end
 	customer.vip = true
-	customer.humanoid.DisplayName = "⭐ Ételkritikus"
+	customer.humanoid.DisplayName = "⭐ Food Critic"
 	local head = customer.model:FindFirstChild("Head")
 	if head and head:IsA("BasePart") then
 		local crown = Instance.new("Part")
@@ -327,12 +327,12 @@ local function rewardCritic(state: PlotService.PlotState)
 	local raw = data()
 	local reward = math.max(config.RewardMin, math.floor(Formulas.incomePerSecond(raw) * config.RewardIncomeSeconds))
 	data.money(raw.money + reward)
-	Remotes.EventReward:FireClient(state.player, `🎩 Az Ételkritikus elégedett! +{NumberFormat.money(reward)}`, config.Color)
+	Remotes.EventReward:FireClient(state.player, `🎩 The Food Critic loved it! +{NumberFormat.money(reward)}`, config.Color)
 end
 
 -- A VIP kiszolgálás nélkül, dühösen távozik (nincs schnitzel a kezében).
 local function criticLeavesAngry(state: PlotService.PlotState, customer: Customer)
-	Remotes.EventReward:FireClient(state.player, "😠 Az Ételkritikus éhesen távozott…", Palette.Danger)
+	Remotes.EventReward:FireClient(state.player, "😠 The Food Critic left hungry…", Palette.Danger)
 	local x, z = queuePosition(1)
 	walk(customer, {
 		worldPoint(state, x, Settings.StreetZ),

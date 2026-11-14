@@ -29,19 +29,19 @@ return table.freeze({
 		TokenCost = 1,
 		Order = table.freeze({ "Money", "StartMoney", "StartChefs", "StartGeneration", "OfflineTime", "OfflineRate" }),
 		Perks = table.freeze({
-			Money = table.freeze({ Name = "Pénz", Description = "+10% pénz szintenként", Step = 0.10, Max = 5 }),
-			StartMoney = table.freeze({ Name = "Kezdőpénz", Description = "×10 kezdőpénz rebirth után", Step = 10, Max = 3 }),
-			StartChefs = table.freeze({ Name = "Kezdő chefek", Description = "+1 chef rebirth után", Step = 1, Max = 3 }),
-			StartGeneration = table.freeze({ Name = "Kezdő generáció", Description = "+1 sütő-generáció rebirth után", Step = 1, Max = 2 }),
-			OfflineTime = table.freeze({ Name = "Offline idő", Description = "+2 óra offline kereset", Step = 2 * 60 * 60, Max = 5 }),
-			OfflineRate = table.freeze({ Name = "Offline arány", Description = "+10% offline kereset", Step = 0.10, Max = 3 }),
+			Money = table.freeze({ Name = "Money", Description = "+10% money per level", Step = 0.10, Max = 5 }),
+			StartMoney = table.freeze({ Name = "Start Money", Description = "x10 starting money after rebirth", Step = 10, Max = 3 }),
+			StartChefs = table.freeze({ Name = "Start Chefs", Description = "+1 chef after rebirth", Step = 1, Max = 3 }),
+			StartGeneration = table.freeze({ Name = "Start Generation", Description = "+1 oven generation after rebirth", Step = 1, Max = 2 }),
+			OfflineTime = table.freeze({ Name = "Offline Time", Description = "+2 hours of offline earnings", Step = 2 * 60 * 60, Max = 5 }),
+			OfflineRate = table.freeze({ Name = "Offline Rate", Description = "+10% offline earnings", Step = 0.10, Max = 3 }),
 		}),
 	}),
 
 	-- A rebirth ablakban "hamarosan"-ként jelennek meg (a tényleges tartalom később jön)
 	ComingSoon = table.freeze({
-		[2] = "Új telek-skin",
-		[4] = "Új világ: Bécsi Kávéház",
+		[2] = "New plot skin",
+		[4] = "New world: Vienna Café",
 	}),
 	WorldEvery = 5, -- minden 5. rebirth-nél új világ (hamarosan)
 })

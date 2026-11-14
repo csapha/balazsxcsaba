@@ -1,16 +1,23 @@
--- Random event vizuál (GDD 3.12, 10): induláskor felülről lecsúszó banner, színes vignetta a
--- képernyő szélén, Áramszünetnél sötétebb kép; event jutalmak (+$, Ételkritikus) felirata a fej felett.
--- (A "Következő esemény" időzítő a HUD-on van.)
+-- Random event visuals (GDD 3.12, 10): a candy banner (UI Kit style) slides down when an event starts,
+-- a coloured vignette on the screen edges, a darker picture during the Blackout; event rewards
+-- (+$, Food Critic) float above your head. (The "Next event" timer is on the HUD.)
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Vide = require(ReplicatedStorage.Packages.Vide)
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local UI = script.Parent.Parent.UI
+local Audio = require(UI.Audio)
+local Kit = require(UI.Kit)
+local Theme = require(UI.Theme)
 
-local Palette = Config.Palette
+local create = Vide.create
+local C = Theme.Colors
 
 local EventController = {}
 
@@ -18,58 +25,91 @@ local gui: ScreenGui
 local vignettes: { Frame } = {}
 local darkness: ColorCorrectionEffect
 
-local function label(parent: Instance, textValue: string, color: Color3, position: UDim2, size: UDim2): TextLabel
-	local text = Instance.new("TextLabel")
-	text.AnchorPoint = Vector2.new(0.5, 0)
-	text.Position = position
-	text.Size = size
-	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.FredokaOne
-	text.TextScaled = true
-	text.Text = textValue
-	text.TextColor3 = color
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Palette.Stroke
-	stroke.Thickness = 3
-	stroke.Parent = text
-	text.Parent = parent
-	return text
+local BANNER_W = 620
+local BANNER_H = 100
+local BANNER_TOP = 104 -- below the HUD's top bar
+
+-- Each event gets a candy palette from its colour (Kit plates look palettes up by name).
+for id, event in Config.Events.List do
+	Theme.Palettes["Event" .. id] = Theme.paletteFrom(event.Color)
 end
 
--- Felülről lecsúszó banner: ikon + név + leírás, majd visszacsúszik.
-local function showBanner(config: any)
-	local banner = Instance.new("Frame")
-	banner.AnchorPoint = Vector2.new(0.5, 1)
-	banner.Position = UDim2.fromScale(0.5, 0)
-	banner.Size = UDim2.fromScale(0.5, 0.14)
-	banner.BackgroundColor3 = config.Color
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.25, 0)
-	corner.Parent = banner
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Palette.Stroke
-	stroke.Thickness = 4
-	stroke.Parent = banner
-	local constraint = Instance.new("UISizeConstraint")
-	constraint.MaxSize = Vector2.new(720, 130)
-	constraint.Parent = banner
+-- Banner sliding down from the top: icon + name + description, then it slides back up.
+local function showBanner(id: string, config: any)
+	local holder: Frame
+	local destroy = Vide.root(function()
+		holder = create "Frame" {
+			Name = "EventBanner",
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 0, 0),
+			Size = UDim2.fromOffset(BANNER_W, BANNER_H),
+			BackgroundTransparency = 1,
+			Parent = gui,
+			Kit.scale(),
+			Kit.plate {
+				Name = "Plate",
+				Color = "Event" .. id,
+				Text = "",
+				Size = UDim2.fromOffset(BANNER_W, BANNER_H),
+				create "TextLabel" {
+					Name = "Icon",
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, 14, 0.5, -4),
+					Size = UDim2.fromOffset(64, 64),
+					BackgroundTransparency = 1,
+					Text = config.Icon,
+					TextScaled = true,
+					Rotation = -8,
+					ZIndex = 6,
+				},
+				Kit.text {
+					Name = "Title",
+					Text = `{string.upper(config.Name)}!`,
+					TextSize = 40,
+					StrokeThickness = 4,
+					Position = UDim2.fromOffset(84, 8),
+					Size = UDim2.new(1, -100, 0, 46),
+					ZIndex = 6,
+				},
+				Kit.text {
+					Name = "Description",
+					Text = config.Description,
+					TextSize = 19,
+					Gradient = false,
+					TextWrapped = true,
+					Position = UDim2.fromOffset(84, 54),
+					Size = UDim2.new(1, -100, 0, 34),
+					ZIndex = 6,
+				},
+			},
+		} :: Frame
+	end)
 
-	label(banner, `{config.Icon} {string.upper(config.Name)}!`, Palette.White, UDim2.fromScale(0.5, 0.08), UDim2.fromScale(0.92, 0.5))
-	label(banner, config.Description, Palette.White, UDim2.fromScale(0.5, 0.6), UDim2.fromScale(0.92, 0.32))
-	banner.Parent = gui
-
-	local info = TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-	TweenService:Create(banner, info, { Position = UDim2.new(0.5, 0, 0, 150) }):Play()
-	task.delay(3.2, function()
-		local out = TweenService:Create(banner, TweenInfo.new(0.35), { Position = UDim2.fromScale(0.5, 0) })
+	Audio.play("Stinger")
+	TweenService:Create(holder, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BANNER_TOP),
+	}):Play()
+	task.delay(0.35, function()
+		if holder.Parent then
+			Kit.burst(holder, UDim2.fromOffset(46, BANNER_H / 2), Theme.Palettes["Event" .. id].light, 12, 1.2)
+		end
+	end)
+	task.delay(3.6, function()
+		local out = TweenService:Create(holder, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 0, 0),
+		})
 		out.Completed:Once(function()
-			banner:Destroy()
+			destroy()
+			holder:Destroy()
 		end)
 		out:Play()
 	end)
 end
 
 local function onActiveChanged()
+	local id = EventState.active()
 	local config = EventState.config()
 	for _, vignette in vignettes do
 		if config then
@@ -79,8 +119,8 @@ local function onActiveChanged()
 			BackgroundTransparency = if config then 0.25 else 1,
 		}):Play()
 	end
-	if config then
-		showBanner(config)
+	if id and config then
+		showBanner(id, config)
 	end
 
 	local blackout = EventState.is("Blackout")
@@ -90,35 +130,40 @@ local function onActiveChanged()
 	}):Play()
 end
 
--- Jutalom felirat a fej felett, felfelé úszva.
+-- Reward text above your head, floating up (fixed pixel size, like the HUD).
 local function onReward(message: string, color: Color3?)
 	local character = Players.LocalPlayer.Character
 	local head = character and character:FindFirstChild("Head")
 	if not head then
 		return
 	end
-	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromScale(10, 1.4)
-	billboard.StudsOffset = Vector3.new(math.random(-10, 10) / 10, 3, 0)
-	billboard.AlwaysOnTop = true
-	billboard.LightInfluence = 0
-	billboard.Adornee = head
-	local textLabel = Instance.new("TextLabel")
-	textLabel.BackgroundTransparency = 1
-	textLabel.Size = UDim2.fromScale(1, 1)
-	textLabel.Font = Enum.Font.FredokaOne
-	textLabel.TextScaled = true
-	textLabel.Text = message
-	textLabel.TextColor3 = color or Palette.Money
-	textLabel.TextStrokeColor3 = Palette.Stroke
-	textLabel.TextStrokeTransparency = 0
-	textLabel.Parent = billboard
+	local billboard: BillboardGui, label: TextLabel
+	local destroy = Vide.root(function()
+		label = Kit.text {
+			Text = message,
+			TextSize = 32,
+			StrokeThickness = 3.5,
+			TextColor3 = color or C.Money,
+			Size = UDim2.fromScale(1, 1),
+		}
+		billboard = create "BillboardGui" {
+			Name = "EventReward",
+			Size = UDim2.fromOffset(460, 44),
+			StudsOffset = Vector3.new(math.random(-10, 10) / 10, 3, 0),
+			AlwaysOnTop = true,
+			LightInfluence = 0,
+			Adornee = head,
+			label,
+		} :: BillboardGui
+	end)
 	billboard.Parent = head
+	Audio.play("Coins")
 
 	local info = TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	TweenService:Create(billboard, info, { StudsOffset = billboard.StudsOffset + Vector3.new(0, 3, 0) }):Play()
-	TweenService:Create(textLabel, info, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	Ui.fadeText(label, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 1))
 	task.delay(1.6, function()
+		destroy()
 		billboard:Destroy()
 	end)
 end
@@ -130,9 +175,10 @@ function EventController.init()
 	gui.IgnoreGuiInset = true
 	gui.ResetOnSpawn = false
 	gui.DisplayOrder = 20
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = playerGui
 
-	-- vignetta: a képernyő szélein színes, középen átlátszó (vízszintes + függőleges réteg)
+	-- vignette: coloured on the screen edges, clear in the middle (a horizontal and a vertical layer)
 	for _, rotation in { 0, 90 } do
 		local vignette = Instance.new("Frame")
 		vignette.Size = UDim2.fromScale(1, 1)

@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -260,15 +261,17 @@ local function buildPlaza()
 			label.TextScaled = true
 			label.Text = line[1]
 			label.TextColor3 = line[2]
-			label.TextStrokeColor3 = Palette.Stroke
-			label.TextStrokeTransparency = 0
+			Ui.worldText(label)
 			label.Parent = gui
 		end
 		gui.Parent = eggPart
 
 		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = `Nyisd ki ({NumberFormat.money(egg.Price)})`
+		prompt.ActionText = `Open ({NumberFormat.money(egg.Price)})`
 		prompt.ObjectText = egg.Name
+		prompt.Style = Enum.ProximityPromptStyle.Custom -- drawn by the client's PromptController (UI Kit card)
+		prompt:SetAttribute("Color", "Pink")
+		prompt:SetAttribute("Icon", Ui.Icons.Egg)
 		prompt.KeyboardKeyCode = Enum.KeyCode.E
 		prompt.HoldDuration = 0
 		prompt.MaxActivationDistance = plaza.OpenDistance

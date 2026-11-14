@@ -10,7 +10,7 @@ return table.freeze({
 	List = table.freeze({
 		table.freeze({
 			Id = "Normal",
-			Name = "Sima Bécsi",
+			Name = "Classic Wiener",
 			Chance = 0,
 			UnitMult = 1,
 			ValueMult = 1,
@@ -18,7 +18,7 @@ return table.freeze({
 		}),
 		table.freeze({
 			Id = "Silver",
-			Name = "Ezüst Schnitzel",
+			Name = "Silver Schnitzel",
 			Chance = 0.03,
 			UnitMult = 2,
 			ValueMult = 2.5,
@@ -26,7 +26,7 @@ return table.freeze({
 		}),
 		table.freeze({
 			Id = "Gold",
-			Name = "Arany Schnitzel",
+			Name = "Golden Schnitzel",
 			Chance = 0.005,
 			UnitMult = 5,
 			ValueMult = 5,
@@ -34,7 +34,7 @@ return table.freeze({
 		}),
 		table.freeze({
 			Id = "Diamond",
-			Name = "Gyémánt Schnitzel",
+			Name = "Diamond Schnitzel",
 			Chance = 0.001,
 			UnitMult = 10,
 			ValueMult = 15,
@@ -42,7 +42,7 @@ return table.freeze({
 		}),
 		table.freeze({
 			Id = "Nagyi",
-			Name = "Nagyi Titkos Receptje",
+			Name = "Grandma's Secret Recipe",
 			Chance = 0.00001,
 			UnitMult = 100,
 			ValueMult = 100,

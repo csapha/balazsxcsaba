@@ -168,7 +168,7 @@ local function onHatched(playerName: string, petId: string)
 		return
 	end
 	local rarity = PetConfig.Rarities[pet.Rarity]
-	Chat.announce(`🎉 {playerName} kikeltette: {pet.Name} ({rarity.Name})!`, rarity.Color)
+	Chat.announce(`🎉 {playerName} hatched {pet.Name} ({rarity.Name})!`, rarity.Color)
 end
 
 function PetFollowController.init()

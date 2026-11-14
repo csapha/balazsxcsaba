@@ -112,7 +112,7 @@ function DataService.start()
 		local leaderstats = Instance.new("Folder")
 		leaderstats.Name = "leaderstats"
 		local money = Instance.new("NumberValue")
-		money.Name = "Pénz"
+		money.Name = "Money"
 		money.Value = data.money()
 		money.Parent = leaderstats
 		leaderstats.Parent = player

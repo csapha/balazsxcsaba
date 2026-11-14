@@ -2,6 +2,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 
 local Palette = Config.Palette
 
@@ -45,8 +46,7 @@ function Billboard.new(adornee: BasePart, options: Options): { [string]: TextLab
 		label.Font = Enum.Font.FredokaOne
 		label.TextScaled = true
 		label.TextColor3 = line.color or Palette.White
-		label.TextStrokeColor3 = Palette.Stroke
-		label.TextStrokeTransparency = 0
+		Ui.worldText(label)
 		label.Text = ""
 		label.Parent = gui
 		labels[line.name] = label

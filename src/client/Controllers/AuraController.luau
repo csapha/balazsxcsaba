@@ -117,7 +117,7 @@ local function onAnnounce(playerName: string, id: string)
 		return
 	end
 	local rarity = AuraConfig.Rarities[aura.Rarity]
-	Chat.announce(`✨ {playerName} megszerezte: {aura.Name} ({rarity.Name} aura)!`, rarity.Color)
+	Chat.announce(`✨ {playerName} got {aura.Name} ({rarity.Name} aura)!`, rarity.Color)
 end
 
 function AuraController.init()

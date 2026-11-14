@@ -70,7 +70,7 @@ local function showPop(state: PlotService.PlotState)
 	})
 	local base = Formulas.generationLevel(generation)
 	labels.Title.Text = `GEN {generation}!`
-	labels.Info.Text = `Mostantól Lv{base} sütők: {Formulas.levelInfo(base).Name}`
+	labels.Info.Text = `Now buying Lv{base} ovens: {Formulas.levelInfo(base).Name}`
 	local gui = labels.Title.Parent :: BillboardGui
 	gui.Name = "GenerationPop"
 	gui.AlwaysOnTop = true
@@ -88,24 +88,24 @@ local function render(state: PlotService.PlotState, raw: any)
 	local generation = raw.generation
 	local base = Formulas.generationLevel(generation)
 	local price = Formulas.ovenPrice(generation, raw.generationBought)
-	currentText.Text = `Gen {generation} · Lv{base} sütők · {NumberFormat.money(price)}`
+	currentText.Text = `Gen {generation}: Lv{base} ovens for {NumberFormat.money(price)}`
 
 	local threshold = Formulas.nextGenerationThreshold(generation)
 	local ready = GenerationService.isReady(raw)
 	if threshold then
 		local nextBase = Formulas.generationLevel(generation + 1)
 		nextText.Text =
-			`Következő: Gen {generation + 1} (Lv{nextBase}) · {NumberFormat.short(raw.ovensBought)} / {NumberFormat.short(threshold)} sütő`
+			`Next: Gen {generation + 1} (Lv{nextBase}), {NumberFormat.short(raw.ovensBought)} / {NumberFormat.short(threshold)} ovens`
 		board.Fill.Size = UDim2.fromScale(math.clamp(raw.ovensBought / threshold, 0, 1), 1)
 
-		label.Title.Text = if ready then "GENERÁCIÓ VÁLTÁS!" else "Generáció váltás"
+		label.Title.Text = if ready then "NEXT GENERATION!" else "Next Generation"
 		label.Title.TextColor3 = if ready then Palette.Lemon else Palette.White
 		label.Info.Text = if ready
-			then `Lépj rá → Lv{nextBase} sütők!`
-			else `{NumberFormat.short(raw.ovensBought)} / {NumberFormat.short(threshold)} sütő`
+			then `Step here → Lv{nextBase} ovens!`
+			else `{NumberFormat.short(raw.ovensBought)} / {NumberFormat.short(threshold)} ovens`
 		label.Info.TextColor3 = if ready then Palette.Money else Palette.White
 	else
-		nextText.Text = "Max generáció elérve!"
+		nextText.Text = "Max generation reached!"
 		board.Fill.Size = UDim2.fromScale(1, 1)
 		label.Title.Text = `Gen {generation} (MAX)`
 		label.Title.TextColor3 = Palette.Lemon

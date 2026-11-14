@@ -224,7 +224,7 @@ local function showCounterPop(state: PlotService.PlotState)
 			{ name = "Bonus", color = Palette.Money, height = 0.45 },
 		},
 	})
-	labels.Title.Text = `PULT Lv {pop.level}!`
+	labels.Title.Text = `COUNTER Lv {pop.level}!`
 	labels.Bonus.Text = `+{NumberFormat.money(pop.bonus)}`
 	local gui = labels.Title.Parent :: BillboardGui
 	gui.Name = "LevelPop"
@@ -272,7 +272,7 @@ local function render(state: PlotService.PlotState, raw: any)
 	-- pult szint + XP
 	local counter = raw.counter
 	local needed = Formulas.counterXpNeeded(counter.level)
-	labels.Counter.Xp.Text = `Lv {counter.level} · XP {NumberFormat.short(counter.xp)}/{NumberFormat.short(needed)}`
+	labels.Counter.Xp.Text = `Lv {counter.level}, XP {NumberFormat.short(counter.xp)}/{NumberFormat.short(needed)}`
 	state.plot.counterXpFill.Size = UDim2.fromScale(math.clamp(counter.xp / needed, 0, 1), 1)
 	showCounterPop(state)
 
@@ -284,27 +284,27 @@ local function render(state: PlotService.PlotState, raw: any)
 	end
 
 	labels.Pickup.Info.Text = if raw.tray.units > 0
-		then `🥩 {NumberFormat.grouped(raw.tray.units)} · {NumberFormat.money(raw.tray.value)}`
-		else "üres"
+		then `🥩 {NumberFormat.grouped(raw.tray.units)} ({NumberFormat.money(raw.tray.value)})`
+		else "empty"
 
 	local level = raw.upgrades.sellSpeed
 	local rate = Formulas.sellRate(level)
 	local bonusPercent = math.floor((Formulas.counterPriceMultiplier(counter.level) - 1) * 100 + 0.5)
 	labels.Counter.Title.Text = if bonusPercent > 0
-		then `Pult · {NumberFormat.short(rate)} db/mp · +{bonusPercent}% ár`
-		else `Pult · {NumberFormat.short(rate)} db/mp`
+		then `Counter {NumberFormat.short(rate)}/s, +{bonusPercent}% price`
+		else `Counter {NumberFormat.short(rate)}/s`
 	labels.Counter.Info.Text = if raw.counterStock > 0
 		then `🥩 {NumberFormat.grouped(raw.counterStock)} ({NumberFormat.money(raw.counterValue)})`
-		else "üres – hozz schnitzelt!"
+		else "Empty! Bring schnitzel"
 	labels.Deposit.Info.Text = if raw.carried > 0
-		then `🥩 {NumberFormat.grouped(raw.carried)} · {NumberFormat.money(raw.carriedValue)}`
+		then `🥩 {NumberFormat.grouped(raw.carried)} ({NumberFormat.money(raw.carriedValue)})`
 		else ""
 
 	labels.Collect.Info.Text = NumberFormat.money(raw.moneyPile)
 
 	local upgradePrice = Formulas.sellUpgradePrice(level)
 	labels.SellUpgrade.Title.Text =
-		`Eladás {NumberFormat.short(rate)} → {NumberFormat.short(Formulas.sellRate(level + 1))} db/mp`
+		`Sell {NumberFormat.short(rate)} → {NumberFormat.short(Formulas.sellRate(level + 1))}/s`
 	labels.SellUpgrade.Info.Text = NumberFormat.money(upgradePrice)
 	labels.SellUpgrade.Info.TextColor3 = if raw.money >= upgradePrice then Palette.Money else Palette.Danger
 end

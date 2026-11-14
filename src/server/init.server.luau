@@ -21,4 +21,4 @@ for _, entry in services do
 	end
 end
 
-print("[Schnitzel] szerver elindult")
+print("[Schnitzel] server started")

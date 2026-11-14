@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
@@ -91,8 +92,7 @@ local function getTower(player: Player): Tower
 	text.Font = Enum.Font.FredokaOne
 	text.TextScaled = true
 	text.TextColor3 = Palette.Gold
-	text.TextStrokeColor3 = Palette.Stroke
-	text.TextStrokeTransparency = 0
+	Ui.worldText(text)
 	text.Parent = label
 	label.Parent = anchor
 
@@ -211,14 +211,13 @@ local function popup(at: CFrame, text: string)
 	label.TextScaled = true
 	label.Text = text
 	label.TextColor3 = Palette.Money
-	label.TextStrokeColor3 = Palette.Stroke
-	label.TextStrokeTransparency = 0
+	Ui.worldText(label)
 	label.Parent = gui
 	gui.Parent = anchor
 
 	local info = TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	TweenService:Create(gui, info, { StudsOffsetWorldSpace = Vector3.new(0, 4, 0) }):Play()
-	TweenService:Create(label, info, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	Ui.fadeText(label, info)
 	task.delay(1.3 + FLY_TIME, function()
 		anchor:Destroy()
 	end)

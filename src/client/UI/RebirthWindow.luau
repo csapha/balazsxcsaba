@@ -1,485 +1,445 @@
--- Rebirth ablak (GDD 3.8, 9.4) + rebirth effekt (GDD 10: fehér villanás, nagy "x3 PÉNZ!" felirat).
--- A gomb kétlépcsős: első kattintásra "Biztos?" – a második küldi a kérést (Remotes.RequestRebirth).
-local Lighting = game:GetService("Lighting")
+-- Rebirth window (GDD 3.8, 9.4). Two tabs: Rebirth (requirement, rewards, what resets / stays, the button)
+-- and the Rebirth Tree (permanent perks for Rebirth Tokens).
+-- The button is two-step: the first tap asks "Sure?", the second sends Remotes.RequestRebirth.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local vide = require(ReplicatedStorage.Packages.Vide)
-local Config = require(ReplicatedStorage.Shared.Config)
-local Formulas = require(ReplicatedStorage.Shared.Formulas)
-local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Vide = require(ReplicatedStorage.Packages.Vide)
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local Formulas = require(Shared.Formulas)
+local NumberFormat = require(Shared.NumberFormat)
+local Remotes = require(Shared.Remotes)
+local Ui = require(Shared.Ui)
+local Audio = require(script.Parent.Audio)
+local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
+local State = require(script.Parent.State)
+local Theme = require(script.Parent.Theme)
 
-local create = vide.create
-local source = vide.source
-local spring = vide.spring
-local effect = vide.effect
-local cleanup = vide.cleanup
+local create = Vide.create
+local source = Vide.source
 
-local Palette = Config.Palette
-
-type Source<T> = vide.Source<T>
-
-export type State = {
-	earned: Source<number>, -- az utolsó rebirth óta keresett pénz
-	rebirths: Source<number>,
-	tokens: Source<number>,
-	perks: Source<{ [string]: number }>,
-}
+local C = Theme.Colors
+local Tree = Config.Rebirth.Tree
 
 local RebirthWindow = {}
 
--- Rebirth-fa (GDD 3.8): egy perk sora – név, leírás, szint, hatás most → következő, vásárlás tokenért.
+-- Progress towards the next rebirth (0..1).
+function RebirthWindow.progress(): number
+	return math.clamp(State.earned() / Formulas.rebirthRequirement(State.rebirths()), 0, 1)
+end
+
+local function ready(): boolean
+	return State.earned() >= Formulas.rebirthRequirement(State.rebirths())
+end
+
 local function perkValueText(perk: string, level: number): string
-	local definition = Config.Rebirth.Tree.Perks[perk]
+	local definition = Tree.Perks[perk]
 	if perk == "StartMoney" then
-		return `×{NumberFormat.short(definition.Step ^ level)}`
+		return `x{NumberFormat.short(definition.Step ^ level)}`
 	elseif perk == "Money" or perk == "OfflineRate" then
 		return `+{math.floor(definition.Step * level * 100 + 0.5)}%`
 	elseif perk == "OfflineTime" then
-		return `+{math.floor(definition.Step * level / 3600)} óra`
+		return `+{math.floor(definition.Step * level / 3600)}h`
 	end
 	return `+{definition.Step * level}`
 end
 
-local function perkRow(order: number, perk: string, state: State)
-	local tree = Config.Rebirth.Tree
-	local definition = tree.Perks[perk]
+-- The rewards of the next rebirth: { icon, text }.
+local function rewards(rebirths: number): { { icon: string, text: string } }
+	local upcoming = rebirths + 1
+	local list = {
+		{
+			icon = Ui.Icons.RebirthCash,
+			text = `x{Formulas.rebirthMultiplier(upcoming)} money (now x{Formulas.rebirthMultiplier(rebirths)})`,
+		},
+		{ icon = Ui.Icons.Star, text = `+{Config.Rebirth.TokensPerRebirth} Rebirth Token` },
+	}
+	local slotsNow, slotsNext = Formulas.rebirthSlots(rebirths), Formulas.rebirthSlots(upcoming)
+	if slotsNext > slotsNow then
+		table.insert(list, { icon = Ui.Icons.Upgrade, text = `+{slotsNext - slotsNow} oven slots ({slotsNow} → {slotsNext})` })
+	end
+	local chefsNow, chefsNext = Formulas.maxChefs(rebirths), Formulas.maxChefs(upcoming)
+	if chefsNext > chefsNow then
+		table.insert(list, { icon = Ui.Icons.Friends, text = `+{chefsNext - chefsNow} max chef` })
+	end
+	local soon = Config.Rebirth.ComingSoon[upcoming]
+		or (if upcoming % Config.Rebirth.WorldEvery == 0 then "New world" else nil)
+	if soon then
+		table.insert(list, { icon = Ui.Icons.Crown, text = `{soon} (coming soon)` })
+	end
+	return list
+end
+
+local function rewardRow(index: number): Frame
+	local function entry()
+		return rewards(State.rebirths())[index]
+	end
+	return create "Frame" {
+		Name = "Reward" .. index,
+		LayoutOrder = index,
+		Size = UDim2.new(1, 0, 0, 30),
+		BackgroundTransparency = 1,
+		Visible = function()
+			return entry() ~= nil
+		end,
+		create "ImageLabel" {
+			Size = UDim2.fromOffset(30, 30),
+			BackgroundTransparency = 1,
+			Image = function()
+				local e = entry()
+				return if e then e.icon else ""
+			end,
+			ScaleType = Enum.ScaleType.Fit,
+		},
+		Kit.text {
+			Text = function()
+				local e = entry()
+				return if e then e.text else ""
+			end,
+			TextSize = 20,
+			TextColor3 = C.Good,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(38, 0),
+			Size = UDim2.new(1, -38, 1, 0),
+		},
+	} :: Frame
+end
+
+local function infoLine(order: number, label: string, text: string | () -> string, color: Color3): Frame
+	return Kit.darkBox {
+		Name = label,
+		LayoutOrder = order,
+		Size = UDim2.new(1, 0, 0, 34),
+		Corner = 0,
+		-- the padding sits on an inner frame: on the box itself it would also shift the box's inner ring
+		create "Frame" {
+			Name = "Content",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ZIndex = 3,
+			create "UIPadding" { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) },
+			Kit.text {
+				RichText = true,
+				Text = function()
+					local value = if type(text) == "function" then text() else text
+					return `<font color="#{color:ToHex()}">{label}:</font> {value}`
+				end,
+				TextSize = 17,
+				Gradient = false,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			},
+		},
+	} :: Frame
+end
+
+local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
+	local confirming = source(false)
+	Vide.effect(function()
+		if not anim.opened() then
+			confirming(false)
+		end
+	end)
+	local rows = {}
+	for i = 1, 5 do
+		table.insert(rows, rewardRow(i))
+	end
+	return create "Frame" {
+		Name = "RebirthPage",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Visible = visible,
+		-- requirement
+		Kit.text {
+			Name = "Requirement",
+			Text = "Earn money this run",
+			TextSize = 20,
+			TextColor3 = C.Muted,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, 0, 0, 22),
+		},
+		Kit.bar {
+			Name = "Progress",
+			Position = UDim2.fromOffset(0, 26),
+			Size = UDim2.new(1, 0, 0, 30),
+			Palette = function()
+				return if ready() then "Green" else "Yellow"
+			end,
+			Label = function()
+				return `{NumberFormat.money(State.earned())} / {NumberFormat.money(Formulas.rebirthRequirement(State.rebirths()))}`
+			end,
+			Right = function()
+				return `{math.floor(RebirthWindow.progress() * 100)}%`
+			end,
+			Value = RebirthWindow.progress,
+		},
+		-- rewards
+		Kit.darkBox {
+			Name = "Rewards",
+			Position = UDim2.fromOffset(0, 66),
+			Size = UDim2.new(0.5, -6, 1, -66 - 70),
+			Line = C.CardSelectedLine,
+			create "Frame" {
+				Name = "List",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				ZIndex = 3,
+				create "UIPadding" {
+					PaddingLeft = UDim.new(0, 12),
+					PaddingRight = UDim.new(0, 8),
+					PaddingTop = UDim.new(0, 8),
+				},
+				create "UIListLayout" { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder },
+				Kit.text {
+				LayoutOrder = 0,
+				Text = "REWARDS",
+				TextSize = 22,
+				TextColor3 = C.Lemon,
+				Gradient = false,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Size = UDim2.new(1, 0, 0, 26),
+				},
+				rows,
+			},
+		},
+		-- what resets / what stays
+		create "Frame" {
+			Name = "Rules",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, 0, 0, 66),
+			Size = UDim2.new(0.5, -6, 1, -66 - 70),
+			BackgroundTransparency = 1,
+			create "UIListLayout" { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder },
+			infoLine(1, "Resets", "money, ovens, generation", C.Bad),
+			infoLine(2, "Resets", "chefs, sell speed, counter level", C.Bad),
+			infoLine(3, "Keeps", function()
+				return `tokens ({State.tokens()}), slots, pets, auras`
+			end, C.Good),
+			infoLine(4, "Keeps", "Index, rebirth tree perks", C.Good),
+		},
+		Kit.button {
+			Name = "RebirthButton",
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -4),
+			Size = UDim2.fromOffset(320, 56),
+			TextSize = 28,
+			Color = function()
+				if not ready() then
+					return "Gray"
+				end
+				return if confirming() then "Red" else "Green"
+			end,
+			Text = function()
+				if not ready() then
+					local missing = Formulas.rebirthRequirement(State.rebirths()) - State.earned()
+					return `{NumberFormat.money(missing)} more`
+				end
+				return if confirming() then "Sure? Tap again!" else "REBIRTH!"
+			end,
+			Activated = function()
+				if not ready() then
+					Audio.play("Error")
+					return
+				end
+				if confirming() then
+					confirming(false)
+					State.close()
+					Remotes.RequestRebirth:FireServer()
+				else
+					confirming(true)
+					task.delay(3, function()
+						confirming(false)
+					end)
+				end
+			end,
+		},
+	} :: Frame
+end
+
+local function perkRow(order: number, perk: string): Frame
+	local definition = Tree.Perks[perk]
 	local function level(): number
-		return state.perks()[perk] or 0
+		return State.perks()[perk] or 0
 	end
 	local function maxed(): boolean
 		return level() >= definition.Max
 	end
 	local function canBuy(): boolean
-		return not maxed() and state.tokens() >= tree.TokenCost
+		return not maxed() and State.tokens() >= Tree.TokenCost
 	end
-
-	return create "Frame" {
+	local pips = {}
+	for i = 1, definition.Max do
+		table.insert(pips, create "Frame" {
+			Name = "Pip" .. i,
+			LayoutOrder = i,
+			Size = UDim2.fromOffset(14, 14),
+			BackgroundColor3 = function()
+				return if level() >= i then C.Lemon else C.Ink
+			end,
+			create "UICorner" { CornerRadius = UDim.new(0.5, 0) },
+			Kit.outline(nil, 2),
+		})
+	end
+	return Kit.darkBox {
+		Name = perk,
 		LayoutOrder = order,
-		Size = UDim2.fromScale(1, 0.135),
-		BackgroundColor3 = Palette.Stroke,
-		BackgroundTransparency = 0.4,
-		create "UICorner" { CornerRadius = UDim.new(0.2, 0) },
-
-		create "TextLabel" {
-			Position = UDim2.fromScale(0.03, 0.08),
-			Size = UDim2.fromScale(0.42, 0.5),
-			BackgroundTransparency = 1,
-			Font = Enum.Font.FredokaOne,
-			TextScaled = true,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextColor3 = Palette.Gold,
-			Text = function()
-				return `{definition.Name}  Lv {level()}/{definition.Max}`
-			end,
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 2 },
-		},
-		create "TextLabel" {
-			Position = UDim2.fromScale(0.03, 0.56),
-			Size = UDim2.fromScale(0.62, 0.36),
-			BackgroundTransparency = 1,
-			Font = Enum.Font.FredokaOne,
-			TextScaled = true,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextColor3 = Palette.White,
-			Text = function()
-				local now = perkValueText(perk, level())
-				if maxed() then
-					return `{definition.Description} · most: {now} (MAX)`
-				end
-				return `{definition.Description} · {now} → {perkValueText(perk, level() + 1)}`
-			end,
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 2 },
-		},
-		create "TextButton" {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.fromScale(0.98, 0.5),
-			Size = UDim2.fromScale(0.28, 0.72),
-			BackgroundColor3 = function()
-				return if canBuy() then Palette.Money else Palette.Locked
-			end,
-			Font = Enum.Font.FredokaOne,
-			TextScaled = true,
-			TextColor3 = Palette.White,
-			Text = function()
-				return if maxed() then "MAX" else `Vásárlás ({tree.TokenCost} token)`
-			end,
-			create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
-			create "UIPadding" { PaddingTop = UDim.new(0.15, 0), PaddingBottom = UDim.new(0.15, 0) },
-			Activated = function()
-				if canBuy() then
-					Remotes.BuyPerk:FireServer(perk)
-				end
-			end,
-		},
-	}
-end
-
-local function text(props: { [any]: any })
-	return create "TextLabel" {
-		BackgroundTransparency = 1,
-		Font = Enum.Font.FredokaOne,
-		TextScaled = true,
-		TextColor3 = Palette.White,
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 2 },
-		props,
-	}
-end
-
--- Haladás a következő rebirth felé (0..1).
-function RebirthWindow.progress(state: State): number
-	return math.clamp(state.earned() / Formulas.rebirthRequirement(state.rebirths()), 0, 1)
-end
-
--- A következő rebirth jutalmainak listája (szövegek).
-local function rewards(rebirths: number): { string }
-	local upcoming = rebirths + 1
-	local list = {
-		`x{Formulas.rebirthMultiplier(upcoming)} pénz (most x{Formulas.rebirthMultiplier(rebirths)})`,
-		`+{Config.Rebirth.TokensPerRebirth} Rebirth Token`,
-	}
-	local slotsNow, slotsNext = Formulas.rebirthSlots(rebirths), Formulas.rebirthSlots(upcoming)
-	if slotsNext > slotsNow then
-		table.insert(list, `+{slotsNext - slotsNow} sütő slot ({slotsNow} → {slotsNext})`)
-	end
-	local chefsNow, chefsNext = Formulas.maxChefs(rebirths), Formulas.maxChefs(upcoming)
-	if chefsNext > chefsNow then
-		table.insert(list, `+{chefsNext - chefsNow} max chef`)
-	end
-	local soon = Config.Rebirth.ComingSoon[upcoming]
-		or (if upcoming % Config.Rebirth.WorldEvery == 0 then "Új világ" else nil)
-	if soon then
-		table.insert(list, `{soon} (hamarosan)`)
-	end
-	return list
-end
-
--- Az ablak. `open` vezérli a láthatóságot.
-function RebirthWindow.create(open: Source<boolean>, state: State)
-	local confirming = source(false)
-	local scale = spring(function()
-		return if open() then 1 else 0.6
-	end, 0.25, 0.55)
-
-	-- bezáráskor a megerősítés visszaáll
-	effect(function()
-		if not open() then
-			confirming(false)
-		end
-	end)
-
-	local blur = Instance.new("BlurEffect")
-	blur.Name = "RebirthBlur"
-	blur.Size = 0
-	blur.Parent = Lighting
-	effect(function()
-		blur.Size = if open() then 12 else 0
-	end)
-	cleanup(blur)
-
-	local function ready(): boolean
-		return state.earned() >= Formulas.rebirthRequirement(state.rebirths())
-	end
-
-	-- fülek: 1 = Rebirth, 2 = Rebirth-fa
-	local tab = source(1)
-	local function tabButton(index: number, label: string | () -> string)
-		return create "TextButton" {
-			Size = UDim2.fromScale(0.42, 1),
-			BackgroundColor3 = function()
-				return if tab() == index then Palette.Gold else Palette.Locked
-			end,
-			Font = Enum.Font.FredokaOne,
-			TextScaled = true,
-			TextColor3 = Palette.White,
-			Text = label,
-			create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
-			create "UIPadding" { PaddingTop = UDim.new(0.18, 0), PaddingBottom = UDim.new(0.18, 0) },
-			Activated = function()
-				tab(index)
-			end,
-		}
-	end
-
-	local perkRows = {}
-	for order, perk in Config.Rebirth.Tree.Order do
-		table.insert(perkRows, perkRow(order, perk, state))
-	end
-
-	local rewardLines = {}
-	for i = 1, 5 do
-		table.insert(
-			rewardLines,
-			text {
-				LayoutOrder = i,
-				Size = UDim2.fromScale(1, 0.17),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Palette.Money,
-				Text = function()
-					local line = rewards(state.rebirths())[i]
-					return if line then `✔ {line}` else ""
-				end,
-			}
-		)
-	end
-
-	return create "Frame" {
-		Name = "RebirthWindow",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.52),
-		Size = UDim2.fromScale(0.6, 0.78),
-		BackgroundColor3 = Palette.Panel,
-		BackgroundTransparency = 0.1,
-		Visible = function()
-			return open() or scale() > 0.65
+		Size = UDim2.new(1, -8, 0, 62),
+		Line = function()
+			return if canBuy() then C.CardSelectedLine else C.CardLine
 		end,
-		ZIndex = 10,
-
-		create "UIScale" { Scale = scale },
-		create "UIAspectRatioConstraint" { AspectRatio = 1.15 },
-		create "UISizeConstraint" { MaxSize = Vector2.new(760, 660) },
-		create "UICorner" { CornerRadius = UDim.new(0.04, 0) },
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 4 },
-
-		-- Fejléc
-		create "Frame" {
-			Size = UDim2.fromScale(1, 0.11),
-			BackgroundColor3 = Palette.Merge,
-			create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 3 },
-
-			text {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0, 0.5),
-				Size = UDim2.fromScale(1.5, 1.5),
-				SizeConstraint = Enum.SizeConstraint.RelativeYY,
-				Text = "🔄",
-			},
-			text {
-				Position = UDim2.fromScale(0.1, 0.12),
-				Size = UDim2.fromScale(0.6, 0.76),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = function()
-					return `Rebirth #{state.rebirths() + 1}`
-				end,
-			},
-			create "TextButton" {
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -8, 0.5, 0),
-				Size = UDim2.fromScale(0.9, 0.9),
-				SizeConstraint = Enum.SizeConstraint.RelativeYY,
-				BackgroundColor3 = Palette.Danger,
-				Font = Enum.Font.FredokaOne,
-				TextScaled = true,
-				TextColor3 = Palette.White,
-				Text = "X",
-				create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-				create "UIStroke" { Color = Palette.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
-				Activated = function()
-					open(false)
-				end,
-			},
+		Kit.text {
+			Name = "Title",
+			Text = definition.Name,
+			TextSize = 22,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(12, 6),
+			Size = UDim2.new(0.4, 0, 0, 26),
 		},
-
-		-- Fülek: Rebirth | Rebirth-fa
 		create "Frame" {
-			Position = UDim2.fromScale(0.05, 0.125),
-			Size = UDim2.fromScale(0.9, 0.07),
+			Name = "Pips",
+			Position = UDim2.new(0.4, 0, 0, 12),
+			Size = UDim2.fromOffset(120, 14),
 			BackgroundTransparency = 1,
 			create "UIListLayout" {
 				FillDirection = Enum.FillDirection.Horizontal,
-				HorizontalAlignment = Enum.HorizontalAlignment.Center,
-				Padding = UDim.new(0.03, 0),
-			},
-			tabButton(1, "Rebirth"),
-			tabButton(2, function()
-				return `Rebirth-fa ({state.tokens()} token)`
-			end),
-		},
-
-		-- Rebirth-fa oldal
-		create "Frame" {
-			Position = UDim2.fromScale(0.05, 0.22),
-			Size = UDim2.fromScale(0.9, 0.76),
-			BackgroundTransparency = 1,
-			Visible = function()
-				return tab() == 2
-			end,
-			create "UIListLayout" {
+				Padding = UDim.new(0, 5),
 				SortOrder = Enum.SortOrder.LayoutOrder,
-				Padding = UDim.new(0.02, 0),
 			},
-			perkRows,
+			pips,
 		},
-
-		-- Rebirth oldal
-		create "Frame" {
-			Position = UDim2.fromScale(0.05, 0.22),
-			Size = UDim2.fromScale(0.9, 0.76),
-			BackgroundTransparency = 1,
-			Visible = function()
-				return tab() == 1
+		Kit.text {
+			Name = "Effect",
+			RichText = true,
+			Text = function()
+				local now = perkValueText(perk, level())
+				if maxed() then
+					return `{definition.Description}  <font color="#5EEB5B">{now} (MAX)</font>`
+				end
+				return `{definition.Description}  <font color="#5EEB5B">{now} » {perkValueText(perk, level() + 1)}</font>`
 			end,
-
-			create "UIListLayout" {
-				SortOrder = Enum.SortOrder.LayoutOrder,
-				Padding = UDim.new(0.015, 0),
-			},
-
-			-- Követelmény + progress
-			text {
-				LayoutOrder = 1,
-				Size = UDim2.fromScale(1, 0.08),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = function()
-					local earned = NumberFormat.money(state.earned())
-					local needed = NumberFormat.money(Formulas.rebirthRequirement(state.rebirths()))
-					return `Keress ebben a körben: {earned} / {needed}`
-				end,
-			},
-			create "Frame" {
-				LayoutOrder = 2,
-				Size = UDim2.fromScale(1, 0.05),
-				BackgroundColor3 = Palette.Stroke,
-				create "UICorner" { CornerRadius = UDim.new(0.5, 0) },
-				create "Frame" {
-					Size = function()
-						return UDim2.fromScale(RebirthWindow.progress(state), 1)
-					end,
-					BackgroundColor3 = Palette.Lemon,
-					create "UICorner" { CornerRadius = UDim.new(0.5, 0) },
-				},
-			},
-
-			-- Jutalmak
-			text {
-				LayoutOrder = 3,
-				Size = UDim2.fromScale(1, 0.07),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Palette.Gold,
-				Text = "Jutalom:",
-			},
-			create "Frame" {
-				LayoutOrder = 4,
-				Size = UDim2.fromScale(1, 0.3),
-				BackgroundTransparency = 1,
-				create "UIListLayout" { SortOrder = Enum.SortOrder.LayoutOrder },
-				rewardLines,
-			},
-
-			-- Mi nullázódik / mi marad
-			text {
-				LayoutOrder = 5,
-				Size = UDim2.fromScale(1, 0.06),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Palette.Danger,
-				Text = "Elveszik: pénz, sütők, generáció, eladó, chefek, pult szint",
-			},
-			text {
-				LayoutOrder = 6,
-				Size = UDim2.fromScale(1, 0.06),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Palette.Lemon,
-				Text = function()
-					return `Megmarad: tokenek ({state.tokens()}), slotok, Index`
-				end,
-			},
-
-			-- Gomb (GDD 9.4: a legjobb akció a legnagyobb és legfényesebb)
-			create "TextButton" {
-				LayoutOrder = 7,
-				Size = UDim2.fromScale(0.7, 0.13),
-				BackgroundColor3 = function()
-					if not ready() then
-						return Palette.Locked
-					end
-					return if confirming() then Palette.Danger else Palette.Money
-				end,
-				AutoButtonColor = true,
-				Font = Enum.Font.FredokaOne,
-				TextScaled = true,
-				TextColor3 = Palette.White,
-				Text = function()
-					if not ready() then
-						local missing = Formulas.rebirthRequirement(state.rebirths()) - state.earned()
-						return `Még {NumberFormat.money(missing)}`
-					end
-					return if confirming() then "Biztos? Kattints újra!" else "REBIRTH!"
-				end,
-				create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-				create "UIStroke" { Color = Palette.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
-				create "UIPadding" {
-					PaddingTop = UDim.new(0.12, 0),
-					PaddingBottom = UDim.new(0.12, 0),
-				},
-				Activated = function()
-					if not ready() then
-						return
-					end
-					if confirming() then
-						confirming(false)
-						open(false)
-						Remotes.RequestRebirth:FireServer()
-					else
-						confirming(true)
-						task.delay(3, function()
-							confirming(false)
-						end)
-					end
-				end,
-			},
+			TextSize = 16,
+			TextColor3 = C.Muted,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(12, 34),
+			Size = UDim2.new(1, -190, 0, 20),
 		},
-	}
+		Kit.button {
+			Name = "Buy",
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, -1),
+			Size = UDim2.fromOffset(150, 42),
+			TextSize = 19,
+			Color = function()
+				if maxed() then
+					return "Gray"
+				end
+				return if canBuy() then "Yellow" else "Gray"
+			end,
+			Text = function()
+				if maxed() then
+					return "MAX"
+				end
+				return `{Tree.TokenCost} token{if Tree.TokenCost == 1 then "" else "s"}`
+			end,
+			Activated = function()
+				if canBuy() then
+					Audio.play("Chime")
+					Remotes.BuyPerk:FireServer(perk)
+				else
+					Audio.play("Error")
+				end
+			end,
+		},
+	} :: Frame
 end
 
--- Rebirth effekt: fehér villanás + nagy felirat (GDD 10). Egy külön ScreenGui-t használ.
-function RebirthWindow.playEffect(playerGui: Instance, rebirths: number, multiplier: number)
-	local TweenService = game:GetService("TweenService")
+local function treePage(visible: () -> boolean): Frame
+	local rows = {}
+	for order, perk in Tree.Order do
+		table.insert(rows, perkRow(order, perk))
+	end
+	return create "Frame" {
+		Name = "TreePage",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Visible = visible,
+		Kit.text {
+			Name = "Tokens",
+			Text = function()
+				return `Rebirth Tokens: {State.tokens()}`
+			end,
+			TextSize = 22,
+			TextColor3 = C.Lemon,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, 0, 0, 26),
+		},
+		create "ScrollingFrame" {
+			Name = "Perks",
+			Position = UDim2.fromOffset(0, 32),
+			Size = UDim2.new(1, 0, 1, -32),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ScrollBarThickness = 6,
+			ScrollBarImageColor3 = C.PanelLine,
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			CanvasSize = UDim2.new(),
+			create "UIListLayout" { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder },
+			create "UIPadding" { PaddingTop = UDim.new(0, 3), PaddingLeft = UDim.new(0, 3), PaddingBottom = UDim.new(0, 6) },
+			rows,
+		},
+	} :: Frame
+end
 
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "RebirthEffect"
-	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 50
-	gui.ResetOnSpawn = false
-
-	local flash = Instance.new("Frame")
-	flash.Size = UDim2.fromScale(1, 1)
-	flash.BackgroundColor3 = Color3.new(1, 1, 1)
-	flash.BackgroundTransparency = 0
-	flash.BorderSizePixel = 0
-	flash.Parent = gui
-
-	local title = Instance.new("TextLabel")
-	title.AnchorPoint = Vector2.new(0.5, 0.5)
-	title.Position = UDim2.fromScale(0.5, 0.45)
-	title.Size = UDim2.fromScale(0.8, 0.16)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.Text = `REBIRTH #{rebirths}!  x{multiplier} PÉNZ!`
-	title.TextColor3 = Palette.Lemon
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Palette.Stroke
-	stroke.Thickness = 4
-	stroke.Parent = title
-	local scale = Instance.new("UIScale")
-	scale.Scale = 0.4
-	scale.Parent = title
-	title.Parent = gui
-
-	gui.Parent = playerGui
-
-	TweenService:Create(flash, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
-	TweenService:Create(scale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
-	task.delay(2.2, function()
-		TweenService:Create(title, TweenInfo.new(0.6), { TextTransparency = 1 }):Play()
-		TweenService:Create(stroke, TweenInfo.new(0.6), { Transparency = 1 }):Play()
-		task.delay(0.7, function()
-			gui:Destroy()
-		end)
-	end)
+function RebirthWindow.render(anim: Motion.Anim)
+	local tab = source("Rebirth")
+	local function tabButton(order: number, name: string, icon: string)
+		return Kit.button {
+			Name = name,
+			LayoutOrder = order,
+			Icon = icon,
+			IconSize = 0.85,
+			Color = "Green",
+			Shine = false,
+			Size = UDim2.fromOffset(60, 60),
+			Selected = function()
+				return tab() == name
+			end,
+			Activated = function()
+				tab(name)
+			end,
+		}
+	end
+	return Kit.window {
+		Name = "Rebirth",
+		Title = function()
+			return if tab() == "Tree" then "Rebirth Tree" else `Rebirth #{State.rebirths() + 1}`
+		end,
+		Color = "Green",
+		Icon = Ui.Icons.Rebirth,
+		Size = function()
+			return UDim2.fromOffset(Kit.WindowWidth, Kit.windowHeight(480))
+		end,
+		Anim = anim,
+		Kit.windowScale(anim.scale),
+		OnClose = State.close,
+		Tabs = {
+			tabButton(1, "Rebirth", Ui.Icons.Rebirth),
+			tabButton(2, "Tree", Ui.Icons.Upgrade),
+		},
+		Body = {
+			rebirthPage(function()
+				return tab() == "Rebirth"
+			end, anim),
+			treePage(function()
+				return tab() == "Tree"
+			end),
+		},
+	}
 end
 
 return RebirthWindow

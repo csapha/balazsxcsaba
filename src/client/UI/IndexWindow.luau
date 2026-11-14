@@ -1,54 +1,42 @@
--- Index ablak (GDD 3.11 + 9.4 ablak stílus):
---   fejléc színes sávval, ikon balra kilógva, cím, piros X jobbra; sötét panel; pop nyitás (0.6 → 1.05 → 1.0).
--- Fülek: Sütők, Ritkaságok, Petek, Aurák – mindegyiknél haladás és a teljesítésért járó bónusz.
--- (A chefek a chef-ritkaságokkal együtt kerülnek ide, GDD 3.6.)
-local Lighting = game:GetService("Lighting")
+-- Index window (GDD 3.11): Ovens, Rarities, Pets, Auras – progress per tab and the money bonus for completing it.
+-- Discoveries come from player attributes (bit masks) set by the server's IndexService.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local vide = require(ReplicatedStorage.Packages.Vide)
-local Config = require(ReplicatedStorage.Shared.Config)
+local Vide = require(ReplicatedStorage.Packages.Vide)
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local Ui = require(Shared.Ui)
+local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
+local State = require(script.Parent.State)
+local Theme = require(script.Parent.Theme)
 
-local create = vide.create
-local source = vide.source
-local spring = vide.spring
-local effect = vide.effect
-local cleanup = vide.cleanup
+local create = Vide.create
+local source = Vide.source
 
-local Palette = Config.Palette
-
-type Source<T> = vide.Source<T>
+local C = Theme.Colors
 
 type Entry = { color: Color3, title: string, subtitle: string }
 type Category = {
-	tab: string,
+	id: string,
 	title: string,
+	icon: string,
+	color: string,
 	attribute: string,
 	bonus: number,
 	columns: number,
-	rows: number,
 	entries: { Entry },
 }
 
 local IndexWindow = {}
 
-local function text(props: { [any]: any })
-	return create "TextLabel" {
-		BackgroundTransparency = 1,
-		Font = Enum.Font.FredokaOne,
-		TextScaled = true,
-		TextColor3 = Palette.White,
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 2 },
-		props,
-	}
-end
-
-local function attributeSource(player: Player, attribute: string): Source<number>
+local function attributeSource(player: Player, attribute: string): () -> number
 	local value = source((player:GetAttribute(attribute) or 0) :: number)
 	local connection = player:GetAttributeChangedSignal(attribute):Connect(function()
 		value(player:GetAttribute(attribute) or 0)
 	end)
-	cleanup(function()
+	Vide.cleanup(function()
 		connection:Disconnect()
 	end)
 	return value
@@ -64,11 +52,11 @@ local function countBits(mask: number, total: number): number
 	return count
 end
 
--- A kategóriák tartalma a Configból (így új sütő / pet / aura automatikusan megjelenik).
+-- The categories come from Config, so a new oven / pet / aura shows up automatically.
 local function categories(): { Category }
 	local ovens = {}
 	for level, info in Config.Ovens.Levels do
-		table.insert(ovens, { color = info.Color, title = `Lv {level}`, subtitle = info.Name })
+		table.insert(ovens, { color = info.Color, title = info.Name, subtitle = `Lv {level}` })
 	end
 
 	local rarities = {}
@@ -76,14 +64,15 @@ local function categories(): { Category }
 		table.insert(rarities, {
 			color = rarity.Color,
 			title = rarity.Name,
-			subtitle = if index == 1 then "x1" else `x{rarity.UnitMult} · x{rarity.ValueMult}`,
+			subtitle = if index == 1 then "x1" else `x{rarity.UnitMult} pieces, x{rarity.ValueMult} price`,
 		})
 	end
 
 	local pets = {}
 	for _, id in Config.Pets.Order do
 		local pet = Config.Pets.List[id]
-		table.insert(pets, { color = pet.Color, title = pet.Name, subtitle = Config.Pets.Rarities[pet.Rarity].Name })
+		local rarity = Config.Pets.Rarities[pet.Rarity]
+		table.insert(pets, { color = rarity.Color, title = pet.Name, subtitle = rarity.Name })
 	end
 
 	local auras = {}
@@ -95,242 +84,184 @@ local function categories(): { Category }
 
 	local bonuses = Config.Index.Bonuses
 	return {
-		{ tab = "Sütők", title = "Sütők", attribute = "IndexOvens", bonus = bonuses.Ovens, columns = 5, rows = 3, entries = ovens },
-		{ tab = "Ritkaságok", title = "Schnitzel ritkaságok", attribute = "IndexRarities", bonus = bonuses.Rarities, columns = 5, rows = 2, entries = rarities },
-		{ tab = "Petek", title = "Petek", attribute = "IndexPets", bonus = bonuses.Pets, columns = 4, rows = 4, entries = pets },
-		{ tab = "Aurák", title = "Aurák", attribute = "IndexAuras", bonus = bonuses.Auras, columns = 4, rows = 2, entries = auras },
+		{ id = "Ovens", title = "Ovens", icon = Ui.Icons.Energy, color = "Orange", attribute = "IndexOvens", bonus = bonuses.Ovens, columns = 5, entries = ovens },
+		{ id = "Rarities", title = "Schnitzel Rarities", icon = Ui.Icons.Star, color = "Yellow", attribute = "IndexRarities", bonus = bonuses.Rarities, columns = 5, entries = rarities },
+		{ id = "Pets", title = "Pets", icon = Ui.Icons.Pets, color = "Blue", attribute = "IndexPets", bonus = bonuses.Pets, columns = 4, entries = pets },
+		{ id = "Auras", title = "Auras", icon = Ui.Icons.Crystal, color = "Purple", attribute = "IndexAuras", bonus = bonuses.Auras, columns = 4, entries = auras },
 	}
 end
 
--- Egy gyűjtemény-kártya: felfedezve színes, egyébként sötét "?".
-local function card(order: number, discovered: () -> boolean, entry: Entry)
-	return create "Frame" {
+-- A collection card: coloured when discovered, a dark "?" otherwise.
+local function card(order: number, discovered: () -> boolean, entry: Entry): Frame
+	return Kit.darkBox {
+		Name = "Card" .. order,
 		LayoutOrder = order,
-		BackgroundColor3 = function()
-			return if discovered() then entry.color else Palette.Locked
+		Line = function()
+			return if discovered() then entry.color else C.CardLine
 		end,
-
-		create "UICorner" { CornerRadius = UDim.new(0.15, 0) },
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 2 },
-
-		text {
-			Position = UDim2.fromScale(0.05, 0.06),
-			Size = UDim2.fromScale(0.9, 0.46),
-			Text = function()
-				return if discovered() then entry.title else "?"
-			end,
+		Fill = function()
+			return if discovered() then entry.color:Lerp(C.Card, 0.7) else C.Card
+		end,
+		create "ImageLabel" {
+			Name = "Glow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.38),
+			Size = UDim2.fromScale(0.9, 0.7),
+			BackgroundTransparency = 1,
+			Image = Ui.Textures.Soft,
+			ImageColor3 = entry.color,
+			ImageTransparency = 0.6,
+			Visible = discovered,
 		},
-		text {
-			Position = UDim2.fromScale(0.05, 0.56),
-			Size = UDim2.fromScale(0.9, 0.36),
-			TextColor3 = Palette.Lemon,
-			Text = function()
-				return if discovered() then entry.subtitle else "???"
+		Kit.text {
+			Name = "Mark",
+			Text = "?",
+			TextSize = 40,
+			TextColor3 = C.Muted,
+			Gradient = false,
+			Position = UDim2.fromScale(0, 0),
+			Size = UDim2.fromScale(1, 0.7),
+			Visible = function()
+				return not discovered()
 			end,
+			ZIndex = 3,
 		},
-	}
+		Kit.text {
+			Name = "Title",
+			Text = function()
+				return if discovered() then entry.title else ""
+			end,
+			TextSize = 17,
+			TextWrapped = true,
+			Position = UDim2.new(0, 6, 0, 8),
+			Size = UDim2.new(1, -12, 0.55, -8),
+			ZIndex = 3,
+		},
+		Kit.text {
+			Name = "Subtitle",
+			Text = function()
+				return if discovered() then entry.subtitle else "Not found yet"
+			end,
+			TextSize = 13,
+			TextWrapped = true,
+			TextColor3 = function()
+				return if discovered() then C.Lemon else C.Muted
+			end,
+			Gradient = false,
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 6, 1, -6),
+			Size = UDim2.new(1, -12, 0.4, -6),
+			ZIndex = 3,
+		},
+	} :: Frame
 end
 
-local function page(category: Category, mask: () -> number, visible: () -> boolean)
+local function page(category: Category, mask: () -> number, visible: () -> boolean): Frame
 	local total = #category.entries
-	local function done(): boolean
-		return countBits(mask(), total) == total
+	local function found(): number
+		return countBits(mask(), total)
 	end
-
+	local function done(): boolean
+		return found() == total
+	end
 	local cards = {}
 	for index, entry in category.entries do
 		local bit = 2 ^ (index - 1)
-		table.insert(
-			cards,
-			card(index, function()
-				return bit32.btest(mask(), bit)
-			end, entry)
-		)
+		table.insert(cards, card(index, function()
+			return bit32.btest(mask(), bit)
+		end, entry))
 	end
-
+	local rows = math.ceil(total / category.columns)
 	return create "Frame" {
+		Name = category.id,
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Visible = visible,
-
-		text {
-			Size = UDim2.fromScale(0.65, 0.09),
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = function()
-				return `{category.title}  {countBits(mask(), total)}/{total}`
+		Kit.bar {
+			Name = "Progress",
+			Size = UDim2.new(0.55, 0, 0, 30),
+			Palette = function()
+				return if done() then "Green" else category.color
+			end,
+			Label = category.title,
+			Right = function()
+				return `{found()}/{total}`
+			end,
+			Value = function()
+				return found() / total
 			end,
 		},
-		text {
+		Kit.text {
+			Name = "Bonus",
+			Text = function()
+				local percent = math.floor(category.bonus * 100 + 0.5)
+				return if done() then `+{percent}% money  ✔` else `Complete for +{percent}% money`
+			end,
+			TextSize = 20,
+			TextColor3 = function()
+				return if done() then C.Good else C.Muted
+			end,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Right,
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.fromScale(1, 0),
-			Size = UDim2.fromScale(0.35, 0.09),
-			TextXAlignment = Enum.TextXAlignment.Right,
-			TextColor3 = function()
-				return if done() then Palette.Money else Palette.White
-			end,
-			Text = function()
-				return `{if done() then "✔" else "🔒"} +{math.floor(category.bonus * 100 + 0.5)}% pénz`
-			end,
+			Size = UDim2.new(0.43, 0, 0, 30),
 		},
-
 		create "Frame" {
-			Position = UDim2.fromScale(0, 0.12),
-			Size = UDim2.fromScale(1, 0.88),
+			Name = "Grid",
+			Position = UDim2.fromOffset(0, 42),
+			Size = UDim2.new(1, 0, 1, -42),
 			BackgroundTransparency = 1,
-
 			create "UIGridLayout" {
-				CellSize = UDim2.new(1 / category.columns, -8, 1 / category.rows, -8),
+				CellSize = UDim2.new(1 / category.columns, -8, 1 / rows, -8),
 				CellPadding = UDim2.fromOffset(8, 8),
 				SortOrder = Enum.SortOrder.LayoutOrder,
 			},
+			create "UIPadding" { PaddingLeft = UDim.new(0, 3), PaddingTop = UDim.new(0, 3) },
 			cards,
 		},
-	}
+	} :: Frame
 end
 
--- Létrehozza az ablakot. `open` source vezérli a láthatóságot.
-function IndexWindow.create(open: Source<boolean>)
+function IndexWindow.render(anim: Motion.Anim)
 	local player = Players.LocalPlayer
 	local list = categories()
 	local tab = source(1)
-
-	local scale = spring(function()
-		return if open() then 1 else 0.6
-	end, 0.25, 0.55)
-
-	-- GDD 9.4: elmosott háttér nyitott ablaknál
-	local blur = Instance.new("BlurEffect")
-	blur.Name = "IndexBlur"
-	blur.Size = 0
-	blur.Parent = Lighting
-	effect(function()
-		blur.Size = if open() then 12 else 0
-	end)
-	cleanup(blur)
-
-	local masks = {}
-	local pages = {}
-	local tabs = {}
+	local pages, tabs = {}, {}
 	for index, category in list do
 		local mask = attributeSource(player, category.attribute)
-		masks[index] = mask
-		table.insert(
-			pages,
-			page(category, mask, function()
+		table.insert(pages, page(category, mask, function()
+			return tab() == index
+		end))
+		table.insert(tabs, Kit.button {
+			Name = category.id,
+			LayoutOrder = index,
+			Icon = category.icon,
+			IconSize = 0.85,
+			Color = category.color,
+			Shine = false,
+			Size = UDim2.fromOffset(60, 60),
+			Selected = function()
 				return tab() == index
-			end)
-		)
-		table.insert(
-			tabs,
-			create "TextButton" {
-				LayoutOrder = index,
-				Size = UDim2.fromScale(0.24, 1),
-				BackgroundColor3 = function()
-					return if tab() == index then Palette.Gold else Palette.Locked
-				end,
-				Font = Enum.Font.FredokaOne,
-				TextScaled = true,
-				TextColor3 = Palette.White,
-				Text = function()
-					local total = #category.entries
-					return `{category.tab} {countBits(mask(), total)}/{total}`
-				end,
-				create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-				create "UIStroke" { Color = Palette.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
-				create "UIPadding" { PaddingTop = UDim.new(0.18, 0), PaddingBottom = UDim.new(0.18, 0) },
-				Activated = function()
-					tab(index)
-				end,
-			}
-		)
+			end,
+			Activated = function()
+				tab(index)
+			end,
+		})
 	end
-
-	return create "Frame" {
-		Name = "IndexWindow",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.52),
-		Size = UDim2.fromScale(0.7, 0.8),
-		BackgroundColor3 = Palette.Panel,
-		BackgroundTransparency = 0.1,
-		Visible = function()
-			return open() or scale() > 0.65
+	return Kit.window {
+		Name = "Index",
+		Title = "Index",
+		Color = "Yellow",
+		Icon = Ui.Icons.Index,
+		Size = function()
+			return UDim2.fromOffset(Kit.WindowWidth, Kit.windowHeight(480))
 		end,
-		ZIndex = 10,
-
-		create "UIScale" { Scale = scale },
-		create "UIAspectRatioConstraint" { AspectRatio = 1.35 },
-		create "UISizeConstraint" { MaxSize = Vector2.new(900, 670) },
-		create "UICorner" { CornerRadius = UDim.new(0.04, 0) },
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 4 },
-
-		-- Fejléc: színes sáv, ikon balra kilógva, cím, piros X
-		create "Frame" {
-			Name = "Header",
-			Size = UDim2.fromScale(1, 0.1),
-			BackgroundColor3 = Palette.Gold,
-
-			create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 3 },
-
-			text {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0, 0.5),
-				Size = UDim2.fromScale(1.5, 1.5),
-				SizeConstraint = Enum.SizeConstraint.RelativeYY,
-				Text = "📖",
-			},
-			text {
-				Position = UDim2.fromScale(0.08, 0.12),
-				Size = UDim2.fromScale(0.6, 0.76),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Text = "Index",
-			},
-			create "TextButton" {
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -8, 0.5, 0),
-				Size = UDim2.fromScale(0.9, 0.9),
-				SizeConstraint = Enum.SizeConstraint.RelativeYY,
-				BackgroundColor3 = Palette.Danger,
-				Font = Enum.Font.FredokaOne,
-				TextScaled = true,
-				TextColor3 = Palette.White,
-				Text = "X",
-
-				create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-				create "UIStroke" {
-					Color = Palette.Stroke,
-					Thickness = 3,
-					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-				},
-
-				Activated = function()
-					open(false)
-				end,
-			},
-		},
-
-		-- Fülek
-		create "Frame" {
-			Position = UDim2.fromScale(0.03, 0.12),
-			Size = UDim2.fromScale(0.94, 0.08),
-			BackgroundTransparency = 1,
-			create "UIListLayout" {
-				FillDirection = Enum.FillDirection.Horizontal,
-				HorizontalAlignment = Enum.HorizontalAlignment.Center,
-				Padding = UDim.new(0.013, 0),
-				SortOrder = Enum.SortOrder.LayoutOrder,
-			},
-			tabs,
-		},
-
-		-- Tartalom (az aktív fül oldala)
-		create "Frame" {
-			Name = "Body",
-			Position = UDim2.fromScale(0.04, 0.23),
-			Size = UDim2.fromScale(0.92, 0.74),
-			BackgroundTransparency = 1,
-			pages,
-		},
+		Anim = anim,
+		Kit.windowScale(anim.scale),
+		OnClose = State.close,
+		Tabs = tabs,
+		Body = pages,
 	}
 end
 

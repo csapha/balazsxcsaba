@@ -45,7 +45,7 @@ end
 
 -- Rálépős pad regisztrálása. enter: belépéskor egyszer, stay: amíg rajta áll (~10×/mp).
 function PlotService.registerPad(key: string, handlers: PadHandlers)
-	assert(Config.Plot.Pads[key], `Ismeretlen pad: {key}`)
+	assert(Config.Plot.Pads[key], `Unknown pad: {key}`)
 	padHandlers[key] = handlers
 end
 
@@ -123,14 +123,14 @@ local function assignPlot(player: Player)
 		end
 	end
 	if not index then
-		warn(`[PlotService] Nincs szabad telek: {player.Name}`)
+		warn(`[PlotService] No free plot: {player.Name}`)
 		return
 	end
 
 	local plot = plots[index]
 	owners[index] = player
 	plot.model:SetAttribute("OwnerId", player.UserId)
-	plot.sign.Text = `{player.DisplayName} büféje`
+	plot.sign.Text = `{player.DisplayName}'s Shop`
 	player:SetAttribute("PlotIndex", index)
 
 	local state: PlotState = {

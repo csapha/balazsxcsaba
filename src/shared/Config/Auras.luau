@@ -5,19 +5,19 @@
 local Auras = {}
 
 Auras.Rarities = table.freeze({
-	Common = table.freeze({ Name = "Gyakori", Color = Color3.fromRGB(200, 200, 200), Order = 1 }),
-	Uncommon = table.freeze({ Name = "Ritkább", Color = Color3.fromRGB(110, 220, 110), Order = 2 }),
-	Rare = table.freeze({ Name = "Ritka", Color = Color3.fromRGB(80, 160, 255), Order = 3 }),
-	Epic = table.freeze({ Name = "Epikus", Color = Color3.fromRGB(190, 100, 255), Order = 4 }),
-	Legendary = table.freeze({ Name = "Legendás", Color = Color3.fromRGB(255, 190, 40), Order = 5, Announce = true }),
-	Mythic = table.freeze({ Name = "Mitikus", Color = Color3.fromRGB(255, 90, 200), Order = 6, Announce = true }),
+	Common = table.freeze({ Name = "Common", Color = Color3.fromRGB(200, 200, 200), Order = 1 }),
+	Uncommon = table.freeze({ Name = "Uncommon", Color = Color3.fromRGB(110, 220, 110), Order = 2 }),
+	Rare = table.freeze({ Name = "Rare", Color = Color3.fromRGB(80, 160, 255), Order = 3 }),
+	Epic = table.freeze({ Name = "Epic", Color = Color3.fromRGB(190, 100, 255), Order = 4 }),
+	Legendary = table.freeze({ Name = "Legendary", Color = Color3.fromRGB(255, 190, 40), Order = 5, Announce = true }),
+	Mythic = table.freeze({ Name = "Mythic", Color = Color3.fromRGB(255, 90, 200), Order = 6, Announce = true }),
 })
 
 -- Chance: súly (%), Value: bónusz 1. szinten (szintenként × szint).
 -- Particle: a kliens részecske-effektje (beépített Roblox textúrák, placeholder).
 Auras.List = table.freeze({
 	Morzsa = table.freeze({
-		Name = "Morzsaeső",
+		Name = "Crumb Shower",
 		Rarity = "Common",
 		Chance = 40,
 		Bonus = "Money",
@@ -25,7 +25,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "sparkles", Color = Color3.fromRGB(210, 150, 70), Rate = 18, Speed = -4, Size = 0.35, Spread = 2.5 }),
 	}),
 	Buborek = table.freeze({
-		Name = "Olajbuborék",
+		Name = "Oil Bubbles",
 		Rarity = "Common",
 		Chance = 25,
 		Bonus = "BakeSpeed",
@@ -33,7 +33,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "sparkles", Color = Color3.fromRGB(255, 220, 90), Rate = 14, Speed = 3, Size = 0.45, Spread = 2 }),
 	}),
 	Goz = table.freeze({
-		Name = "Gőzfelhő",
+		Name = "Steam Cloud",
 		Rarity = "Uncommon",
 		Chance = 15,
 		Bonus = "ChefSpeed",
@@ -41,7 +41,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "smoke", Color = Color3.fromRGB(240, 240, 240), Rate = 10, Speed = 2, Size = 1.4, Spread = 1.5 }),
 	}),
 	Lang = table.freeze({
-		Name = "Paprikaláng",
+		Name = "Paprika Flame",
 		Rarity = "Rare",
 		Chance = 10,
 		Bonus = "Money",
@@ -49,7 +49,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "fire", Color = Color3.fromRGB(255, 80, 30), Rate = 30, Speed = 4, Size = 1.1, Spread = 1.6, Light = true }),
 	}),
 	Citrom = table.freeze({
-		Name = "Citromszikra",
+		Name = "Lemon Sparks",
 		Rarity = "Rare",
 		Chance = 5,
 		Bonus = "Luck",
@@ -57,7 +57,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "sparkles", Color = Color3.fromRGB(255, 240, 80), Rate = 30, Speed = 2, Size = 0.6, Spread = 2.2, Light = true }),
 	}),
 	Jeg = table.freeze({
-		Name = "Jégvihar",
+		Name = "Ice Storm",
 		Rarity = "Epic",
 		Chance = 3,
 		Bonus = "BakeSpeed",
@@ -65,7 +65,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "sparkles", Color = Color3.fromRGB(120, 210, 255), Rate = 45, Speed = 5, Size = 0.7, Spread = 2.6, Light = true }),
 	}),
 	Villam = table.freeze({
-		Name = "Villámklopfoló",
+		Name = "Thunder Mallet",
 		Rarity = "Legendary",
 		Chance = 1.5,
 		Bonus = "Money",
@@ -73,7 +73,7 @@ Auras.List = table.freeze({
 		Particle = table.freeze({ Texture = "sparkles", Color = Color3.fromRGB(200, 160, 255), Rate = 60, Speed = 8, Size = 0.9, Spread = 2.8, Light = true }),
 	}),
 	Szivarvany = table.freeze({
-		Name = "Nagyi Szivárványa",
+		Name = "Grandma's Rainbow",
 		Rarity = "Mythic",
 		Chance = 0.5,
 		Bonus = "Money",

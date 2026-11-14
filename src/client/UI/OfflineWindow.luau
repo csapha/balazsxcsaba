@@ -1,20 +1,22 @@
--- Offline kereset ablak (GDD 3.13, 9.4): belépéskor, ha távollétedben keresett a büféd.
--- "Üdv újra!" + összeg + részletek (idő, arány, max idő) + "Felveszem!" gomb (Remotes.ClaimOffline).
--- Döntés (2026-11-12): most csak sima Claim; az x2 / x10 a monetizációval (GDD 6) jön.
+-- Offline earnings window (GDD 3.13): shown on join when your shop earned money while you were away.
+-- "Welcome back!" + amount + details (time away, rate, max time) + "Collect!" (Remotes.ClaimOffline).
+-- For now a plain claim; the x2 / x10 options come with monetisation (GDD 6).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local vide = require(ReplicatedStorage.Packages.Vide)
-local Config = require(ReplicatedStorage.Shared.Config)
-local Formulas = require(ReplicatedStorage.Shared.Formulas)
-local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Vide = require(ReplicatedStorage.Packages.Vide)
+local Shared = ReplicatedStorage.Shared
+local Formulas = require(Shared.Formulas)
+local NumberFormat = require(Shared.NumberFormat)
+local Remotes = require(Shared.Remotes)
+local Ui = require(Shared.Ui)
+local Audio = require(script.Parent.Audio)
+local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
+local State = require(script.Parent.State)
+local Theme = require(script.Parent.Theme)
 
-local create = vide.create
-local spring = vide.spring
-
-local Palette = Config.Palette
-
-type Source<T> = vide.Source<T>
+local create = Vide.create
+local C = Theme.Colors
 
 local OfflineWindow = {}
 
@@ -22,102 +24,98 @@ local function duration(seconds: number): string
 	local hours = seconds // 3600
 	local minutes = (seconds % 3600) // 60
 	if hours > 0 then
-		return `{hours} óra {minutes} perc`
+		return `{hours}h {minutes}m`
 	end
-	return `{minutes} perc`
+	return `{minutes}m`
 end
 
-local function text(props: { [any]: any })
-	return create "TextLabel" {
-		BackgroundTransparency = 1,
-		Font = Enum.Font.FredokaOne,
-		TextScaled = true,
-		TextColor3 = Palette.White,
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 3 },
-		props,
-	}
-end
-
-function OfflineWindow.create(offline: Source<{ pending: number, seconds: number }>, data: any)
-	local open = function()
-		return offline().pending > 0
-	end
-	local scale = spring(function()
-		return if open() then 1 else 0.6
-	end, 0.25, 0.55)
-
-	return create "Frame" {
-		Name = "OfflineWindow",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.45, 0.5),
-		BackgroundColor3 = Palette.Panel,
-		BackgroundTransparency = 0.05,
-		Visible = function()
-			return open() or scale() > 0.65
+function OfflineWindow.render(anim: Motion.Anim)
+	return Kit.window {
+		Name = "Offline",
+		Title = "Welcome back!",
+		Color = "Orange",
+		Icon = Ui.Icons.CoinChest,
+		Size = UDim2.fromOffset(480, 330),
+		Anim = anim,
+		Kit.windowScale(anim.scale),
+		OnClose = function()
+			Remotes.ClaimOffline:FireServer()
 		end,
-		ZIndex = 20,
-
-		create "UIScale" { Scale = scale },
-		create "UIAspectRatioConstraint" { AspectRatio = 1.3 },
-		create "UISizeConstraint" { MaxSize = Vector2.new(560, 430) },
-		create "UICorner" { CornerRadius = UDim.new(0.06, 0) },
-		create "UIStroke" { Color = Palette.Stroke, Thickness = 4 },
-
-		-- Fejléc
-		create "Frame" {
-			Size = UDim2.fromScale(1, 0.16),
-			BackgroundColor3 = Palette.Gold,
-			create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 3 },
-			text {
-				Position = UDim2.fromScale(0.05, 0.12),
-				Size = UDim2.fromScale(0.9, 0.76),
-				Text = "👋 Üdv újra!",
+		Body = {
+			create "UIListLayout" {
+				Padding = UDim.new(0, 6),
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				SortOrder = Enum.SortOrder.LayoutOrder,
 			},
-		},
-
-		text {
-			Position = UDim2.fromScale(0.05, 0.22),
-			Size = UDim2.fromScale(0.9, 0.1),
-			Text = "Távollétedben a büféd keresett:",
-		},
-		text {
-			Position = UDim2.fromScale(0.05, 0.34),
-			Size = UDim2.fromScale(0.9, 0.22),
-			TextColor3 = Palette.Money,
-			Text = function()
-				return NumberFormat.money(offline().pending)
-			end,
-		},
-		text {
-			Position = UDim2.fromScale(0.05, 0.58),
-			Size = UDim2.fromScale(0.9, 0.09),
-			TextColor3 = Palette.Lemon,
-			Text = function()
-				local raw = data()
-				local rate = math.floor(Formulas.offlineRate(raw) * 100 + 0.5)
-				local max = duration(Formulas.offlineMaxSeconds(raw))
-				return `{duration(offline().seconds)} · {rate}%-on · max {max}`
-			end,
-		},
-
-		create "TextButton" {
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.72),
-			Size = UDim2.fromScale(0.6, 0.18),
-			BackgroundColor3 = Palette.Money,
-			AutoButtonColor = true,
-			Font = Enum.Font.FredokaOne,
-			TextScaled = true,
-			TextColor3 = Palette.White,
-			Text = "Felveszem!",
-			create "UICorner" { CornerRadius = UDim.new(0.3, 0) },
-			create "UIStroke" { Color = Palette.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
-			create "UIPadding" { PaddingTop = UDim.new(0.15, 0), PaddingBottom = UDim.new(0.15, 0) },
-			Activated = function()
-				Remotes.ClaimOffline:FireServer()
-			end,
+			Kit.text {
+				LayoutOrder = 1,
+				Text = "Your shop earned while you were away:",
+				TextSize = 20,
+				TextColor3 = C.Muted,
+				Gradient = false,
+				Size = UDim2.new(1, 0, 0, 24),
+			},
+			create "Frame" {
+				LayoutOrder = 2,
+				Size = UDim2.new(1, 0, 0, 70),
+				BackgroundTransparency = 1,
+				create "UIListLayout" {
+					FillDirection = Enum.FillDirection.Horizontal,
+					HorizontalAlignment = Enum.HorizontalAlignment.Center,
+					VerticalAlignment = Enum.VerticalAlignment.Center,
+					Padding = UDim.new(0, 8),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				},
+				create "ImageLabel" {
+					LayoutOrder = 1,
+					Size = UDim2.fromOffset(60, 60),
+					BackgroundTransparency = 1,
+					Image = Ui.Icons.CoinBag,
+					ScaleType = Enum.ScaleType.Fit,
+				},
+				Kit.text {
+					LayoutOrder = 2,
+					Text = function()
+						return NumberFormat.money(State.offline().pending)
+					end,
+					TextSize = 56,
+					StrokeThickness = 4,
+					StrokeColor = C.MoneyStroke,
+					Gradient = ColorSequence.new(C.MoneyTop, C.MoneyBottom),
+					AutomaticSize = Enum.AutomaticSize.X,
+					Size = UDim2.fromOffset(0, 64),
+				},
+			},
+			Kit.text {
+				LayoutOrder = 3,
+				Text = function()
+					local raw = State.data()
+					local rate = math.floor(Formulas.offlineRate(raw) * 100 + 0.5)
+					local max = duration(Formulas.offlineMaxSeconds(raw))
+					return `Away {duration(State.offline().seconds)}, {rate}% rate, max {max}`
+				end,
+				TextSize = 18,
+				TextColor3 = C.Lemon,
+				Gradient = false,
+				Size = UDim2.new(1, 0, 0, 22),
+			},
+			create "Frame" {
+				LayoutOrder = 4,
+				Size = UDim2.new(1, 0, 0, 12),
+				BackgroundTransparency = 1,
+			},
+			Kit.button {
+				Name = "Collect",
+				LayoutOrder = 5,
+				Size = UDim2.fromOffset(260, 56),
+				TextSize = 28,
+				Color = "Green",
+				Text = "COLLECT!",
+				Activated = function()
+					Audio.play("Coins")
+					Remotes.ClaimOffline:FireServer()
+				end,
+			},
 		},
 	}
 end

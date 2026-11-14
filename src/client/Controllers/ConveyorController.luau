@@ -9,6 +9,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local EventState = require(ReplicatedStorage.Shared.EventState)
@@ -169,8 +170,7 @@ local function popLabel(oven: BasePart, title: string, subtitle: string, color: 
 		label.TextScaled = true
 		label.Text = line[1]
 		label.TextColor3 = line[3]
-		label.TextStrokeColor3 = Palette.Stroke
-		label.TextStrokeTransparency = 0
+		Ui.worldText(label)
 		label.Parent = gui
 	end
 
@@ -204,12 +204,12 @@ local function onRareBake(plotIndex: number, slot: number, rarityIndex: number, 
 		local ovens = plot:FindFirstChild("Ovens")
 		local oven = ovens and ovens:FindFirstChild(`Oven{slot}`)
 		if oven and oven:IsA("BasePart") then
-			popLabel(oven, `{rarity.Name}!`, `x{rarity.UnitMult} darab · x{rarity.ValueMult} ár`, rarity.Color)
+			popLabel(oven, `{rarity.Name}!`, `x{rarity.UnitMult} pieces, x{rarity.ValueMult} price`, rarity.Color)
 		end
 	end
 
 	if rarity.Announce then
-		Chat.announce(`🎉 {ownerName} kisütötte: {string.upper(rarity.Name)}!`, rarity.Color)
+		Chat.announce(`🎉 {ownerName} fried a {string.upper(rarity.Name)}!`, rarity.Color)
 	end
 end
 
