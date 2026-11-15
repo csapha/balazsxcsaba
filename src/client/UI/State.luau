@@ -9,6 +9,8 @@ export type Pet = { uid: number, id: string, golden: boolean }
 export type PetsData = { inventory: { Pet }, equipped: { number }, nextId: number }
 export type AurasData = { owned: { [string]: number }, equipped: string, tickets: number, ticketProgress: number }
 export type Offline = { pending: number, seconds: number }
+export type ShopData = { firstJoin: number, starterBought: boolean, codes: { [string]: boolean }, toasts: { [string]: boolean } }
+export type Cosmetics = { owned: { [string]: boolean }, trail: string, theme: string }
 
 local State = {
 	window = source(nil :: string?),
@@ -25,6 +27,15 @@ local State = {
 	pets = source({ inventory = {}, equipped = {}, nextId = 1 } :: PetsData),
 	auras = source({ owned = {}, equipped = "", tickets = 0, ticketProgress = 0 } :: AurasData),
 	offline = source({ pending = 0, seconds = 0 } :: Offline),
+
+	-- Shop (GDD 5–6): owned gamepasses, timed boosts (key → expiry, os.time), starter pack + redeemed codes
+	passes = source({} :: { [string]: boolean }),
+	timedBoosts = source({} :: { [string]: number }),
+	shop = source({ firstJoin = 0, starterBought = false, codes = {}, toasts = {} } :: ShopData),
+	cosmetics = source({ owned = {}, trail = "", theme = "Classic" } :: Cosmetics),
+	-- GDD 7 FTUE: the tutorial step and playtime (UI/Tutorial)
+	tutorial = source({ step = "", done = false, playtime = 0 } :: any),
+	highestOven = source(0), -- the highest oven level ever (stats.highestOven): reveals the Index button
 
 	-- aura roll in progress: the Auras window steps aside until the reveal ends (no spoiler, only the roll shows)
 	auraRolling = source(false),

@@ -1,5 +1,5 @@
 -- HUD (GDD 9.3, mobile-first), built on the shared UI Kit (same look as the Snowboard game):
---   left: menu buttons in a 2 × 2 grid (Rebirth %, Index, Pets, Auras)
+--   left: menu buttons in a 2 × 2 grid (Rebirth %, Index, Pets, Auras) + the Shop under it
 --   top: navigation (My Plot / Eggs) + event timer
 --   bottom left: money, the schnitzel you are carrying (and its worth), rebirth multiplier and tokens
 -- Windows open one at a time (State.window) through AnimatedWindow.
@@ -10,6 +10,7 @@ local StarterGui = game:GetService("StarterGui")
 
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
 local EventState = require(Shared.EventState)
 local Formulas = require(Shared.Formulas)
 local NumberFormat = require(Shared.NumberFormat)
@@ -22,11 +23,15 @@ local AurasWindow = require(script.Parent.AurasWindow)
 local Effects = require(script.Parent.Effects)
 local IndexWindow = require(script.Parent.IndexWindow)
 local Kit = require(script.Parent.Kit)
+local OfferToast = require(script.Parent.OfferToast)
 local OfflineWindow = require(script.Parent.OfflineWindow)
 local PetsWindow = require(script.Parent.PetsWindow)
 local RebirthWindow = require(script.Parent.RebirthWindow)
+local ShopWindow = require(script.Parent.ShopWindow)
 local State = require(script.Parent.State)
 local Theme = require(script.Parent.Theme)
+local Tutorial = require(script.Parent.Tutorial)
+local Audio = require(script.Parent.Audio)
 
 local create = Vide.create
 local source = Vide.source
@@ -71,7 +76,27 @@ local MENU_ICON_ANCHORS = {
 }
 
 local function menuButton(order: number, name: string, text: string | () -> string, icon: string, color: string, iconSize: number?)
+	-- GDD 7 FTUE: the buttons appear one by one (Tutorial.revealed), popping in with a sound
+	local function revealed(): boolean
+		return Tutorial.revealed(name)
+	end
+	local pop = spring(function()
+		return if revealed() then 1 else 0
+	end, 0.35, 0.45)
+	local was = Vide.untrack(revealed)
+	Vide.effect(function()
+		local now = revealed()
+		if now and not was then
+			Audio.play("New")
+			Tutorial.announce(`New: {name}!`) -- the chef introduces it
+		end
+		was = now
+	end)
 	return Kit.button {
+		Visible = function()
+			return pop() > 0.02
+		end,
+		Appear = pop,
 		Name = name,
 		LayoutOrder = order,
 		Text = text,
@@ -88,30 +113,42 @@ local function menuButton(order: number, name: string, text: string | () -> stri
 	}
 end
 
+local GRID_H = 74 * 2 + 22
+
 local function leftMenu(): Frame
+	local shop = menuButton(5, "Shop", "Shop", Ui.Icons.Shop, "Orange")
+	-- Kit buttons are centre-anchored (they bounce around the middle): centre = grid + gap + half a button
+	shop.Position = UDim2.new(0.5, 0, 0, GRID_H + 22 + 37)
 	return create "Frame" {
 		Name = "LeftMenu",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = function()
 			return UDim2.new(0, 14 - Kit.sideSlack("Left"), 0.5, -30)
 		end,
-		Size = UDim2.fromOffset(74 * 2 + 14, 74 * 2 + 22),
+		Size = UDim2.fromOffset(74 * 2 + 14, GRID_H + 22 + 74),
 		BackgroundTransparency = 1,
 		Kit.scale(),
-		-- 2 × 2 grid (the labels hang below each button, hence the larger vertical gap)
-		create "UIGridLayout" {
-			CellSize = UDim2.fromOffset(74, 74),
-			CellPadding = UDim2.fromOffset(14, 22),
-			FillDirection = Enum.FillDirection.Horizontal,
-			FillDirectionMaxCells = 2,
-			SortOrder = Enum.SortOrder.LayoutOrder,
+		create "Frame" {
+			Name = "Grid",
+			Size = UDim2.fromOffset(74 * 2 + 14, GRID_H),
+			BackgroundTransparency = 1,
+			-- 2 × 2 grid (the labels hang below each button, hence the larger vertical gap)
+			create "UIGridLayout" {
+				CellSize = UDim2.fromOffset(74, 74),
+				CellPadding = UDim2.fromOffset(14, 22),
+				FillDirection = Enum.FillDirection.Horizontal,
+				FillDirectionMaxCells = 2,
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			menuButton(1, "Rebirth", function()
+				return `Rebirth {math.floor(RebirthWindow.progress() * 100)}%`
+			end, Ui.Icons.Rebirth, "Green"),
+			menuButton(2, "Index", "Index", Ui.Icons.Index, "Yellow"),
+			menuButton(3, "Pets", "Pets", Ui.Icons.Pets, "Blue"),
+			menuButton(4, "Auras", "Auras", Ui.Icons.Auras, "Purple", 1.02),
 		},
-		menuButton(1, "Rebirth", function()
-			return `Rebirth {math.floor(RebirthWindow.progress() * 100)}%`
-		end, Ui.Icons.Rebirth, "Green"),
-		menuButton(2, "Index", "Index", Ui.Icons.Index, "Yellow"),
-		menuButton(3, "Pets", "Pets", Ui.Icons.Pets, "Blue"),
-		menuButton(4, "Auras", "Auras", Ui.Icons.Auras, "Purple", 1.02),
+		-- GDD 5: the Shop, centred under the grid
+		shop,
 	} :: Frame
 end
 
@@ -167,8 +204,15 @@ local function topBar(clock: () -> number): Frame
 				Padding = UDim.new(0, 14),
 				SortOrder = Enum.SortOrder.LayoutOrder,
 			},
-			navButton(1, "Home", "My Plot", Ui.Icons.Home, "Orange", Teleport.home),
-			navButton(2, "Eggs", "Eggs", Ui.Icons.Egg, "Pink", Teleport.eggs),
+			-- another button closes the open window (one window at a time)
+			navButton(1, "Home", "My Plot", Ui.Icons.Home, "Orange", function()
+				State.close()
+				Teleport.home()
+			end),
+			navButton(2, "Eggs", "Eggs", Ui.Icons.Egg, "Pink", function()
+				State.close()
+				Teleport.eggs()
+			end),
 		},
 		-- GDD 3.12: "Next event: 05:39" / the running event's countdown
 		create "Frame" {
@@ -418,12 +462,48 @@ function Hud.mount(data: any)
 	bind(State.pets, data.pets)
 	bind(State.auras, data.auras)
 	bind(State.offline, data.offline)
+	bind(State.passes, data.passes)
+	bind(State.timedBoosts, data.timedBoosts)
+	bind(State.shop, data.shop)
+
+	bind(State.cosmetics, data.cosmetics)
+	bind(State.tutorial, data.tutorial)
+	bind(State.highestOven, data.stats.highestOven)
+
+	-- GDD 5: purchase celebration (an aura roll / egg / rebirth has its own animation)
+	local GIFTS = {
+		VipGift = { icon = Ui.Icons.Crown, title = "VIP Daily Gift", color = "Yellow" },
+		PremiumGift = { icon = Ui.Icons.Gift, title = "Premium Daily Gift", color = "Orange" },
+		VipPet = { icon = Ui.Icons.Pets, title = "VIP Pet!", color = "Yellow" },
+	}
+	Remotes.ShopPurchased.OnClientEvent:Connect(function(kind: string, key: string, message: string)
+		local shopConfig = Config.Shop
+		if kind == "Gift" then
+			local gift = GIFTS[key]
+			if gift then
+				Effects.purchase(playerGui, gift.icon, gift.title, message, gift.color)
+			end
+			return
+		elseif kind == "Cosmetic" then
+			local cosmetic = shopConfig.Trails[key] or shopConfig.Themes[key]
+			if cosmetic then
+				local icon = if shopConfig.Trails[key] then Ui.Icons.Star else Ui.Icons.Home
+				Effects.purchase(playerGui, icon, cosmetic.Name, message, "Purple")
+			end
+			return
+		end
+		local item = if kind == "Pass" then shopConfig.Passes[key] else shopConfig.Products[key]
+		if not item or item.Effect == "AuraRoll" or item.Effect == "RobuxEgg" or item.Effect == "RebirthSkip" then
+			return
+		end
+		Effects.purchase(playerGui, Ui.Icons[item.Icon] or Ui.Icons.Shop, item.Name, message, item.Color)
+	end)
 
 	Remotes.Rebirthed.OnClientEvent:Connect(function(rebirths: number, multiplier: number)
 		Effects.rebirth(playerGui, rebirths, multiplier)
 	end)
-	Remotes.EggOpened.OnClientEvent:Connect(function(eggIndex: number, petId: string)
-		Effects.eggReveal(playerGui, eggIndex, petId)
+	Remotes.EggOpened.OnClientEvent:Connect(function(eggIndex: number, petId: string, fast: boolean?)
+		Effects.eggReveal(playerGui, eggIndex, petId, fast)
 	end)
 	Remotes.AuraRolled.OnClientEvent:Connect(function(id: string, level: number, isNew: boolean)
 		State.auraRevealing = true
@@ -459,11 +539,14 @@ function Hud.mount(data: any)
 				leftMenu(),
 				topBar(clock),
 				stats(),
+				OfferToast.render(), -- GDD 6.5 offers, bottom right
+				Tutorial.render(), -- GDD 7 FTUE: the chef bubble at the top
 			},
 			AnimatedWindow("Rebirth", RebirthWindow.render, nil, true),
 			AnimatedWindow("Index", IndexWindow.render, nil, true),
 			AnimatedWindow("Pets", PetsWindow.render, nil, true),
 			AnimatedWindow("Auras", AurasWindow.render, State.auraRolling, true),
+			AnimatedWindow("Shop", ShopWindow.render, nil, true),
 			AnimatedWindow(hasOffline, OfflineWindow.render),
 		}
 	end, playerGui)
@@ -485,6 +568,9 @@ function Hud.mount(data: any)
 	gameUi:GetPropertyChangedSignal("AbsolutePosition"):Connect(track)
 	gameUi:GetPropertyChangedSignal("AbsoluteSize"):Connect(track)
 	track()
+
+	OfferToast.start() -- GDD 6.5 offer triggers (chef asleep, rare schnitzel, rebirth progress, starter pack)
+	Tutorial.start() -- GDD 7 FTUE: light trail, arrow, drone camera
 end
 
 return Hud

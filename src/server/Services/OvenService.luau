@@ -219,17 +219,25 @@ local function buildOven(state: PlotService.PlotState, slot: number, level: numb
 end
 
 local function syncOvens(state: PlotService.PlotState, raw: any)
+	-- GDD 7.2: a vásárolt sütő "leesik az égből" (a kliens animálja, a "Drop" attribútum alapján);
+	-- merge-nél, szintváltásnál és a belépéskori első felépítésnél nem
+	local firstSync = state.ovenParts == nil
 	state.ovenParts = state.ovenParts or {}
 	for slot = 1, Config.Ovens.MaxSlots do
 		local level = raw.ovens[slot] or 0
 		local existing = state.ovenParts[slot]
 		if not existing or existing:GetAttribute("Level") ~= level then
+			local hadOven = existing ~= nil
 			if existing then
 				existing:Destroy()
 				state.ovenParts[slot] = nil
 			end
 			existing = if level > 0 then buildOven(state, slot, level) else nil
 			state.ovenParts[slot] = existing
+			local merged = state.mergePops ~= nil and state.mergePops[slot] ~= nil
+			if existing and not firstSync and not hadOven and not merged then
+				existing:SetAttribute("Drop", true)
+			end
 		end
 
 		-- csillagok: csak a felirat változik, a sütőt nem kell újraépíteni
@@ -390,7 +398,7 @@ local function bakeTick()
 
 		-- GDD 3.9: pet bónuszok (sütési sebesség, szerencse)
 		local interval = Formulas.bakeInterval(raw)
-		local luck = 1 + Formulas.boosts(raw).Luck
+		local luck = Formulas.luck(raw) -- pet / aura + Shop (Lucky pass, x2 Luck boost)
 
 		for slot = 1, Config.Ovens.MaxSlots do
 			local level = raw.ovens[slot] or 0

@@ -38,11 +38,12 @@ end
 
 function AuraService.roll(player: Player, mode: unknown): string?
 	local data = DataService.get(player)
-	if not data or (mode ~= "ticket" and mode ~= "money") then
+	-- "free": Shop Aura Roll (már kifizették Robuxszal) – csak szerverről hívható, a remote nem engedi
+	if not data or (mode ~= "ticket" and mode ~= "money" and mode ~= "free") then
 		return nil
 	end
 	local now = os.clock()
-	if lastRoll[player] and now - lastRoll[player] < AuraConfig.RollCooldown then
+	if mode ~= "free" and lastRoll[player] and now - lastRoll[player] < AuraConfig.RollCooldown then
 		return nil
 	end
 
@@ -53,7 +54,7 @@ function AuraService.roll(player: Player, mode: unknown): string?
 			return nil
 		end
 		auras.tickets -= 1
-	else
+	elseif mode == "money" then
 		local price = Formulas.auraRollPrice(raw)
 		if raw.money < price then
 			return nil
@@ -128,7 +129,9 @@ end
 function AuraService.start()
 	Remotes.AuraAction.OnServerEvent:Connect(function(player, action: unknown, arg: unknown)
 		if action == "roll" then
-			AuraService.roll(player, arg)
+			if arg == "ticket" or arg == "money" then
+				AuraService.roll(player, arg)
+			end
 		elseif action == "equip" then
 			equip(player, arg)
 		elseif action == "unequip" then

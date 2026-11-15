@@ -12,7 +12,10 @@
     },
     "ReplicatedFirst": {
       "$className": "ReplicatedFirst",
-      "$ignoreUnknownInstances": true
+      "$ignoreUnknownInstances": true,
+      "LoadingScreen": {
+        "$path": "src/first/LoadingScreen.client.luau"
+      }
     },
     "ReplicatedStorage": {
       "$ignoreUnknownInstances": true,

@@ -656,7 +656,7 @@ src/
 
 ## Eddigi kész dolgok
 
-> Állapot: 2026-11-13. A kód a `src/` mappában van (Rojo), minden szám a `src/shared/Config/` modulokban állítható.
+> Állapot: 2026-11-15. A kód a `src/` mappában van (Rojo), minden szám a `src/shared/Config/` modulokban állítható.
 > A vizuálok placeholderek (szürke dobozok, blokkos figurák) – a modelleket a másik fejlesztő készíti.
 > Ahol eltértünk az eredeti tervtől, azt **Eltérés** jelöli.
 
@@ -753,6 +753,48 @@ src/
   - A sütő felett: "Lv 15 ★★☆☆☆", vásárláskor felirat ("3★: x2.5 value!"); a gomb: "Buy Star ★ (3/5)" + ár, ha minden sütő 5★: "ALL MAXED ★ – Time to Rebirth!".
   - Mentés: `ovenStars` (slotonként). Kód: `OvenService.buyStars`, `Formulas.starPrice / starTarget / starMultiplier`.
 - **Rebirth követelmény:** $2T / $600T / $3Qa / $8Qa (×1.6 utána). A szimulátor szerint ezzel: Rebirth 1 ~40 perc, Rebirth 2 ~1:41 óra, Rebirth 5 ~6:10 óra, a leghosszabb várakozás 37 → 17 perc.
+### 5. Shop (+ 6.2 gamepassok, 6.3 dev productok) – 2026-11-15
+- Shop ablak az új UI Kit stílusában (Kit.window, fülek, animált kártyák, szalagok, vásárlás-effekt); a Shop gomb a bal oldali menüben, a 2×2-es rács alatt. Egyszerre egy ablak: X-szel vagy másik gombbal záródik.
+- Fülek: **Featured** (Kezdőcsomag az első 3 napban időzítővel, napi akció (20–40%) naponta váltva), **Gamepasses** (mind a 11), **Cash** (15 p / 1 ó / 6 ó / 24 ó bevétel + Offline Claim x10), **Boosts** (x2 Money 15 p / 1 ó, x2 Luck, x2 Baking, Chef Energy Drink – halmozódnak, visszaszámlálóval), **Eggs & Auras** (Aura Roll), **Codes** (beváltó mező, `Config.Shop.Codes`).
+- Működő hatások: x2 Money, x2 Baking, Auto Collect, Auto Merge, Lucky x2, Tireless Chefs, +2 Chef, +1 Pet slot, Offline x2 + 12 óra, VIP (x1.5 pénz); pénzcsomagok, boostok, aura dobás, Offline x10, Kezdőcsomag.
+- Vásárlás: gamepass – PromptGamePassPurchase + belépéskor UserOwnsGamePassAsync; dev product – ProcessReceipt (a teljesített vásárlások listája a mentésben, nem teljesül kétszer).
+- **A Roblox ID-k még nincsenek** (`Config/Shop.luau`, GamePassId / ProductId = 0): Studióban a 0-s ID-jű termék ingyen teljesül (teszt), élesben "SOON". A napi akcióknak saját (kedvezményes árú) ProductId kell.
+- **Eltérés – árak (döntés 2026-11-15, mérsékeltebb a 6.2 / 6.3-nál):** gamepassok 49–299 (x2 Money 149, VIP 299, x2 Baking / Lucky / +2 Chef / Fast Egg 99, Tireless 129, Auto Merge / +1 Pet / Offline 79, Auto Collect 49); pénz 19 / 49 / 99 / 249; boostok 15–39; Aura 19; Robux tojás 39 / 99 / 299; Kezdőcsomag 49; Offline x10 25.
+- **Akciós érzés csak igaz eszközökkel** (nincs kamu áthúzott ár): a Shop a valódi Roblox árat mutatja (GetProductInfo), és csak akkor húzza át a normál árat, ha a valódi ár tényleg alacsonyabb.
+  - Napi akció: áthúzott normál ár + kedvezményes ár (saját, olcsóbb ProductId).
+  - Bevezető akció a gamepassokra: `Config.Shop.LaunchSale` (EndsAt + gamepassonként eltérő, fix kedvezmény 20–40%), "up to -40%" sáv visszaszámlálóval; az akció idejére a Creator Hubon tényleg le kell venni az árat. Studióban az első belépéstől 7 napig előnézet.
+  - Értékcímkék: kiszámolt "x1.6 / x4.6 VALUE" (mennyiség / Robux a legkisebb csomaghoz mérve), "BEST VALUE"; a Kezdőcsomagon "ONLY ONCE" és "The 1h x2 Money alone is R$ 39".
+- **Bővítés (2026-11-15), minden működik:**
+  - **Golden Egg** 1x / 3x / 10x: 4 exkluzív pet (Golden Crackling Pig, Lemon Zest Dragon, Head Chef Bear, Schnitzel King 5%), kicsit erősebbek a 4. tojás petjeinél; nem számítanak az Indexbe.
+  - **Fast Egg** pass: 3 tojás egyszerre, rövidebb várakozás és gyors animáció.
+  - **VIP**: [VIP] arany címke a név felett és a chatben; VIP terület a tojások mögött (csak VIP léphet be, bent +10% esély a ritkább petekre); VIP Golden Poodle pet egyszer; napi ajándék (30 perc bevétel + 1 aura ticket).
+  - **Rebirth Skip** (döntés: nullázás NÉLKÜL – a sütők, a pénz, a generáció megmarad): a követelmény ≥ 25%-ától; ár a következő rebirth szerint: 1–2. R$ 49, 3–5. R$ 99, 6–10. R$ 199, utána R$ 399.
+  - **Troll termékek**: Super Jump (R$ 5, 30 mp), Schnitzel Rain (R$ 15, 20 mp arany schnitzel az utcán, bárki felveheti), Tenderize the Server (R$ 10, mindenki képernyője rázkódik + chat üzenet).
+  - **Event ajánlat**: random event alatt egy hozzá illő termék olcsóbban (pl. Golden Oil alatt x2 Luck R$ 11), visszaszámlálóval.
+  - **Kozmetikumok fül** (döntés: most csak trail-ek és telek-színek): 4 trail (Breadcrumb $1M játékpénzért, Golden Sparkle, Paprika Fire, Rainbow), 5 telek téma (Classic, Vienna Café, Village Wedding, Space Base, Halloween – padló, platform, pult, oszlop színe).
+  - **Robux padek a telken** (GDD 6.1): x2 Baking a 6. vásárló helyen, Auto Collect a pénz raklap mellett, Tireless Chefs a chefeknél ("OWNED", ha megvan).
+  - **Ajánlat-toastok** (GDD 6.5): chef elalszik → Tireless Chefs, Arany+ schnitzel → Lucky x2, rebirth 50%-nál → Rebirth Skip, későbbi belépés → Kezdőcsomag; mindegyik egyszer, 10 percen belül max 1, az első 5 percben semmi.
+  - **Premium** napi ajándék (15 perc bevétel + 1 ticket); **Group** +10% pénz (`Config.Shop.Group.GroupId` – még 0).
+  - **Offline ablak**: "CLAIM x10" gomb a sima felvétel alatt.
+- Még nincs: Season Pass (a 8. fejezettel), kalapok / kötények / klopfoló skinek (modellek kellenek), megvehető aurák, group exkluzív kalap.
+- **Átrendezés (2026-11-15, letisztultabb):** 5 fül – **Featured** (felül nagy VIP banner, alatta Starter Pack banner, és csak 2 kártya: Napi akció + Event ajánlat), **Gamepasses** (a VIP nélkül), **Items** (Cash / Boosts / Fun szekciókkal), **Eggs & Auras**, **Cosmetics**. A **Rebirth Skip** a Rebirth ablakba került (a REBIRTH gomb mellé, tooltippel). A **Kódok** kikerültek a Shopból – a Beállítások ablakba kerülnek (a szerver oldal kész: `Remotes.RedeemCode`, `Config.Shop.Codes`).
+- **Még letisztultabb (2026-11-15):** a Gamepasses fülön csak 6 marad (x2 Money, x2 Baking, Auto Collect, Lucky x2, +2 Chef, +1 Pet). A többi ott jelenik meg, ahol értelme van: **Tireless Chefs** – chef-pad + toast, ha elalszik a chef; **Offline x2 + 12h** és **Offline Claim x10** – csak az Offline ablakban; **Open 3 Eggs** (R$ 99, örökre 3 tojás egyszerre) és **Fast Open** (R$ 49) – a tojásoknál külön promptként (R / F billentyű; gamepass nélkül a vásárlást indítja). Az **Auto Merge** gamepass kikerült (ott a 100-as gomb). **Items**: Cash (1 ó / 6 ó / 24 ó), Boosts (x2 Money 15 p / 1 ó, x2 Luck), Fun (3). A **telek témák** kikerültek a Shopból – később feloldhatók lesznek (a rendszer kész). Az x2 Baking és a Chef Energy boost csak napi akcióként / event ajánlatként jöhet.
+- **Végső felépítés (2026-11-15): 3 fül** – Featured, Gamepasses, Items. Az **Eggs & Auras** (Golden Egg, Aura Roll) és a **Cosmetics** (trail-ek) fül is kikerült; a rendszerük kész marad (`Tab = "Hidden"`), később máshol jöhetnek. A napi akciók: x2 Money 1 ó, Cash Chest, x2 Luck, Cash Bag.
+- **Creator Hub teendő**: minden gamepass / dev product létrehozása és az ID beírása a `Config/Shop.luau`-ba (GamePassId / ProductId); a napi akcióknak, event ajánlatoknak és a 4 Rebirth Skip lépcsőnek saját ProductId kell.
+
+### 7. FTUE – az első 10 perc (2026-11-15)
+- **Betöltőképernyő** (`src/first/LoadingScreen.client.luau`, ReplicatedFirst): szöveges "SELL A SCHNITZEL" logó, amire egy klopfoló rácsap; schnitzel progress bar, ami világos tésztából aranybarnára "panírozódik"; tippek; "Tap to skip"; lassan mozgó schnitzel-minta. A játék UI betöltésekor zár be.
+- **Kezdőpénz pontosan 2 sütő** ($111), így 15 mp körül jön az első merge (a "hook").
+- **Tutorial lépések** (`Config/Tutorial.luau`, szerver: TutorialService, kliens: UI/Tutorial): Welcome → Buy an oven → Buy one more → MERGE → Grab the schnitzels → Bring them to the counter → Take your money → Buy another oven. Vezetés: arany fénycsík a padlón a célig, ugráló nyíl a cél felett, chef buborék fent 2–4 szóval és SKIP gombbal (a nyíl marad).
+- **Javított vezetés (2026-11-15):** a cél pulzáló arany körvonalat (Highlight), fényoszlopot és lüktető gyűrűt kap a padlón + nagy ugráló nyíl; képernyőszéli mutató távolsággal, ha a cél nincs a képen; "Nice!" / "Great!" minden teljesített lépés után (szikrák + hang); a buborékban lépés-pöttyök (●●●○○) és mini ábra (pl. sütő + sütő = jobb sütő). A repülő kamera rögtön a betöltés után jön, a tutorial megvárja (Remotes.TutorialIntroDone, max 25 mp).
+- **2–10. perc:** ajándék chef ~3. percnél ("FREE" a +1 Chef padon), "Wake him up!", amikor először elalszik egy chef; az első event fixen a Panírvihar az 5. percben; ingyen tojás ~7. percnél (az 1. tojás "Open (FREE)").
+- **HUD gombok HALADÁS szerint** (döntés 2026-11-15, az idő szerinti helyett), "pop" animációval, hanggal és a chef bemutatja ("New: Shop!"): Shop – a tutorial fő lépései után, Index – az első Lv3 sütőnél, Pets – az első petnél, Auras – az első ticketnél, Rebirth – a követelmény 1%-ánál. A visszatérő játékos (tutorial kész) mindent lát.
+- **Repülő kamera** a telek felett az első belépéskor (2 mp), a **vásárolt sütő leesik az égből** (porfelhő + hang; merge-nél nem).
+- A tutorial 10 perc után kész (ha az egyszeri lépések megvoltak), 15 perc után mindenképp. A régi mentéseknél (már van haladás) kész; Studióban `Config.Tutorial.StudioEnabled`.
+- **SKIP TUTORIAL** gomb a buborékban (két koppintás: "SURE?"): az egész tutorialt átugorja, minden HUD gomb megjelenik (döntés 2026-11-15, a lépésenkénti buborék-elrejtés helyett).
+- **Csak angol szöveg** (döntés 2026-11-15).
+- Még nincs: Quest panel (9. perc) – a 8. fejezettel.
+
 - A GDD 4.1 / 4.2 táblái még a régi számokat mutatják.
 
 ### Későbbre hagyva

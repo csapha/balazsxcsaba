@@ -33,7 +33,7 @@ function RebirthService.rebirth(state: PlotService.PlotState): boolean
 	local baseMoney = if RunService:IsStudio() then Config.Game.StudioStartMoney else Config.Game.StartMoney
 	-- rebirth-fa: kezdőpénz ×10^szint, kezdő chefek, kezdő generáció
 	local startMoney = baseMoney * Formulas.perkValue(raw, "StartMoney")
-	local startChefs = math.min(Formulas.perkValue(raw, "StartChefs"), Formulas.maxChefs(rebirths))
+	local startChefs = math.min(Formulas.perkValue(raw, "StartChefs"), Formulas.maxChefs(rebirths, raw))
 	local startGeneration = math.min(1 + Formulas.perkValue(raw, "StartGeneration"), Formulas.maxGeneration())
 
 	-- futó szimulációk leállítása (szalagon lévő sütések, chefek)
@@ -74,6 +74,21 @@ function RebirthService.rebirth(state: PlotService.PlotState): boolean
 
 	Remotes.Rebirthed:FireClient(state.player, rebirths, Formulas.rebirthMultiplier(rebirths))
 	PlotService.teleportHome(state.player)
+	return true
+end
+
+-- GDD 6.3 Rebirth Skip (Robux, döntés 2026-11-15): a rebirth jutalma NULLÁZÁS NÉLKÜL – a sütők, a pénz,
+-- a generáció és a chefek megmaradnak; csak a "körben keresett pénz" indul újra (a következő követelményhez).
+-- A vásárlás előtt a ShopService ellenőrzi a MinProgress-t; itt már ki van fizetve, ezért mindig teljesül.
+function RebirthService.skip(state: PlotService.PlotState): boolean
+	local data = state.data
+	local raw = data()
+	local rebirths = raw.rebirths + 1
+	data.rebirths(rebirths)
+	data.rebirthTokens(raw.rebirthTokens + Config.Rebirth.TokensPerRebirth)
+	data.slots(math.max(raw.slots, Formulas.rebirthSlots(rebirths)))
+	data.cycleEarned(0)
+	Remotes.Rebirthed:FireClient(state.player, rebirths, Formulas.rebirthMultiplier(rebirths))
 	return true
 end
 

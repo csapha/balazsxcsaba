@@ -11,6 +11,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local PlotService = require(script.Parent.PlotService)
 local IndexService = require(script.Parent.IndexService)
+local TutorialService = require(script.Parent.TutorialService)
 
 local Palette = Config.Palette
 
@@ -123,6 +124,10 @@ function SellService.collect(state: PlotService.PlotState)
 	end
 	data.money(raw.money + raw.moneyPile)
 	data.moneyPile(0)
+	-- GDD 7.2 "Take your money!" lépés (csak egyszer ír a mentésbe)
+	if not raw.tutorial.done and not raw.tutorial.collected then
+		TutorialService.event(state.player, "Collected")
+	end
 end
 
 function SellService.upgradeSellSpeed(state: PlotService.PlotState): boolean
@@ -169,7 +174,13 @@ local function sellTick()
 		state.lastSaleAt = os.clock() -- a vendégsor (CustomerService) ebből tudja, hogy kiszolgálhat
 		data.counterStock(raw.counterStock - amount)
 		data.counterValue(math.max(0, raw.counterValue - baseValue))
-		data.moneyPile(raw.moneyPile + earned)
+		-- GDD 6.2 Auto Collect: a pénz egyből a játékoshoz kerül (a raklapon maradtat is felveszi)
+		if Formulas.hasPass(raw, "AutoCollect") then
+			data.money(raw.money + raw.moneyPile + earned)
+			data.moneyPile(0)
+		else
+			data.moneyPile(raw.moneyPile + earned)
+		end
 		data.cycleEarned(raw.cycleEarned + earned) -- rebirth követelmény (GDD 3.8)
 		data.stats.totalSold(raw.stats.totalSold + amount)
 		data.stats.totalEarned(raw.stats.totalEarned + earned)

@@ -1,6 +1,6 @@
 -- Offline earnings window (GDD 3.13): shown on join when your shop earned money while you were away.
 -- "Welcome back!" + amount + details (time away, rate, max time) + "Collect!" (Remotes.ClaimOffline).
--- For now a plain claim; the x2 / x10 options come with monetisation (GDD 6).
+-- "Claim x10" (GDD 6.3 Offline Claim x10, R$) is offered right under it – the impulse moment on login.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Vide = require(ReplicatedStorage.Packages.Vide)
@@ -14,6 +14,7 @@ local Kit = require(script.Parent.Kit)
 local Motion = require(script.Parent.Motion)
 local State = require(script.Parent.State)
 local Theme = require(script.Parent.Theme)
+local ShopWindow = require(script.Parent.ShopWindow)
 
 local create = Vide.create
 local C = Theme.Colors
@@ -35,7 +36,7 @@ function OfflineWindow.render(anim: Motion.Anim)
 		Title = "Welcome back!",
 		Color = "Orange",
 		Icon = Ui.Icons.CoinChest,
-		Size = UDim2.fromOffset(480, 330),
+		Size = UDim2.fromOffset(480, 446),
 		Anim = anim,
 		Kit.windowScale(anim.scale),
 		OnClose = function()
@@ -114,6 +115,37 @@ function OfflineWindow.render(anim: Motion.Anim)
 				Activated = function()
 					Audio.play("Coins")
 					Remotes.ClaimOffline:FireServer()
+				end,
+			},
+			-- GDD 6.3 / 6.5: Offline Claim x10 for Robux (the server grants it, then this window closes)
+			Kit.button {
+				Name = "ClaimX10",
+				LayoutOrder = 6,
+				Size = UDim2.fromOffset(260, 48),
+				TextSize = 22,
+				Color = "Purple",
+				Text = function()
+					return `CLAIM x10  R$ {ShopWindow.productPrice("OfflineX10")}`
+				end,
+				Activated = function()
+					Remotes.ShopBuy:FireServer("Product", "OfflineX10")
+				end,
+			},
+			-- GDD 6.2 "Offline x2 + 12h" gamepass (decision 2026-11-15: only offered here, not in the Shop)
+			Kit.button {
+				Name = "OfflineBoost",
+				LayoutOrder = 7,
+				Size = UDim2.fromOffset(300, 40),
+				TextSize = 18,
+				Color = "Blue",
+				Visible = function()
+					return State.passes().OfflineBoost ~= true
+				end,
+				Text = function()
+					return `x2 OFFLINE + 12h FOREVER  R$ {(ShopWindow.passPrice("OfflineBoost", os.time()))}`
+				end,
+				Activated = function()
+					Remotes.ShopBuy:FireServer("Pass", "OfflineBoost")
 				end,
 			},
 		},

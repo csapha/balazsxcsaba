@@ -10,7 +10,7 @@ local EVENTS = {
 	"ChefWoke", -- szerver → összes kliens: (plotIndex, chefIndex) "pof!" vizuál
 	"RequestRebirth", -- kliens → szerver: rebirth kérés (a szerver ellenőrzi a követelményt)
 	"PetAction", -- kliens → szerver: (action: "equip" | "unequip" | "delete" | "golden", arg)
-	"EggOpened", -- szerver → nyitó: (eggIndex, petId) tojásnyitás animáció
+	"EggOpened", -- szerver → nyitó: (eggIndex, petId, fast?) tojásnyitás animáció (eggIndex 0 = Golden Egg)
 	"PetHatched", -- szerver → összes kliens: (playerName, petId) legendás pet bejelentés
 	"AuraAction", -- kliens → szerver: ("roll", "ticket" | "money") | ("equip", auraId) | ("unequip")
 	"AuraRolled", -- szerver → dobó: (auraId, level, isNew) dobás animáció
@@ -19,6 +19,15 @@ local EVENTS = {
 	"ClaimOffline", -- kliens → szerver: az offline kereset felvétele
 	"BuyPerk", -- kliens → szerver: (perkId) rebirth-fa perk vásárlás tokenért
 	"Rebirthed", -- szerver → tulajdonos: (rebirths, multiplier) rebirth effekt
+	"ShopBuy", -- kliens → szerver: (kind: "Pass" | "Product" | "Deal", key) vásárlás indítása (GDD 5)
+	"ShopPurchased", -- szerver → vásárló: (kind, key, message) sikeres vásárlás effekt
+	"RedeemCode", -- kliens → szerver: (code) kód beváltás (GDD 5.1 ⑦)
+	"CodeResult", -- szerver → játékos: (ok, message) a beváltás eredménye
+	"FunEffect", -- szerver → összes kliens: (kind: "Tenderize" | "SchnitzelRain", playerName) troll termékek (GDD 6.3)
+	"ToastSeen", -- kliens → szerver: (toastId) az ajánlat-toast megjelent, többet ne jöjjön (GDD 6.5)
+	"CosmeticAction", -- kliens → szerver: ("equip" | "unequip" | "buyMoney", id) kozmetikumok (GDD 5.1 ⑥)
+	"TutorialIntroDone", -- kliens → szerver: a tutorial repülő kamerája lefutott (GDD 7.2), indulhat az első lépés
+	"TutorialSkip", -- kliens → szerver: a játékos átugorja az egész tutorialt (SKIP TUTORIAL gomb)
 }
 
 local Remotes = {} :: { [string]: RemoteEvent }

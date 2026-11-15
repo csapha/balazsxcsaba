@@ -109,6 +109,18 @@ local function runStorm(config: any)
 	end
 end
 
+-- GDD 6.3 Schnitzel Rain (Robux troll termék): ugyanaz a hullás, mint a Panírviharnál, event nélkül.
+-- config: DropCount, Duration, DropIncomeSeconds, DropMinValue.
+function EventService.rain(config: any)
+	task.spawn(function()
+		local gap = config.Duration / config.DropCount
+		for _ = 1, config.DropCount do
+			dropSchnitzel(config)
+			task.wait(gap)
+		end
+	end)
+end
+
 local function startEvent(id: string, now: number)
 	local config = Events.List[id]
 	EventState.instance:SetAttribute("Active", id)
@@ -140,6 +152,7 @@ function EventService.start()
 	task.spawn(function()
 		local first = if isStudio then Events.StudioFirstEventDelay else Events.FirstEventDelay
 		EventState.instance:SetAttribute("NextAt", workspace:GetServerTimeNow() + first)
+		local firstEvent = true
 
 		while true do
 			-- várakozás a következő eventig
@@ -147,7 +160,9 @@ function EventService.start()
 				task.wait(0.5)
 			end
 
-			local id = pickEvent()
+			-- GDD 7.3: az első event fixen a Panírvihar (5 percnél, FirstEventDelay)
+			local id = if firstEvent then "PanirStorm" else pickEvent()
+			firstEvent = false
 			local now = workspace:GetServerTimeNow()
 			startEvent(id, now)
 			task.wait(Events.List[id].Duration)

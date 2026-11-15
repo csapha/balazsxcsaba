@@ -6,9 +6,8 @@ return table.freeze({
 	-- A Roblox játékbeállításokban (Places > Max Players) is 6-ra kell állítani!
 	MaxPlayers = 6,
 
-	-- GDD 7.2 szerint 2 sütőre elég; a 4.3 hangolás (2026-11-12) után 1 sütőre + a második nagy részére,
-	-- így az első merge ~20 mp múlva jön (cél: 30–45 mp, de a 30 mp-es szabály fontosabb).
-	StartMoney = 100,
+	-- GDD 7.2: pontosan 2 sütőre elég (50 + 61 = 111), így a tutorialban rögtön jön az első merge (döntés 2026-11-15).
+	StartMoney = 111,
 	-- Teszteléshez: Studióban ennyi a kezdőpénz (élesben a StartMoney érvényes).
 	StudioStartMoney = 1_000_000_000,
 

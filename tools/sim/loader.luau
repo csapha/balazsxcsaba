@@ -59,6 +59,8 @@ local standard = {
 	ColorSequence = roblox.ColorSequence,
 	ColorSequenceKeypoint = roblox.ColorSequenceKeypoint,
 	Enum = roblox.Enum,
+	Font = roblox.Font, -- a Shared.Ui (Config.Events ikonjai miatt töltődik be) Font.fromEnum-ot használ
+	Rect = roblox.Rect,
 }
 
 -- A szimulátor "élesben" fut: nem Studio, szerver oldal.

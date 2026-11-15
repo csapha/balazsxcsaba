@@ -13,6 +13,8 @@ Pets.Rarities = table.freeze({
 	Rare = table.freeze({ Name = "Rare", Color = Color3.fromRGB(80, 160, 255), Order = 3 }),
 	Epic = table.freeze({ Name = "Epic", Color = Color3.fromRGB(190, 100, 255), Order = 4 }),
 	Legendary = table.freeze({ Name = "Legendary", Color = Color3.fromRGB(255, 190, 40), Order = 5, Announce = true }),
+	-- csak Robuxból (Golden Egg) vagy a VIP gamepassból szerezhető petek (GDD 6.2–6.3)
+	Exclusive = table.freeze({ Name = "Exclusive", Color = Color3.fromRGB(255, 90, 200), Order = 6, Announce = true }),
 })
 
 -- Bónusztípusok (GDD 3.9): az aktív petek bónuszai típusonként összeadódnak, a szorzó = 1 + összeg.
@@ -45,6 +47,13 @@ Pets.List = table.freeze({
 	Ponty = table.freeze({ Name = "Breaded Carp", Rarity = "Epic", Bonus = "Luck", Value = 1.50, Color = Color3.fromRGB(210, 150, 70) }),
 	NagyiMacska = table.freeze({ Name = "Grandma's Cat", Rarity = "Legendary", Bonus = "Money", Value = 3.00, Color = Color3.fromRGB(150, 150, 160) }),
 	Fonix = table.freeze({ Name = "Golden Mallet Phoenix", Rarity = "Legendary", Bonus = "BakeSpeed", Value = 2.50, Color = Color3.fromRGB(255, 120, 30) }),
+	-- Exkluzív petek (döntés 2026-11-15): kicsit erősebbek a 4. tojás petjeinél, csak Robuxból / VIP-ből.
+	-- Nem számítanak az Indexbe (különben az Index teljesítése Robuxba kerülne).
+	GoldPig = table.freeze({ Name = "Golden Crackling Pig", Rarity = "Epic", Bonus = "Money", Value = 2.00, Color = Color3.fromRGB(255, 205, 80), Exclusive = true }),
+	LemonDragon = table.freeze({ Name = "Lemon Zest Dragon", Rarity = "Legendary", Bonus = "Luck", Value = 2.50, Color = Color3.fromRGB(250, 240, 90), Exclusive = true }),
+	ChefBear = table.freeze({ Name = "Head Chef Bear", Rarity = "Legendary", Bonus = "ChefSpeed", Value = 3.00, Color = Color3.fromRGB(250, 250, 245), Exclusive = true }),
+	SchnitzelKing = table.freeze({ Name = "Schnitzel King", Rarity = "Exclusive", Bonus = "Money", Value = 4.00, Color = Color3.fromRGB(255, 170, 40), Exclusive = true }),
+	VipPoodle = table.freeze({ Name = "VIP Golden Poodle", Rarity = "Exclusive", Bonus = "BakeSpeed", Value = 2.00, Color = Color3.fromRGB(255, 215, 0), Exclusive = true }),
 })
 
 -- Megjelenítési sorrend (UI, Index)
@@ -83,7 +92,18 @@ Pets.Eggs = table.freeze({
 	}),
 })
 
+-- Golden Egg (GDD 6.3 Robux tojás, 1x / 3x / 10x): csak Robuxért, exkluzív petek. Nincs a Tojás téren.
+Pets.RobuxEgg = table.freeze({
+	Name = "Golden Egg",
+	Color = Color3.fromRGB(255, 200, 40),
+	Pets = table.freeze({ { "GoldPig", 55 }, { "LemonDragon", 25 }, { "ChefBear", 15 }, { "SchnitzelKing", 5 } }),
+})
+Pets.VipPet = "VipPoodle" -- a VIP gamepass ajándék petje (egyszer)
+Pets.ExclusiveOrder = table.freeze({ "GoldPig", "LemonDragon", "ChefBear", "SchnitzelKing", "VipPoodle" })
+
 Pets.ActiveSlots = 3 -- egyszerre aktív petek (gamepass: +1, GDD 6.2)
+Pets.FastEggCooldown = 0.4 -- Fast Open gamepass: ennyi mp két nyitás között (alap: lásd PetService)
+Pets.MultiOpenCount = 3 -- Open 3 Eggs gamepass: egyszerre ennyi tojás (külön "Open 3" prompt a tojásnál)
 Pets.MaxInventory = 50
 Pets.GoldenCount = 5 -- ennyi azonos pet → 1 arany
 Pets.GoldenMultiplier = 3 -- az arany pet bónusza ennyiszeres

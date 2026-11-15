@@ -13,6 +13,8 @@ local Config = {
 	Events = require(script.Events),
 	Offline = require(script.Offline),
 	Index = require(script.Index),
+	Shop = require(script.Shop),
+	Tutorial = require(script.Tutorial),
 }
 
 return table.freeze(Config)
