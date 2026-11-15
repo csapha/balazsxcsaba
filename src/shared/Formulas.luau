@@ -226,6 +226,33 @@ function Formulas.moneyMultiplier(data: any): number
 		* (1 + Formulas.perkValue(data, "Money"))
 end
 
+-- GDD 3.11: Index pénzbónusz a teljesített kategóriákból (1 = nincs bónusz).
+-- masks: kategóriánként a felfedezések bitmaszkja (a játékos IndexOvens / IndexRarities / IndexPets / IndexAuras attribútuma).
+local INDEX_COUNTS = {
+	Ovens = #Config.Ovens.Levels,
+	Rarities = #Config.Rarities.List,
+	Pets = #Config.Pets.Order,
+	Auras = #Config.Auras.Order,
+}
+function Formulas.indexComplete(category: string, mask: number?): boolean
+	return (mask or 0) == 2 ^ INDEX_COUNTS[category] - 1
+end
+
+function Formulas.indexMoneyBonus(masks: { [string]: number? }): number
+	local bonus = 1
+	for category, value in Config.Index.Bonuses do
+		if Formulas.indexComplete(category, masks[category]) then
+			bonus += value
+		end
+	end
+	return bonus
+end
+
+-- GDD 8: Friend Boost pénzszorzó a szerveren lévő barátok számából (1 = nincs bónusz).
+function Formulas.friendMoneyBonus(friends: number): number
+	return 1 + math.min(friends * Config.Game.FriendBoostPerFriend, Config.Game.FriendBoostMax)
+end
+
 -- Rebirth-fa: egy perk teljes hatása (szint × lépés). A "StartMoney" szorzó: 10^szint.
 function Formulas.perkLevel(data: any, perk: string): number
 	local perks = data.rebirthPerks
@@ -532,6 +559,62 @@ function Formulas.plotOrigin(index: number): CFrame
 		return CFrame.new(x, 0, -PlotConfig.RowOffsetZ)
 	end
 	return CFrame.new(-x, 0, PlotConfig.RowOffsetZ) * CFrame.Angles(0, math.pi, 0)
+end
+
+-- GDD 8: napi jutalom és playtime ajándékok (Config.Rewards) --------------------------------------------
+
+local DAY = 86400
+
+-- UTC napszám (a szerveren os.time(), a kliensen workspace:GetServerTimeNow()).
+function Formulas.rewardDay(time: number): number
+	return time // DAY
+end
+
+-- Mp a következő UTC napig.
+function Formulas.secondsToNextDay(time: number): number
+	return DAY - time % DAY
+end
+
+-- Pénzjutalom: `minutes` perc a jelenlegi becsült bevételből, legalább minutes × MinMoneyPerMinute.
+function Formulas.rewardMoney(data: any, minutes: number): number
+	local income = Formulas.incomePerSecond(data) * 60 * minutes
+	return math.floor(math.max(income, minutes * Config.Rewards.MinMoneyPerMinute) + 0.5)
+end
+
+-- Napi jutalom állapota a `today` napon: felvehető-e, és melyik nap (1..7) jutalma a következő
+-- (ha már felvette ma: a holnapi). Kimaradt nap → újra az 1. nap; a 7. után is az 1. jön.
+function Formulas.dailyStatus(daily: { streak: number, lastDay: number }, today: number): (boolean, number)
+	local length = #Config.Rewards.Daily
+	if daily.lastDay == today then
+		return false, daily.streak % length + 1
+	end
+	if daily.streak > 0 and daily.lastDay == today - 1 then
+		return true, daily.streak % length + 1
+	end
+	return true, 1
+end
+
+-- Playtime ajándékok az aznapi játékidő alapján (`playtime.day ~= today` → új nap, minden nulláról indul).
+-- Visszaad: felvehető ajándékok száma, a következő (még nem nyitott) ajándék indexe és hátralévő ideje mp-ben
+-- (nil, ha mára már minden nyitva van).
+function Formulas.playtimeStatus(
+	playtime: { day: number, seconds: number, claimed: number },
+	today: number
+): (number, number?, number)
+	local seconds = if playtime.day == today then playtime.seconds else 0
+	local claimed = if playtime.day == today then playtime.claimed else 0
+	local ready, nextIndex, remaining = 0, nil, 0
+	for index, gift in Config.Rewards.Playtime do
+		local needed = gift.Minutes * 60
+		if seconds >= needed then
+			if not bit32.btest(claimed, 2 ^ (index - 1)) then
+				ready += 1
+			end
+		elseif not nextIndex then
+			nextIndex, remaining = index, needed - seconds
+		end
+	end
+	return ready, nextIndex, remaining
 end
 
 return Formulas

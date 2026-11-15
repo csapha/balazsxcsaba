@@ -11,6 +11,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Guard = require(script.Parent.Parent.Lib.Guard)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local PlotService = require(script.Parent.PlotService)
 local SellService = require(script.Parent.SellService)
@@ -238,6 +240,8 @@ function ChefService.hire(state: PlotService.PlotState): boolean
 		return false
 	end
 	data.money(raw.money - price)
+	AnalyticsService.sink(state.player, price, "Shop", "ChefHire")
+	AnalyticsService.step(state.player, "FirstChef")
 	data.chefs.count(count + 1)
 	return true
 end
@@ -256,6 +260,7 @@ function ChefService.upgrade(state: PlotService.PlotState, stat: string): boolea
 		return false
 	end
 	data.money(raw.money - price)
+	AnalyticsService.sink(state.player, price, "Shop", `Chef{stat}`)
 	data.chefs[field](level + 1)
 	return true
 end
@@ -355,7 +360,7 @@ function ChefService.init()
 end
 
 function ChefService.start()
-	Remotes.WakeChef.OnServerEvent:Connect(onWake)
+	Guard.connect(Remotes.WakeChef, onWake)
 	Players.PlayerRemoving:Connect(function(player)
 		local state = PlotService.get(player)
 		if state then

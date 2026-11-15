@@ -100,11 +100,13 @@ task.spawn(function()
 		local holders = topbar and topbar:FindFirstChild("Holders")
 		local left = holders and holders:FindFirstChild("Left")
 		if left then
+			-- AbsolutePosition is measured from below the Roblox top bar (TopbarStandard itself sits at -58 then),
+			-- so subtract the ScreenGui's own AbsolutePosition to get screen coordinates like TopbarInset.
+			local origin = (topbar :: ScreenGui).AbsolutePosition
 			for _, icon in left:GetChildren() do
 				if icon:IsA("GuiObject") and icon.Visible and icon.AbsoluteSize.X > 0 then
-					clear = math.max(clear, icon.AbsolutePosition.X + icon.AbsoluteSize.X)
-					-- TopbarStandard ignores the GUI inset, so AbsolutePosition is in screen coordinates.
-					center = icon.AbsolutePosition.Y + icon.AbsoluteSize.Y / 2
+					clear = math.max(clear, icon.AbsolutePosition.X - origin.X + icon.AbsoluteSize.X)
+					center = icon.AbsolutePosition.Y - origin.Y + icon.AbsoluteSize.Y / 2
 				end
 			end
 		end
@@ -1002,7 +1004,7 @@ function Kit.searchBox(props: { Text: (string?) -> string, Placeholder: string?,
 	}
 end
 
-local function squareCorner(color: Color3, transparency: number, anchor: Vector2, position: UDim2): Frame
+local function squareCorner(color: Value<Color3>, transparency: number, anchor: Vector2, position: UDim2): Frame
 	return create "Frame" {
 		Name = "SquareCorner",
 		AnchorPoint = anchor,
@@ -1047,7 +1049,10 @@ end
 Kit.burst = burst
 
 function Kit.window(props: { [any]: any }): Frame
-	local palette = Theme.Palettes[props.Color or "Pink"]
+	-- Color may be a function (e.g. a different header per tab), so the palette is read reactively
+	local function palette(): Theme.Palette
+		return Theme.Palettes[read(props.Color) or "Pink"]
+	end
 	local anim: Motion.Anim? = props.Anim
 	local position: UDim2 = props.Position or UDim2.fromScale(0.5, 0.52)
 	local function tabsInside(): boolean
@@ -1077,7 +1082,7 @@ function Kit.window(props: { [any]: any }): Frame
 			if anim.opened() then
 				task.delay(0.12, function()
 					if burstLayer.Parent then
-						burst(burstLayer, UDim2.fromOffset(34, 24), palette.light)
+						burst(burstLayer, UDim2.fromOffset(34, 24), palette().light)
 					end
 				end)
 			end
@@ -1097,14 +1102,18 @@ function Kit.window(props: { [any]: any }): Frame
 		create "Frame" {
 			Name = "Header",
 			Size = UDim2.new(1, 0, 0, HEADER),
-			BackgroundColor3 = palette.lip,
+			BackgroundColor3 = function()
+				return palette().lip
+			end,
 			ZIndex = 2,
 			create "UICorner" { CornerRadius = UDim.new(0, CORNER) },
-			candyFace(function()
-				return palette
-			end, HEADER, CORNER, true),
-			squareCorner(palette.lip, 0, Vector2.new(0, 1), UDim2.fromScale(0, 1)),
-			squareCorner(palette.lip, 0, Vector2.new(1, 1), UDim2.fromScale(1, 1)),
+			candyFace(palette, HEADER, CORNER, true),
+			squareCorner(function()
+				return palette().lip
+			end, 0, Vector2.new(0, 1), UDim2.fromScale(0, 1)),
+			squareCorner(function()
+				return palette().lip
+			end, 0, Vector2.new(1, 1), UDim2.fromScale(1, 1)),
 			create "ImageLabel" {
 				Name = "TitleIcon",
 				AnchorPoint = Vector2.new(0.5, 0.5),

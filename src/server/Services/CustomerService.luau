@@ -13,6 +13,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local PlotService = require(script.Parent.PlotService)
 
@@ -327,6 +328,7 @@ local function rewardCritic(state: PlotService.PlotState)
 	local raw = data()
 	local reward = math.max(config.RewardMin, math.floor(Formulas.incomePerSecond(raw) * config.RewardIncomeSeconds))
 	data.money(raw.money + reward)
+	AnalyticsService.source(state.player, reward, "Gameplay", "FoodCritic")
 	Remotes.EventReward:FireClient(state.player, `🎩 The Food Critic loved it! +{NumberFormat.money(reward)}`, config.Color)
 end
 

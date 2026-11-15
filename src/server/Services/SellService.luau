@@ -8,9 +8,11 @@ local Billboard = require(script.Parent.Parent.Lib.Billboard)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local PlotService = require(script.Parent.PlotService)
 local IndexService = require(script.Parent.IndexService)
+local FriendService = require(script.Parent.FriendService)
 
 local Palette = Config.Palette
 
@@ -121,6 +123,8 @@ function SellService.collect(state: PlotService.PlotState)
 	if raw.moneyPile <= 0 then
 		return
 	end
+	AnalyticsService.source(state.player, raw.moneyPile, "Gameplay", "CounterSales")
+	AnalyticsService.step(state.player, "FirstCollect")
 	data.money(raw.money + raw.moneyPile)
 	data.moneyPile(0)
 end
@@ -134,6 +138,7 @@ function SellService.upgradeSellSpeed(state: PlotService.PlotState): boolean
 		return false
 	end
 	data.money(raw.money - price)
+	AnalyticsService.sink(state.player, price, "Shop", "SellUpgrade")
 	data.upgrades.sellSpeed(level + 1)
 	return true
 end
@@ -164,7 +169,10 @@ local function sellTick()
 		local baseValue = if amount >= raw.counterStock
 			then raw.counterValue
 			else raw.counterValue * amount / raw.counterStock
-		local earned = baseValue * Formulas.moneyMultiplier(raw) * IndexService.moneyBonus(state.player)
+		local earned = baseValue
+			* Formulas.moneyMultiplier(raw)
+			* IndexService.moneyBonus(state.player)
+			* FriendService.moneyBonus(state.player)
 
 		state.lastSaleAt = os.clock() -- a vendégsor (CustomerService) ebből tudja, hogy kiszolgálhat
 		data.counterStock(raw.counterStock - amount)
@@ -173,6 +181,7 @@ local function sellTick()
 		data.cycleEarned(raw.cycleEarned + earned) -- rebirth követelmény (GDD 3.8)
 		data.stats.totalSold(raw.stats.totalSold + amount)
 		data.stats.totalEarned(raw.stats.totalEarned + earned)
+		AnalyticsService.step(state.player, "FirstSale")
 
 		SellService.addCounterXp(state, amount)
 	end
@@ -199,6 +208,7 @@ function SellService.addCounterXp(state: PlotService.PlotState, xp: number)
 		local perLevel = Formulas.incomePerSecond(raw) * Config.Sell.Counter.LevelUpIncomeSeconds
 		local bonus = math.max(math.floor(perLevel * (level - oldLevel)), Config.Sell.UnitPrice * 10)
 		data.money(raw.money + bonus)
+		AnalyticsService.source(state.player, bonus, "Gameplay", "CounterLevelUp")
 		state.counterLevelPop = { level = level, bonus = bonus }
 	end
 end

@@ -2,14 +2,17 @@
 --   left: menu buttons in a 2 × 2 grid (Rebirth %, Index, Pets, Auras)
 --   top: navigation (My Plot / Eggs) + event timer
 --   bottom left: money, the schnitzel you are carrying (and its worth), rebirth multiplier and tokens
+--   bottom right: the active multipliers (UI/Multipliers)
 -- Windows open one at a time (State.window) through AnimatedWindow.
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SocialService = game:GetService("SocialService")
 local StarterGui = game:GetService("StarterGui")
 
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Shared = ReplicatedStorage.Shared
+local Settings = require(Shared.Settings)
 local EventState = require(Shared.EventState)
 local Formulas = require(Shared.Formulas)
 local NumberFormat = require(Shared.NumberFormat)
@@ -22,9 +25,13 @@ local AurasWindow = require(script.Parent.AurasWindow)
 local Effects = require(script.Parent.Effects)
 local IndexWindow = require(script.Parent.IndexWindow)
 local Kit = require(script.Parent.Kit)
+local Multipliers = require(script.Parent.Multipliers)
 local OfflineWindow = require(script.Parent.OfflineWindow)
 local PetsWindow = require(script.Parent.PetsWindow)
 local RebirthWindow = require(script.Parent.RebirthWindow)
+local RewardsWindow = require(script.Parent.RewardsWindow)
+local SettingsWindow = require(script.Parent.SettingsWindow)
+local Audio = require(script.Parent.Audio)
 local State = require(script.Parent.State)
 local Theme = require(script.Parent.Theme)
 
@@ -221,6 +228,19 @@ local function topBar(clock: () -> number): Frame
 	} :: Frame
 end
 
+-- GDD 8: invite friends (Roblox's own invite window); more friends on the server = bigger Friend Boost.
+local function inviteFriends()
+	task.spawn(function()
+		local player = Players.LocalPlayer
+		local ok, canInvite = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+		if ok and canInvite then
+			pcall(SocialService.PromptGameInvite, SocialService, player)
+		else
+			Audio.play("Error")
+		end
+	end)
+end
+
 -- Bottom left, one place for the numbers: money, the schnitzel you carry (and its worth), rebirth bonus.
 local function stats(): Frame
 	local shownMoney = spring(State.money, 0.35, 1)
@@ -395,6 +415,64 @@ local function stats(): Frame
 					ZIndex = 2,
 				},
 			},
+			-- GDD 8: Friend Boost, +10% per Roblox friend on this server (max +50%, Services/FriendService)
+			create "Frame" {
+				Name = "FriendRow",
+				AutomaticSize = Enum.AutomaticSize.X,
+				LayoutOrder = 4,
+				Size = UDim2.fromOffset(0, 26),
+				BackgroundTransparency = 1,
+				create "UIListLayout" {
+					FillDirection = Enum.FillDirection.Horizontal,
+					HorizontalAlignment = Enum.HorizontalAlignment.Left,
+					VerticalAlignment = Enum.VerticalAlignment.Center,
+					Padding = UDim.new(0, 6),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				},
+				create "ImageLabel" {
+					Name = "FriendIcon",
+					LayoutOrder = 1,
+					Size = UDim2.fromOffset(26, 26),
+					BackgroundTransparency = 1,
+					Image = Ui.Icons.Friends,
+					ScaleType = Enum.ScaleType.Fit,
+					ZIndex = 2,
+				},
+				Kit.text {
+					Name = "FriendBoost",
+					LayoutOrder = 2,
+					Text = function()
+						local percent = math.round((Formulas.friendMoneyBonus(State.friends()) - 1) * 100)
+						return `Friend Boost: +{percent}%`
+					end,
+					TextSize = 18,
+					TextColor3 = function()
+						return if State.friends() > 0 then C.Mint else C.Muted
+					end,
+					Gradient = false,
+					AutomaticSize = Enum.AutomaticSize.X,
+					Size = UDim2.fromOffset(0, 26),
+					ZIndex = 2,
+				},
+				-- a little extra room between the text and the invite button (the row's padding is 6)
+				create "Frame" {
+					Name = "InviteGap",
+					LayoutOrder = 3,
+					Size = UDim2.fromOffset(4, 1),
+					BackgroundTransparency = 1,
+				},
+				Kit.button {
+					Name = "Invite",
+					LayoutOrder = 4,
+					Text = "+",
+					TextSize = 18,
+					Color = "Green",
+					Shine = false,
+					Corner = 4,
+					Size = UDim2.fromOffset(20, 20),
+					Activated = inviteFriends,
+				},
+			},
 		},
 	} :: Frame
 end
@@ -412,12 +490,27 @@ function Hud.mount(data: any)
 	bind(State.carried, data.carried)
 	bind(State.carriedValue, data.carriedValue)
 	bind(State.earned, data.cycleEarned)
+	bind(State.counterLevel, data.counter.level)
 	bind(State.rebirths, data.rebirths)
 	bind(State.tokens, data.rebirthTokens)
 	bind(State.perks, data.rebirthPerks)
 	bind(State.pets, data.pets)
 	bind(State.auras, data.auras)
 	bind(State.offline, data.offline)
+	bind(State.daily, data.daily)
+	bind(State.playtime, data.playtime)
+	-- settings: from the save once, then the client owns them (UI/SettingsWindow)
+	State.settings(Settings.normalize(data.settings()))
+	local localPlayer = Players.LocalPlayer
+	local function readFriends()
+		State.friends(localPlayer:GetAttribute("FriendBoost") or 0)
+	end
+	readFriends()
+	localPlayer:GetAttributeChangedSignal("FriendBoost"):Connect(readFriends)
+	Remotes.CodeResult.OnClientEvent:Connect(function(ok: boolean, message: string)
+		State.codeResult({ ok = ok, message = message })
+	end)
+	State.loaded(true)
 
 	Remotes.Rebirthed.OnClientEvent:Connect(function(rebirths: number, multiplier: number)
 		Effects.rebirth(playerGui, rebirths, multiplier)
@@ -444,7 +537,14 @@ function Hud.mount(data: any)
 	Vide.mount(function()
 		local clock = serverClock()
 		Vide.effect(function()
-			blur.Size = if State.window() ~= nil or hasOffline() then 10 else 0
+			Audio.setVolume(State.settings().sfx)
+		end)
+		-- Settings: Low Mode → no blur behind windows, no shadows
+		local shadows = Lighting.GlobalShadows
+		Vide.effect(function()
+			local low = State.settings().lowMode
+			blur.Size = if not low and (State.window() ~= nil or hasOffline()) then 10 else 0
+			Lighting.GlobalShadows = shadows and not low
 		end)
 		return create "ScreenGui" {
 			Name = "GameUi",
@@ -459,11 +559,16 @@ function Hud.mount(data: any)
 				leftMenu(),
 				topBar(clock),
 				stats(),
+				Multipliers.render(clock),
 			},
 			AnimatedWindow("Rebirth", RebirthWindow.render, nil, true),
 			AnimatedWindow("Index", IndexWindow.render, nil, true),
 			AnimatedWindow("Pets", PetsWindow.render, nil, true),
 			AnimatedWindow("Auras", AurasWindow.render, State.auraRolling, true),
+			-- daily rewards + playtime gifts, from the TopbarPlus "Rewards" icon (Controllers/RewardsController)
+			AnimatedWindow("Rewards", RewardsWindow.render, nil, true),
+			-- settings + codes, from the TopbarPlus "Settings" icon (Controllers/SettingsController)
+			AnimatedWindow("Settings", SettingsWindow.render, nil, true),
 			AnimatedWindow(hasOffline, OfflineWindow.render),
 		}
 	end, playerGui)

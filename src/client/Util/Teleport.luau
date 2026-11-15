@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Formulas = require(ReplicatedStorage.Shared.Formulas)
 
 local Teleport = {}
 
@@ -15,13 +16,12 @@ local function moveTo(cframe: CFrame)
 end
 
 function Teleport.home()
+	-- StreamingEnabled: a telek modellje nem kell hozzá (lehet, hogy épp nincs betöltve), az origó számolható
 	local index = Players.LocalPlayer:GetAttribute("PlotIndex")
-	local plots = workspace:FindFirstChild("Plots")
-	local plot = plots and index and plots:FindFirstChild(`Plot{index}`)
-	local origin = plot and plot:GetAttribute("Origin")
-	if typeof(origin) ~= "CFrame" then
+	if type(index) ~= "number" then
 		return
 	end
+	local origin = Formulas.plotOrigin(index)
 	local layout = Config.Plot
 	local position = layout.Spawn + Vector3.new(0, layout.FloorTop + 3, 0)
 	local lookAt = layout.SpawnLookAt + Vector3.new(0, layout.FloorTop + 3, 0)

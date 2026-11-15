@@ -17,4 +17,11 @@ return table.freeze({
 	-- Studióban ne mentsen valódi DataStore-ba (minden teszt tiszta lappal indul).
 	-- Állítsd false-ra, ha Studióban a mentést akarod tesztelni.
 	StudioMockData = true,
+
+	-- GDD 8: Friend Boost – minden Roblox barát ugyanazon a szerveren +10% eladási ár, legfeljebb +50%.
+	FriendBoostPerFriend = 0.10,
+	FriendBoostMax = 0.50,
+
+	-- GDD 13: Studióban az AnalyticsService kiírja az outputba a funnel lépéseket és a pénz eseményeket.
+	AnalyticsDebug = true,
 })

@@ -19,6 +19,11 @@ local EVENTS = {
 	"ClaimOffline", -- kliens → szerver: az offline kereset felvétele
 	"BuyPerk", -- kliens → szerver: (perkId) rebirth-fa perk vásárlás tokenért
 	"Rebirthed", -- szerver → tulajdonos: (rebirths, multiplier) rebirth effekt
+	"ClaimDaily", -- kliens → szerver: a napi jutalom felvétele
+	"ClaimPlaytime", -- kliens → szerver: (index) egy nyitott playtime ajándék felvétele
+	"RedeemCode", -- kliens → szerver: (code) kód beváltása
+	"CodeResult", -- szerver → játékos: (ok, message) a kód beváltás eredménye
+	"SaveSettings", -- kliens → szerver: (settings) a beállítások mentése (a szerver ellenőrzi)
 }
 
 local Remotes = {} :: { [string]: RemoteEvent }

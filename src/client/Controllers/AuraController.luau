@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Chat = require(script.Parent.Parent.Util.Chat)
+local State = require(script.Parent.Parent.UI.State)
 
 local AuraConfig = Config.Auras
 
@@ -88,7 +89,8 @@ end
 
 local function update()
 	for _, player in Players:GetPlayers() do
-		local id = player:GetAttribute("Aura")
+		-- Settings: Visual Effects off → no aura particles (nobody's)
+		local id = if State.settings().effects then player:GetAttribute("Aura") else nil
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local current = active[player]

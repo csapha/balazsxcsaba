@@ -9,6 +9,8 @@ local Ui = require(ReplicatedStorage.Shared.Ui)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Guard = require(script.Parent.Parent.Lib.Guard)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 
 local PetConfig = Config.Pets
@@ -66,10 +68,8 @@ function PetService.openEgg(player: Player, eggIndex: number): string?
 		return nil
 	end
 
-	-- távolság-ellenőrzés (GDD 12.2)
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root or (root.Position - stand.Position).Magnitude > PetConfig.Plaza.OpenDistance + 6 then
+	-- távolság-ellenőrzés (GDD 12.2): a prompt mellett a szerver is megnézi, hogy a tojásnál áll-e
+	if not Guard.near(player, stand.Position, PetConfig.Plaza.OpenDistance + Config.Security.EggOpenSlack) then
 		return nil
 	end
 
@@ -85,6 +85,8 @@ function PetService.openEgg(player: Player, eggIndex: number): string?
 
 	local data = DataService.get(player)
 	data.money(raw.money - egg.Price)
+	AnalyticsService.sink(player, egg.Price, "Shop", `Egg{eggIndex}`)
+	AnalyticsService.step(player, "FirstEgg")
 
 	local uid = nextId
 	table.insert(inventory, { uid = uid, id = petId, golden = false })
@@ -100,6 +102,21 @@ function PetService.openEgg(player: Player, eggIndex: number): string?
 		Remotes.PetHatched:FireAllClients(player.DisplayName, petId)
 	end
 	return petId
+end
+
+-- Ajándék pet (napi jutalom, GDD 8): tojás nélkül a leltárba, ha van szabad aktív hely, fel is szereli.
+-- Visszaad: igaz, ha sikerült (hamis, ha tele a leltár vagy nincs ilyen pet).
+function PetService.grant(player: Player, petId: string): boolean
+	local raw, inventory, equipped, nextId = snapshot(player)
+	if not raw or not PetConfig.List[petId] or #inventory >= PetConfig.MaxInventory then
+		return false
+	end
+	table.insert(inventory, { uid = nextId, id = petId, golden = false })
+	if #equipped < PetConfig.ActiveSlots then
+		table.insert(equipped, nextId)
+	end
+	writePets(player, inventory, equipped, nextId + 1)
+	return true
 end
 
 local function indexOfUid(list: { any }, uid: number, field: string?): number?
@@ -288,7 +305,7 @@ function PetService.init()
 end
 
 function PetService.start()
-	Remotes.PetAction.OnServerEvent:Connect(function(player, action: unknown, arg: unknown)
+	Guard.connect(Remotes.PetAction, function(player, action: unknown, arg: unknown)
 		local handler = type(action) == "string" and actions[action]
 		if handler then
 			handler(player, arg)

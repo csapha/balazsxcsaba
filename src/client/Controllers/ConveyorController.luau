@@ -4,6 +4,7 @@
 -- Ritka sütés (GDD 3.4): a szerver szól (RareBake), a darab kiszíneződik, felirat ugrik fel a sütő felett,
 -- Nagyi Titkos Receptjénél chat üzenet megy az egész szerverre.
 local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -14,12 +15,14 @@ local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local Chat = require(script.Parent.Parent.Util.Chat)
+local State = require(script.Parent.Parent.UI.State)
 
 local Layout = Config.Plot
 local Conveyor = Layout.Conveyor
 local Palette = Config.Palette
 
 local MAX_PER_PLOT = 30
+local LOW_MAX_PER_PLOT = 10 -- Low Mode
 local SCHNITZEL_SIZE = Vector3.new(1.8, 0.3, 1.3)
 local RARE_POP_TIME = 2.2
 
@@ -62,7 +65,12 @@ local function takePart(): BasePart
 end
 
 local function spawnSchnitzel(plot: Model, origin: CFrame, slot: number, level: number)
-	if (activeCount[plot] or 0) >= MAX_PER_PLOT then
+	-- Settings: Low Mode → schnitzels only roll on your own conveyor, and fewer of them
+	local low = State.settings().lowMode
+	if low and plot:GetAttribute("OwnerId") ~= Players.LocalPlayer.UserId then
+		return
+	end
+	if (activeCount[plot] or 0) >= (if low then LOW_MAX_PER_PLOT else MAX_PER_PLOT) then
 		return
 	end
 	local part = takePart()

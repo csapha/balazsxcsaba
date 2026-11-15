@@ -8,6 +8,8 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Guard = require(script.Parent.Parent.Lib.Guard)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local PlotService = require(script.Parent.PlotService)
 local ChefService = require(script.Parent.ChefService)
 
@@ -44,6 +46,7 @@ function RebirthService.rebirth(state: PlotService.PlotState): boolean
 
 	-- jutalom
 	data.rebirths(rebirths)
+	AnalyticsService.step(state.player, "FirstRebirth")
 	data.rebirthTokens(raw.rebirthTokens + Config.Rebirth.TokensPerRebirth)
 	data.slots(math.max(raw.slots, Formulas.rebirthSlots(rebirths)))
 
@@ -109,8 +112,8 @@ local function onRequest(player: Player)
 end
 
 function RebirthService.start()
-	Remotes.RequestRebirth.OnServerEvent:Connect(onRequest)
-	Remotes.BuyPerk.OnServerEvent:Connect(function(player, perk: unknown)
+	Guard.connect(Remotes.RequestRebirth, onRequest)
+	Guard.connect(Remotes.BuyPerk, function(player, perk: unknown)
 		local state = PlotService.get(player)
 		if state then
 			RebirthService.buyPerk(state, perk)

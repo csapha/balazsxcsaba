@@ -7,6 +7,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local Billboard = require(script.Parent.Parent.Lib.Billboard)
 local PlotService = require(script.Parent.PlotService)
@@ -34,7 +35,7 @@ end
 -- Annyit vesz, amennyi hely és pénz van (döntés 2026-11-12).
 -- autoMerge: ha megtelik a sor, merge-el és folytatja (csak a 100-as gomb). Ha tele van és pár
 -- sincs (minden sütő más szintű), a legalacsonyabb sütőbe "vesz bele" – így sosem akad el a játék.
--- Ha minden sütő Lv15, csillagot vesz (lásd buyStars).
+-- Ha minden sütő Lv15, csillagot vesz (lásd buyStars). Visszaad: megvett sütők + csillagok száma.
 function OvenService.buy(state: PlotService.PlotState, count: number, autoMerge: boolean?): number
 	local data = state.data
 	local raw = data()
@@ -53,6 +54,8 @@ function OvenService.buy(state: PlotService.PlotState, count: number, autoMerge:
 				break
 			end
 			data.money(raw.money - price)
+			AnalyticsService.sink(state.player, price, "Shop", "Oven")
+			AnalyticsService.step(state.player, "FirstOven")
 			data.ovens[slot](level)
 			countBought(state, 1)
 			if raw.stats.highestOven < level then
@@ -62,7 +65,7 @@ function OvenService.buy(state: PlotService.PlotState, count: number, autoMerge:
 		elseif autoMerge then
 			local used = OvenService.buyIntoLowest(state)
 			if used == 0 then
-				OvenService.buyStars(state, count - bought)
+				bought += OvenService.buyStars(state, count - bought)
 				break
 			end
 			bought += used
@@ -87,9 +90,11 @@ function OvenService.buyIntoLowest(state: PlotService.PlotState): number
 	end
 
 	data.money(raw.money - price)
+	AnalyticsService.sink(state.player, price, "Shop", "Oven")
 	countBought(state, needed)
 	data.ovens[lowestSlot](lowest + 1)
 	data.stats.merges(raw.stats.merges + 1)
+	AnalyticsService.step(state.player, "FirstMerge")
 	data.stats.highestOven(math.max(raw.stats.highestOven, lowest + 1))
 	state.mergePops = state.mergePops or {}
 	state.mergePops[lowestSlot] = lowest + 1
@@ -98,7 +103,7 @@ function OvenService.buyIntoLowest(state: PlotService.PlotState): number
 	return needed
 end
 
--- Csillagok (GDD Félkész, döntés 2026-11-12): ha a sor tele van és minden sütő Lv15, a 100-as gomb
+-- Csillagok (döntés 2026-11-12): ha a sor tele van és minden sütő Lv15, a 100-as gomb
 -- mindig a legkevesebb csillagú sütőre vesz csillagot, amíg van rá pénz (legfeljebb `budget` darabot).
 -- Visszaad: megvett csillagok száma.
 function OvenService.buyStars(state: PlotService.PlotState, budget: number): number
@@ -115,6 +120,7 @@ function OvenService.buyStars(state: PlotService.PlotState, budget: number): num
 			break
 		end
 		data.money(raw.money - price)
+		AnalyticsService.sink(state.player, price, "Shop", "OvenStar")
 		data.ovenStars[slot](stars + 1)
 		state.starPops = state.starPops or {}
 		state.starPops[slot] = stars + 1
@@ -147,6 +153,9 @@ function OvenService.mergeAll(state: PlotService.PlotState): number
 
 	data.ovens(levels)
 	data.stats.merges(raw.stats.merges + count)
+	if count > 0 then
+		AnalyticsService.step(state.player, "FirstMerge")
+	end
 	data.stats.highestOven(highest)
 	return count
 end

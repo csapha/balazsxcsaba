@@ -15,6 +15,7 @@ local UI = script.Parent.Parent.UI
 local Audio = require(UI.Audio)
 local Kit = require(UI.Kit)
 local Theme = require(UI.Theme)
+local State = require(script.Parent.Parent.UI.State)
 
 local create = Vide.create
 local C = Theme.Colors
@@ -111,18 +112,23 @@ local function showBanner(id: string, config: any)
 	end)
 end
 
+-- true while re-applying the vignette after a settings change (the banner must not show again)
+local settingsRefresh = false
+
 local function onActiveChanged()
 	local id = EventState.active()
 	local config = EventState.config()
+	-- Settings: Visual Effects off → no coloured vignette (the banner and the Blackout darkening stay)
+	local tinted = config ~= nil and State.settings().effects
 	for _, vignette in vignettes do
 		if config then
 			vignette.BackgroundColor3 = config.Color
 		end
 		TweenService:Create(vignette, TweenInfo.new(if config then 0.5 else 0.8), {
-			BackgroundTransparency = if config then VIGNETTE_TRANSPARENCY else 1,
+			BackgroundTransparency = if tinted then VIGNETTE_TRANSPARENCY else 1,
 		}):Play()
 	end
-	if id and config then
+	if id and config and not settingsRefresh then
 		showBanner(id, config)
 	end
 
@@ -135,6 +141,9 @@ end
 
 -- Reward text above your head, floating up (fixed pixel size, like the HUD).
 local function onReward(message: string, color: Color3?)
+	if not State.settings().popups then -- Settings: Popup Texts off
+		return
+	end
 	local character = Players.LocalPlayer.Character
 	local head = character and character:FindFirstChild("Head")
 	if not head then
@@ -207,6 +216,21 @@ function EventController.init()
 	darkness.Parent = Lighting
 
 	EventState.instance:GetAttributeChangedSignal("Active"):Connect(onActiveChanged)
+	-- Settings: Visual Effects toggled during an event → show / hide the vignette right away
+	Vide.root(function()
+		local last = Vide.untrack(function()
+			return State.settings().effects
+		end)
+		Vide.effect(function()
+			local effects = State.settings().effects
+			if effects ~= last then
+				last = effects
+				settingsRefresh = true
+				onActiveChanged()
+				settingsRefresh = false
+			end
+		end)
+	end)
 	Remotes.EventReward.OnClientEvent:Connect(onReward)
 	if EventState.active() then
 		onActiveChanged()

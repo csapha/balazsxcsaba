@@ -1,5 +1,41 @@
 # UI ikonok
 
+## Settings ikon (2026-11-15)
+
+Új, átlátszó, 1254 × 1254 pixeles ezüst-kék fogaskerék:
+`icons/schnitzel-ui-settings.png` (beépített `image_gen`, prompt:
+`settings-icon-prompt.md`). A sarkok és a középső nyílás alfaértéke 0.
+Roblox moderáció: Approved; image `137472960814779`, decal `76795026560040`.
+Az `Ui.Icons.Settings` közös hivatkozás frissült, így a TopbarPlus Settings
+gomb, a Settings fejléc és a Settings fül ugyanazt az új képet használja.
+A Rojo build és a módosított fájlok `git diff --check` ellenőrzése sikeres.
+A Studio Edit forrásban az új ID szerepel, a kép előtöltése Success.
+
+## Pénzjutalom ikonok (2026-11-15)
+
+A Daily Rewards és Playtime Gifts régi, studsos pénzesládáját és pénzeszsákját
+új, sima felületű, vastag körvonalas ikonok váltották fel. Mindkét 1254 × 1254
+pixeles, alfa csatornás PNG feltöltve Robloxra, moderációjuk Approved.
+Az `Ui.Icons.CoinChest` és `Ui.Icons.CoinBag` az új image ID-ket használja;
+a `RewardParts.icon` közös hivatkozásain keresztül mindkét jutalomablak frissül.
+Fájlok: `icons/schnitzel-ui-coin-chest.png`, `icons/schnitzel-ui-coin-bag.png`.
+Promptok: `money-reward-icons-prompts.md`; feltöltési adatok: `icons-manifest.json`.
+
+Ellenőrzés: Rojo build és a módosított fájlok `git diff --check` ellenőrzése
+sikeres. A Studio Edit DataModelben a szinkronizált Ui forrás az új ID-ket
+tartalmazza. Mindkét kép `ContentProvider:PreloadAsync` lekérése Success;
+a nem szülőzött próba-ImageLabel példányok `IsLoaded` értéke false maradt,
+futó kliensbeli megjelenítési próbát nem végeztünk.
+
+## Ajándék ikon (2026-11-15)
+
+Új, átlátszó, 1254 × 1254 pixeles PNG: piros ajándékdoboz arany szalaggal és masnival
+(`icons/schnitzel-ui-gift.png`, prompt: `gift-icon-prompt.md`). Feltöltve decalként
+(`80383593414728`, moderáció: Approved), a kép ID: `111048535886079` (manifest: `Gift`).
+A `Ui.Icons.Gift` és a `Ui.Icons.Daily` is ezt használja: a Daily Rewards és a Playtime Gifts
+ablak (két fül) fejléce, a Daily fül gombja és a közös "Rewards" TopbarPlus ikon.
+A korábbi Gift / Daily képek ID-i a régebbi manifest-bejegyzésekben megmaradtak.
+
 ## Random event ikonok (2026-11-15)
 
 Mind a hat random event saját, átlátszó, 1254 × 1254 pixeles PNG-t kapott,

@@ -225,50 +225,68 @@ Az eventek szerver-szintűek → mindenki egyszerre éli meg, közös hype.
 
 ### 4.1 Alap képletek
 
+> Frissítve 2026-11-15: a játékban és a `src/shared/Config/` modulokban lévő értékek (az eredeti tervhez képest
+> eltérések: "A" bevételi modell, polinomiális sütőár, csillagok, rebirth követelmény a körben keresett pénz).
+
 ```
 Sütő ár (n = eddig vett sütők száma az aktuális generációban):
-    ár(n) = Alapár_gen × 1.001^n
-    Alapár_gen: Gen1 = 200$, Gen2 = 360$, Gen3 = 650$ ... (x1.8)
-    → "Vegyél 3-at" ≈ 3 × ár (kis felár), "Vegyél 15/100" összeg = Σ ár
+    ár(n) = Alapár_gen × (1 + n/10)²
+    Alapár_gen: Gen1 = 50$, Gen2 = 90$, Gen3 = 162$ ... (×1.8 generációnként)
+    → "Vegyél 3/5/15/100" összeg = Σ ár
+    Tele sor, pár nélkül: a 100-as gomb 2^(Lv − alapszint) sütőt vesz bele a legalacsonyabb sütőbe
 
-Sütő termelés:
-    schnitzel/mp(Lv) = 0.5 × 2.15^(Lv-1)
-    (2 sütő → 1 merge mindig +7,5% nyereség + felszabadul 1 slot → merge mindig megéri)
+Sütő termelés ("A" modell: szintenként 4× bevétel, a merge mindig duplázza a termelést):
+    sütés = 2 mp-enként (÷ (1 + pet/aura sütési sebesség))
+    darab / sütés(Lv) = 2^(Lv−1)          → Lv1 = 1, Lv15 = 16 384
+    $ / darab(Lv)     = 1$ × 2^(Lv−1)     → Lv1 = 1$, Lv15 = 16 384$
+    Csillagok (csak Lv15): érték × (1 + 0.5 × csillag), max 5★ = 3.5×; a rebirth nullázza
+    Csillag ára = egy Lv15 sütő bevételének (minden szorzóval) 120 mp-e × 3^(meglévő csillagok)
 
-Schnitzel ár:
-    eladási_ár = 1$ × ritkaság_szorzó × rebirth_szorzó × pet_szorzó × gamepass_szorzó × event_szorzó
+Ritkaság (sütésenként, a darabszámot ÉS az árat is szorozza):
+    Ezüst 3% (2 × 2.5), Arany 0.5% (5 × 5), Gyémánt 0.1% (10 × 15), Nagyi 0.001% (100 × 100)
+
+Eladási bevétel:
+    bevétel = darab értéke × pult_szint_szorzó × rebirth_szorzó × (1 + pet/aura pénz) × (1 + rebirth-fa pénz) × Index bónusz
+    pult_szint_szorzó = 1 + 0.02 × (szint − 1)
+    rebirth_szorzó    = 1 + rebirthek száma
 
 Pult eladási sebesség:
-    db/mp = 2 + 1 × szint_eladási_fejlesztés      (kezdő 2/mp)
-    fejlesztés ára = 50 × 1.15^szint
+    db/mp = max(1 + szint, ⌊1.25^szint⌋)    (fejlesztésenként min. +1, később +25%)
+    fejlesztés ára = 50 × 1.35^szint
+    Pult XP: 1 eladott darab = 1 XP, következő szint: 100 × 2^(szint−1) XP
 
-Chef fejlesztések ára:
-    +1 Chef   = 7 500 × 2.6^(chefek_száma-1)
-    Stack     = 600   × 1.45^szint
-    Speed     = 1 200 × 1.40^szint
-    Stamina   = 300   × 1.35^szint
-    Anti-Sleep= 1 000 × 1.50^szint
+Chef fejlesztések ára (globálisak, minden chefre):
+    +1 Chef   = első 1 500$, utána 7 500 × 2.6^(chefek_száma−1)   (max 10, a 3. rebirth után 11)
+    Stack     = 600   × 1.45^szint   (3 + szint sütés / kör, max 25)
+    Speed     = 1 200 × 1.40^szint   (+3% / szint, max +150%)
+    Stamina   = 300   × 1.35^szint   (40 + 10 × szint mp munka, max 600)
+    Anti-Sleep= 1 000 × 1.50^szint   (10 + 5 × szint mp boost ébresztés után, max 60)
+
+Rebirth követelmény (az adott körben keresett pénz):
+    $2T → $600T → $3Qa → $8Qa, utána mindig ×1.6
 ```
 
 ### 4.2 Sütő szint tábla
 
-| Lv | Név | Schnitzel / mp | Ennyi Lv1 sütőből áll |
-|---|---|---|---|
-| 1 | Rozsdás Lábas | 0.5 | 1 |
-| 2 | Kempingfőző | 1.08 | 2 |
-| 3 | Téglasütő | 2.31 | 4 |
-| 4 | Acél Serpenyő | 4.97 | 8 |
-| 5 | Nagyi Tűzhelye | 10.7 | 16 |
-| 6 | Olajsütő | 23.0 | 32 |
-| 7 | Ipari Fritőz | 49.4 | 64 |
-| 8 | Réz Serpenyő | 106 | 128 |
-| 9 | Arany Fritőz | 228 | 256 |
-| 10 | Gyémánt Fritőz | 491 | 512 |
-| 11 | Vulkán Fritőz | 1.05K | 1 024 |
-| 12 | Jégsárkány Sütő | 2.27K | 2 048 |
-| 13 | Űr-Fritőz | 4.88K | 4 096 |
-| 14 | Kvantum Klopfoló | 10.5K | 8 192 |
-| 15 | A Végső Schnitzelgép | 22.6K | 16 384 |
+Egy sütés 2 mp-enként (szorzók nélkül, csillag nélkül, a ritkaságok nélkül):
+
+| Lv | Név | Darab / sütés | $ / darab | Bevétel $ / mp | Ennyi Lv1 sütőből áll |
+|---|---|---|---|---|---|
+| 1 | Rozsdás Lábas | 1 | $1 | 0.5 | 1 |
+| 2 | Kempingfőző | 2 | $2 | 2 | 2 |
+| 3 | Téglasütő | 4 | $4 | 8 | 4 |
+| 4 | Acél Serpenyő | 8 | $8 | 32 | 8 |
+| 5 | Nagyi Tűzhelye | 16 | $16 | 128 | 16 |
+| 6 | Olajsütő | 32 | $32 | 512 | 32 |
+| 7 | Ipari Fritőz | 64 | $64 | 2.05K | 64 |
+| 8 | Réz Serpenyő | 128 | $128 | 8.19K | 128 |
+| 9 | Arany Fritőz | 256 | $256 | 32.8K | 256 |
+| 10 | Gyémánt Fritőz | 512 | $512 | 131K | 512 |
+| 11 | Vulkán Fritőz | 1 024 | $1.02K | 524K | 1 024 |
+| 12 | Jégsárkány Sütő | 2 048 | $2.05K | 2.10M | 2 048 |
+| 13 | Űr-Fritőz | 4 096 | $4.10K | 8.39M | 4 096 |
+| 14 | Kvantum Klopfoló | 8 192 | $8.19K | 33.6M | 8 192 |
+| 15 | A Végső Schnitzelgép | 16 384 | $16.4K | 134M (5★: 470M) | 16 384 |
 
 ### 4.3 Pacing célok (ingyenes játékos, aktív játék)
 
@@ -656,15 +674,47 @@ src/
 
 ## Eddigi kész dolgok
 
-> Állapot: 2026-11-13. A kód a `src/` mappában van (Rojo), minden szám a `src/shared/Config/` modulokban állítható.
+> Állapot: 2026-11-15. A kód a `src/` mappában van (Rojo), minden szám a `src/shared/Config/` modulokban állítható.
 > A vizuálok placeholderek (szürke dobozok, blokkos figurák) – a modelleket a másik fejlesztő készíti.
 > Ahol eltértünk az eredeti tervtől, azt **Eltérés** jelöli.
+
+### Nem a mi feladatunk / most nem kell (döntés 2026-11-15)
+Ezeket a fejezeteket kihagyjuk, a "mit tudnánk még csinálni" listába sem kerülnek:
+- **6. Monetizáció:** gamepassok, dev productok, Robux gombok, Robux tojás / aura dobás, Offline Claim x10, Rebirth Skip, kezdőcsomag, Season Pass.
+- **4.4 Bottleneck-egyensúly / balance szimulátor:** a szimulátor futtatása és a további hangolás (a csillagokkal még nem futott, nincs `lune`).
+- **7. Első 10 perc (FTUE):** betöltőképernyő, tutorial nyilak, ingyen chef / tojás, első event 5 percnél.
+- **Modellek:** minden, ami a `Sell_a_Schnitzel_Voxel_Modellek.md` fájlban van (a modelleket a másik fejlesztő készíti).
+
+### Munkanapló – 2026-11-15
+Ami ma elkészült (a részletek lent, a saját fejezetükben):
+- **Feltöltve GitHubra** a csillagok, a végjátéki belevásárlás, az event ikonok és a `DevService` (`e3c45bd`).
+- **Új schnitzel ikon** a pult (Counter), a leadó asztal (Drop Off) és a fej feletti számláló feliratán (a régi hús-emoji helyett).
+- **Index mentése** (3.11): a felfedezések a mentésbe kerülnek (`index`), és megmaradnak rebirthkor.
+- **Régi mentések:** a migráció egy helyen (`DataService.migrate`); egy `ovenStars` / `index` nélküli mentéssel kipróbálva (ProfileStore Mock).
+- **Apróság:** `OvenService.buy` a megvett csillagokat is beleszámolja a visszaadott darabszámba.
+- **4.1 / 4.2 táblák** frissítve a játék valódi számaira.
+- **Napi jutalom + playtime ajándékok** (8.): egy "Rewards" TopbarPlus ikon, egy ablak két füllel (Daily Rewards, Playtime Gifts), az EggDrop játék Daily Rewards elrendezésével.
+- **Új ajándék ikon** feltöltve Robloxra (`Ui.Icons.Gift` / `Daily`).
+- **Settings** TopbarPlus ikon, két füllel:
+  - Settings: Sound Effects hangerő; Low Mode, Visual Effects, Popup Texts; a többiek petjei és schnitzel-tornyai ki- / bekapcsolhatók. Mentve, a görgetősáv nem látszik.
+  - Codes (5.1 ⑦): kódok beváltása (`Config.Codes`).
+- **Friend Boost** (8.): +10% eladási ár barátonként a szerveren (max +50%), kijelzés a HUD bal alsó sarkában.
+- **Ablak fejléc fülenként:** a fejléc színe és ikonja a kiválasztott fület követi (Settings / Codes, Daily / Playtime Gifts).
+- **Javítás:** a HUD felső gombjai (My Plot, Eggs) a TopbarPlus ikonok óta a képernyő fölé csúsztak; javítva (`Kit.luau`).
+- **Szorzók panel** (9.3) jobb alul: pénz, sütési sebesség, szerencse, chef sebesség, event; rámutatva / koppintva a bontás.
+- **Technikai rész** (12–13. fejezet): remote rate limit (`Guard`), távolság-ellenőrzés, analytics (onboarding funnel + pénz események), StreamingEnabled, BigNum döntés.
+
+### Mit tudnánk még csinálni (a fentieken kívül)
+- **8. Retenció:** napi / heti questek, globális ranglisták (az EggDrop játékból átvehető), like-cél tábla a pályán, közös szerver-cél (15. fejezet, 5. kérdés).
+- **10–11. VFX és hangok kódból:** merge villanás, sütővásárlás porgyűrű, alvó chef ZZZ, sistergés, merge "THUD", horkolás (Creator Store hangok); később zene + zene-csúszka a Settingsben.
+- Chef ritkaságok (chef gacha), Főchef auto-merge, telek-skinek és világok.
 
 ### Alapok
 - Rojo projekt + Wally csomagok (Vide, DataServiceTyped / ProfileStore, Networker, Signal), `rojo serve` működik.
 - 6 játékos / szerver, mindenkinek saját telek; belépéskor automatikus kiosztás és teleport, tulajdonos tábla.
 - Mentés ProfileStore-ral (Studióban alapból mock, nem ment; Studióban $1B kezdőpénz a teszteléshez).
 - Csak Studióban: `ServerStorage.DevCommand` (BindableFunction, `DevService`) – a szerver command barból / MCP-ből olvassa és írja a játékos adatát, és meghívja a service-függvényeket (`get` / `set` / `call`), mert a command bar külön module cache-t használ.
+- A régi mentések migrációja egy helyen: `DataService.migrate` (a ProfileStore `Reconcile()` után fut, a `DevCommand`-dal tesztelhető).
 - HUD (mobile-first): pénz (felpörgő számláló), nálad lévő schnitzel + értéke, bal oldali menü (Rebirth, Index, Petek, Aurák), fent navigáció (🏠 Telkem, 🥚 Tojások) és event időzítő.
 - Számformátum (4.5): 1.2K, 15.6M, 3.4B …
 
@@ -700,7 +750,7 @@ src/
 ### 3.8 Rebirth + rebirth-fa
 - Rebirth ablak (követelmény, jutalom, mi veszik el / mi marad, kétlépcsős megerősítés), fehér villanás + "x2 PÉNZ!" effekt.
 - Pénzszorzó x(1 + rebirthek), +1 token, +4 slot az 1–3.-nál, +1 max chef a 3.-nál; teljes újrakezdés.
-- **Eltérés:** a követelmény **az adott körben keresett pénz** ($1T → $300T → $1.2Qa → $2.8Qa, utána ×1.6), nem a vett sütők száma – különben végjátékban (minden slot Lv15) elakad.
+- **Eltérés:** a követelmény **az adott körben keresett pénz** ($2T → $600T → $3Qa → $8Qa, utána ×1.6), nem a vett sütők száma – különben végjátékban (minden slot Lv15) elakad.
 - Rebirth-fa (külön fül): Pénz, Kezdőpénz, Kezdő chefek, Kezdő generáció, Offline idő, Offline arány – szintenként 1 token.
 
 ### 3.9 Petek
@@ -714,7 +764,7 @@ src/
 
 ### 3.11 Index
 - Fülek: Sütők, Ritkaságok, Petek, Aurák; teljesítésért +10% / +10% / +15% / +15% pénz.
-- **Még nincs mentve** (döntés: a végére), de ami megvan, az mindig felfedezettnek számít.
+- Mentve (`index`, kategóriánként bitmaszk), megmarad rebirthkor; ami megvan (sütők a sorban, petek, aurák), az mindig felfedezettnek számít.
 
 ### 3.12 Random eventek
 - 5–7 percenként (Studióban 60–90 mp), banner + színes keret, időzítő a HUD-on.
@@ -723,6 +773,27 @@ src/
 ### 3.13 Offline kereset
 - A becsült bevétel 30%-a, max 2 óra (rebirth-fával 60% / 12 óra); "Üdv újra!" ablak belépéskor.
 - **Eltérés:** most csak sima Claim; az x2 / x10 a monetizációval jön.
+
+### 8. Napi jutalom + playtime ajándékok (2026-11-15) – ✅ Studióban tesztelve
+- Egy TopbarPlus ikon bal fent (**Rewards**, ajándékdoboz): egy ablakot nyit két füllel, **Daily Rewards** és **Playtime Gifts**; megnyitáskor arra a fülre ugrik, ahol van felvehető jutalom, a fülgombon piros "!". Az ikon felirata "Claim!", ha van felvehető, különben a következő ajándékig hátralévő idő. Piros értesítés, amíg van felvehető jutalom (kioldásra nem tűnik el, csak felvételkor).
+- **Napi jutalom:** 7 napos sorozat, naponta (UTC nap) egyszer: 5 perc bevétel, 2 ticket, 10 perc bevétel, 3 ticket, 20 perc bevétel, 5 ticket, 7. nap: Wooden Spoon Owl pet (Epic, +40% sütés). Ha kimarad egy nap, újra az 1. naptól; a 7. után is az 1. jön.
+- **Playtime ajándékok:** az aznapi (UTC) játékidő alapján 5 / 10 / 15 / 25 / 40 / 60 percnél: pénz (2 / 5 / 10 perc bevétel) és ticket (1 / 2 / 3), naponta egyszer. Napi és nem munkamenet-idő, így kilépés-belépéssel nem lehet újra felvenni.
+- A pénzjutalom a jelenlegi becsült bevételből számol, legalább $100 / perc (az elején is érjen valamit); nem számít bele a rebirth követelménybe. Tele pet leltárnál a pet helyett 30 perc bevétel.
+- Visszajelzés: pénz / ticket → felugró felirat a feje felett, pet → a tojásnyitás animáció.
+- Kód: `Config.Rewards`, `RewardService`, `Formulas.dailyStatus / playtimeStatus / rewardMoney`, kliens: `RewardsWindow` (két fül; az EggDrop játék Daily Rewards ablakának elrendezése: 1–6. nap 3 × 2 rácsban, nagy 7. nap koronával, streak-sáv + óra; a kártyák: `RewardParts`), `RewardsController`. Mentés: `daily`, `playtime`.
+- **Eltérés:** a GDD 9.3 a playtime ajándékot a bal oldali menübe tette; most a napi jutalommal közös ablakban van (TopbarPlus ikon), a bal oldali 2 × 2-es menü így nem bővül.
+
+### Beállítások + kódok + Friend Boost (2026-11-15) – ✅ Studióban tesztelve
+- **Settings** TopbarPlus ikon (fogaskerék, a Rewards ikon mellett): ablak két füllel.
+  - **Settings** (az EggDrop játék csúszkája és kapcsolói, szekciókban). Azonnal hatnak, 0,6 mp múlva a szerverre mennek és mentődnek (`settings`; kulcsok, alapértékek, ellenőrzés: `Shared/Settings`):
+    - AUDIO: **Sound Effects** hangerő. Zene még nincs, ezért zene-csúszka sincs (GDD 11.2).
+    - GRAPHICS: **Low Mode** (nincs árnyék, nincs elmosás az ablakok mögött, a többiek szalagján nem gurul schnitzel, a sajátodon max 10), **Visual Effects** (aura részecskék és fények, az event színes kerete), **Popup Texts** (a fej feletti "+$" / "+n").
+    - OTHER PLAYERS: **Their Pets** (a többiek petjei), **Their Stacks** (a schnitzel-torony a többiek feje felett).
+  - **Codes** (GDD 5.1 ⑦): kód beírása + REDEEM; kis- / nagybetű és szóköz nem számít, mindegyik egyszer váltható be (mentés: `codes`). Visszajelzés az ablakban (zöld / piros) és a jutalom felirata a fej felett.
+  - Kódok: `Config.Codes` (most: `SCHNITZEL` = 10 perc bevétel, `RELEASE` = 3 ticket; lejárat opcionális). Új kódhoz egy új sor kell (like-célok, GDD 8).
+- **Friend Boost** (GDD 8): minden Roblox barát ugyanazon a szerveren +10% eladási ár, max +50% (`Config.Game.FriendBoostPerFriend / FriendBoostMax`, `FriendService`). A HUD bal alul mutatja: "Friend Boost: +20%" (barát nélkül szürke +0%). Az offline keresetbe és a jutalom-pénzbe nem számít bele.
+  - Mellette kis zöld **"+" gomb**: a Roblox saját meghívó ablaka (`SocialService:PromptGameInvite`), hogy a játékos behívja a barátait.
+- Mellékjavítás: a HUD felső gombjai (My Plot, Eggs) a TopbarPlus ikonok óta a képernyő fölé csúsztak, mert a Kit a TopbarStandard `AbsolutePosition`-jét képernyő-koordinátának vette (a Roblox a felső sáv alól méri). Javítva (`Kit.luau`).
 
 ### 4.4 Balance szimulátor
 - `tools/sim/simulate.luau` (lune): a játék saját Config + Formulas moduljaival futtat egy "okos játékost", és kiírja a 4.3 mérföldköveket.
@@ -735,16 +806,15 @@ src/
 - Eredmény (szimulátor, medián): első merge 21 mp, első chef 3:17, Lv5 ~3 perc, első tojás ~5–7 perc, Gen2 ~18 perc, Rebirth 1 ~37–40 perc.
 - **Eltérés a 4.3 céloktól:** az első merge (cél 30–45 mp) és a Lv5 (cél 6–8 perc) korábban jön – a 30 mp-es szabály fontosabb.
 
-### Csillagok + végjátéki várakozás (2026-11-15) – ✅ Studióban tesztelve (2 pont nyitott)
+### Csillagok + végjátéki várakozás (2026-11-15) – ✅ Studióban tesztelve (a szimulátor még nem futott)
 > **Studio teszt (2026-11-15, MCP-vel, `DevService`):**
 > 1. ✅ Tele sor, pár nélkül (Gen4, legalacsonyabb Lv11): a gomb "Upgrade Lv 11 → 12" / $2.525M; rálépve 128 sütőt vett pontosan ennyiért, utána kaszkád merge 12 → 15.
 > 2. ✅ Minden sütő Lv15: "Buy Star ★ (1/5)" / $23.98B, a sütő felett "Lv 15 ☆☆☆☆☆". $1T-ből 10× 1★ + 10× 2★ (mindig a legkevesebb csillagú sütőre), a levont összeg fillérre stimmel. Felugró felirat: "3★: x2.5 value!".
 > 3. ✅ Darab/sütés 0★ és 5★ mellett is 16 384; érték/darab (Classic) pontosan 3.5×.
 > 4. ✅ Minden sütő 5★: "ALL MAXED ★" / "Time to Rebirth!" (sárga), rálépve nem von le pénzt.
-> 5. ⚠️ **Élő mentéssel még nincs kipróbálva** (a Studio mock nem ment). Kódból: a ProfileStore `Reconcile()` pótolja a hiányzó `ovenStars`-t, az `onPlayerInit` feltölti 25 elemre → régi mentés betölt.
+> 5. ✅ Régi mentés betöltése (2026-11-15, ProfileStore Mock): egy `ovenStars` és `index` nélküli, 10 slotos mentésnél a `Reconcile()` pótolja a hiányzó kulcsokat, a `DataService.migrate` 25 elemre tölti fel a sütőket és a csillagokat, az offline kereset is kiszámolódik. Élesben (valódi DataStore) még nem volt kipróbálva.
 > 6. ✅ Rebirth után a csillagok és a sütők nullázódnak (14 slot); a "RESETS" sorban ott van a "stars".
 > 7. ⚠️ **A szimulátor még nem futott** (nincs lune). Számolás: a csillagár valóban ~120 mp termelés (az eladó-fejlesztés Lv60-ig összesen ~$12.7B, a végjátékban nem korlát). Egy kör (minden sütő +1★) ideje a sütők számától független: ~3 / 6 / 13 / 32 / 80 perc (1★…5★), összesen ~2:15 óra. Csillagok nélkül 10 Lv15 sütővel a $2T ~25 perc.
-> - Apróság: `OvenService.buy` a csillag-vásárlást nem számolja a visszaadott darabszámba (a pad nem használja).
 
 - **Gond volt:** a végjátékban 20–45 percet kellett várni a következő rebirthre, mert tele sornál a 100-as gomb csak ≤ 100 sütős belevásárlást csinált (Gen4-ben egy Lv11-hez már 128 kell), és ha minden slot Lv15, nem volt mit venni.
 - **Belevásárlás:** tele sornál, pár nélkül a 100-as gomb annyi sütőt vesz, amennyi a legalacsonyabb sütő következő szintjéhez kell (akár 100-nál többet). A gomb felirata ilyenkor: "Upgrade Lv 11 → 12" + ár. (`Formulas.intoLowest`, a szimulátor is ezt használja.)
@@ -753,13 +823,26 @@ src/
   - A sütő felett: "Lv 15 ★★☆☆☆", vásárláskor felirat ("3★: x2.5 value!"); a gomb: "Buy Star ★ (3/5)" + ár, ha minden sütő 5★: "ALL MAXED ★ – Time to Rebirth!".
   - Mentés: `ovenStars` (slotonként). Kód: `OvenService.buyStars`, `Formulas.starPrice / starTarget / starMultiplier`.
 - **Rebirth követelmény:** $2T / $600T / $3Qa / $8Qa (×1.6 utána). A szimulátor szerint ezzel: Rebirth 1 ~40 perc, Rebirth 2 ~1:41 óra, Rebirth 5 ~6:10 óra, a leghosszabb várakozás 37 → 17 perc.
-- A GDD 4.1 / 4.2 táblái még a régi számokat mutatják.
+
+### 9.3 Szorzók panel (2026-11-15) – ✅ Studióban tesztelve
+- Jobb alul egy sor kis csempe (ikon + érték), a GDD 9.3 "[x1][x1.1][x2]" helyén: **Event** (csak ha a futó event szorzós: Lunch Rush x2, Golden Oil x5, Grandma's Visit +1 Lv, Blackout x3), **Chef Speed**, **Luck**, **Bake Speed** (csak ha van ilyen bónusz), **Money** (mindig).
+- Rámutatva (egér) / koppintva (2 mp) tooltip a bontással, pl. "Money x5.22 – Rebirth: x3, Counter Lv 6: +10%, Pets: +10%, Rebirth tree: +20%, Friend Boost: +20%"; az eventnél a leírás és a hátralévő idő.
+- A Money ugyanaz a szorzat, amivel a szerver elad (pult szint × rebirth × pet/aura × rebirth-fa × Index × Friend Boost); Studióban összevetve: panel x5.22, szerver 5.2272.
+- Érintőképernyőn a sor a Roblox ugrás gombja fölé kerül (nagy képernyőn 150, kicsin 100 px-szel feljebb). **Mobilon még nem volt kipróbálva.**
+- Kód: `UI/Multipliers.luau`; közös képletek: `Formulas.indexMoneyBonus`, `Formulas.friendMoneyBonus` (az `IndexService` és a `FriendService` is ezeket használja).
+
+### 12–13. Technikai rész (2026-11-15) – ✅ Studióban tesztelve
+- **Remote rate limit:** minden kliens → szerver remote a `Lib/Guard.luau`-n megy át (`Guard.connect`), játékosonként és remote-onként token bucket, a keretek: `Config.Security.RemoteLimits` (pl. RedeemCode 0,5/mp, max 3 egyszerre). A túl sok kérést eldobja (Studióban figyelmeztet). Teszt: RedeemCode 6 gyors kérésből 3 ment át.
+- **Távolság-ellenőrzés:** a rálépős padokat eddig is a szerver nézte (pozíció alapján), a chef ébresztés és a tojásnyitás is ellenőrzött; most egy helyen: `Guard.near`. Új: a Panírvihar schnitzel felvétele (a `Touched` mellé a karakter max. 12 studra lehet).
+- **Analytics** (`Services/AnalyticsService.luau`, Roblox AnalyticsService):
+  - Onboarding funnel: Loaded → FirstOven → FirstMerge → FirstSale → FirstCollect → FirstChef → FirstEgg → FirstRebirth; játékosonként egyszer (mentés: `funnel` bitmaszk). Régi mentésnél a migráció a már teljesített lépéseket elküldöttnek jelöli.
+  - Economy: minden pénzforrás (eladás felvétele, pult szintlépés, offline, napi / playtime / kód, Ételkritikus, Panírvihar) és nyelő (sütő, csillag, eladó fejlesztés, chef, tojás, aura dobás). Játékosonként és tételenként összegyűjtve, percenként egyszer küldi (a Roblox korlátai miatt), kilépéskor is.
+  - Studióban az output mutatja, mi menne el (`Config.Game.AnalyticsDebug`). Az adatok a Creator Hub → Analytics oldalon jelennek meg (élesben).
+- **StreamingEnabled:** a place-ben már be volt kapcsolva (1024 stud sugár, a teljes pálya ~400 × 240 stud). A telkek egyben streamelődnek (Atomic), a saját telek a tulajdonosnál mindig betöltve marad (`PersistentPerPlayer`). A "My Plot" teleport a telek modellje nélkül is működik (az origót számolja).
+- **BigNum döntés:** nincs BigNum, a pénz sima double (max ~1.8e308). A rebirth követelmény ×1.6-tal nő, a szorzó csak lineárisan, így a gyakorlatban nem érhető el. A számformátum 1e63-ig (Vg) rövidítéssel, felette tudományos alakkal ír (1.23e64), végtelen / NaN esetén "∞" / "0".
 
 ### Későbbre hagyva
-- Merge animáció és minden szép VFX (10. fejezet), hangok és zene (11.).
-- Robux: gamepassok, Robux gombok, Robux tojás / aura dobás, Claim x10, Rebirth Skip (6. fejezet).
-- FTUE (7.), napi jutalmak / questek / ranglisták (8.).
-- Index mentése, chef ritkaságok (chef gacha), Főchef auto-merge, telek-skinek és világok.
+- Lásd fent: "Mit tudnánk még csinálni" (a mi listánk) és "Nem a mi feladatunk / most nem kell" (6., 4.4, 7. fejezet, modellek).
 
 ---
 

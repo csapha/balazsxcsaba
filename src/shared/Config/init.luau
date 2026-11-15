@@ -13,6 +13,9 @@ local Config = {
 	Events = require(script.Events),
 	Offline = require(script.Offline),
 	Index = require(script.Index),
+	Rewards = require(script.Rewards),
+	Codes = require(script.Codes),
+	Security = require(script.Security),
 }
 
 return table.freeze(Config)

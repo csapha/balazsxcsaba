@@ -7,6 +7,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Guard = require(script.Parent.Parent.Lib.Guard)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 
 local AuraConfig = Config.Auras
@@ -59,6 +61,7 @@ function AuraService.roll(player: Player, mode: unknown): string?
 			return nil
 		end
 		data.money(raw.money - price)
+		AnalyticsService.sink(player, price, "Shop", "AuraRoll")
 	end
 	lastRoll[player] = now
 
@@ -126,7 +129,7 @@ local function playtimeTick()
 end
 
 function AuraService.start()
-	Remotes.AuraAction.OnServerEvent:Connect(function(player, action: unknown, arg: unknown)
+	Guard.connect(Remotes.AuraAction, function(player, action: unknown, arg: unknown)
 		if action == "roll" then
 			AuraService.roll(player, arg)
 		elseif action == "equip" then

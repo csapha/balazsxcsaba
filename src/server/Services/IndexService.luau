@@ -1,22 +1,26 @@
 -- Index (GDD 3.11): felfedezett sütő szintek, schnitzel ritkaságok, petek és aurák + kategória bónuszok.
--- A felfedezések egyelőre nincsenek mentve (döntés 2026-11-12: a mentés a végére marad), csak a menet
--- végéig élnek – de ami megvan (sütők a sorban, petek a leltárban, aurák), az mindig felfedezettnek számít.
+-- A felfedezések mentve vannak (Data.index, bitmaszk), és megmaradnak rebirthkor; ami megvan (sütők a
+-- sorban, petek a leltárban, aurák), az mindig felfedezettnek számít.
 -- A kliens a játékos attribútumaiból olvassa (bitmaszk): IndexOvens, IndexRarities, IndexPets, IndexAuras.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Formulas = require(ReplicatedStorage.Shared.Formulas)
+local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
 
-local Bonuses = Config.Index.Bonuses
-
--- kategória → attribútum, elemszám, bónusz
+-- kategória → attribútum, mentési kulcs (Data.index); a bónusz: Formulas.indexMoneyBonus
 local CATEGORIES = {
-	{ attribute = "IndexOvens", count = #Config.Ovens.Levels, bonus = Bonuses.Ovens },
-	{ attribute = "IndexRarities", count = #Config.Rarities.List, bonus = Bonuses.Rarities },
-	{ attribute = "IndexPets", count = #Config.Pets.Order, bonus = Bonuses.Pets },
-	{ attribute = "IndexAuras", count = #Config.Auras.Order, bonus = Bonuses.Auras },
+	{ attribute = "IndexOvens", key = "ovens" },
+	{ attribute = "IndexRarities", key = "rarities" },
+	{ attribute = "IndexPets", key = "pets" },
+	{ attribute = "IndexAuras", key = "auras" },
 }
+local KEY_OF = {}
+for _, category in CATEGORIES do
+	KEY_OF[category.attribute] = category.key
+end
 
 local PET_INDEX = {}
 for index, id in Config.Pets.Order do
@@ -42,7 +46,12 @@ local function discover(player: Player, attribute: string, index: number?): bool
 	if bit32.btest(mask, bit) then
 		return false
 	end
-	player:SetAttribute(attribute, bit32.bor(mask, bit))
+	mask = bit32.bor(mask, bit)
+	player:SetAttribute(attribute, mask)
+	local data = DataService.get(player)
+	if data then
+		data.index[KEY_OF[attribute]](mask)
+	end
 	return true
 end
 
@@ -65,13 +74,12 @@ end
 
 -- Pénzszorzó a teljesített kategóriákból (1 = nincs bónusz).
 function IndexService.moneyBonus(player: Player): number
-	local bonus = 1
-	for _, category in CATEGORIES do
-		if getMask(player, category.attribute) == 2 ^ category.count - 1 then
-			bonus += category.bonus
-		end
-	end
-	return bonus
+	return Formulas.indexMoneyBonus({
+		Ovens = getMask(player, "IndexOvens"),
+		Rarities = getMask(player, "IndexRarities"),
+		Pets = getMask(player, "IndexPets"),
+		Auras = getMask(player, "IndexAuras"),
+	})
 end
 
 function IndexService.init()
@@ -93,16 +101,27 @@ function IndexService.init()
 end
 
 function IndexService.start()
+	-- belépéskor a mentett felfedezések (+ ami a betöltésig már felfedezett lett)
 	local function setup(player: Player)
 		for _, category in CATEGORIES do
 			if player:GetAttribute(category.attribute) == nil then
 				player:SetAttribute(category.attribute, 0)
 			end
 		end
+		local data = DataService.wait(player)
+		if not data then
+			return
+		end
+		for _, category in CATEGORIES do
+			local saved = data.index[category.key]
+			local mask = bit32.bor(saved(), getMask(player, category.attribute))
+			player:SetAttribute(category.attribute, mask)
+			saved(mask)
+		end
 	end
 	Players.PlayerAdded:Connect(setup)
 	for _, player in Players:GetPlayers() do
-		setup(player)
+		task.spawn(setup, player)
 	end
 end
 

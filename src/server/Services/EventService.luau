@@ -16,6 +16,8 @@ local EventState = require(ReplicatedStorage.Shared.EventState)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Guard = require(script.Parent.Parent.Lib.Guard)
+local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local CustomerService = require(script.Parent.CustomerService)
 
@@ -79,13 +81,15 @@ local function dropSchnitzel(config: any)
 		local character = hit:FindFirstAncestorOfClass("Model")
 		local player = character and Players:GetPlayerFromCharacter(character)
 		local data = player and DataService.get(player)
-		if not player or not data then
+		-- GDD 12.2: a karakter tényleg ott van-e (a Touched-ot a kliens fizikája adja)
+		if not player or not data or not Guard.near(player, part.Position, Config.Security.StormPickupDistance) then
 			return
 		end
 		taken = true
 		local raw = data()
 		local value = math.max(config.DropMinValue, math.floor(Formulas.incomePerSecond(raw) * config.DropIncomeSeconds))
 		data.money(raw.money + value)
+		AnalyticsService.source(player, value, "Gameplay", "BreadcrumbStorm")
 		Remotes.EventReward:FireClient(player, `+{NumberFormat.money(value)}`, Palette.Money)
 		part:Destroy()
 	end)

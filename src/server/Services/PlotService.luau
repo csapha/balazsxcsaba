@@ -130,6 +130,9 @@ local function assignPlot(player: Player)
 	local plot = plots[index]
 	owners[index] = player
 	plot.model:SetAttribute("OwnerId", player.UserId)
+	-- StreamingEnabled: a saját telek a tulajdonosnál sosem streamelődik ki (a többieknél Atomic marad)
+	plot.model.ModelStreamingMode = Enum.ModelStreamingMode.PersistentPerPlayer
+	plot.model:AddPersistentPlayer(player)
 	plot.sign.Text = `{player.DisplayName}'s Shop`
 	player:SetAttribute("PlotIndex", index)
 

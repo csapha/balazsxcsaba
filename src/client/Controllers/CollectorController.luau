@@ -11,6 +11,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Ui = require(ReplicatedStorage.Shared.Ui)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local State = require(script.Parent.Parent.UI.State)
 
 local Layout = Config.Plot
 local Palette = Config.Palette
@@ -175,6 +176,9 @@ end
 
 -- "+47", "+20 Ezüst Schnitzel" feliratok a játékos feje felett, felfelé úszva.
 local function showPickup(picked: { { rarity: number, units: number } })
+	if not State.settings().popups then -- Settings: Popup Texts off
+		return
+	end
 	local character = Players.LocalPlayer.Character
 	local head = character and character:FindFirstChild("Head")
 	if not head or #picked == 0 then

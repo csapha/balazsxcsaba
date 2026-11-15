@@ -12,6 +12,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Ui = require(ReplicatedStorage.Shared.Ui)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local State = require(script.Parent.Parent.UI.State)
 
 local Palette = Config.Palette
 local Layout = Config.Plot
@@ -151,6 +152,10 @@ local function update()
 		if player == Players.LocalPlayer and now < hiddenUntil then
 			wanted = 0
 		end
+		-- Settings: Other Players' Stacks off
+		if player ~= Players.LocalPlayer and not State.settings().otherStacks then
+			wanted = 0
+		end
 
 		if wanted == 0 then
 			removeTower(player)
@@ -215,6 +220,9 @@ end
 
 -- "+n" felirat az asztal felett, felfelé úszva.
 local function popup(at: CFrame, text: string)
+	if not State.settings().popups then -- Settings: Popup Texts off
+		return
+	end
 	local anchor = Instance.new("Part")
 	anchor.Anchored = true
 	anchor.CanCollide = false

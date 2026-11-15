@@ -6,78 +6,107 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Data = require(ReplicatedStorage.Shared.Data)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Guard = require(script.Parent.Parent.Lib.Guard)
+local AnalyticsService = require(script.Parent.AnalyticsService)
+local Settings = require(ReplicatedStorage.Shared.Settings)
 
 local DataService = {}
+
+-- Betöltés után (a ProfileStore Reconcile-ja után), mielőtt a kliens megkapja: adat-migráció a régi
+-- mentésekhez + offline kereset. Helyben módosít, és vissza is adja (a DevService teszteléséhez).
+function DataService.migrate(data: any): any
+	while #data.ovens < Config.Ovens.MaxSlots do
+		table.insert(data.ovens, 0)
+	end
+	while #data.ovenStars < Config.Ovens.MaxSlots do
+		table.insert(data.ovenStars, 0)
+	end
+	data.slots = math.clamp(
+		math.max(data.slots, Formulas.rebirthSlots(data.rebirths)),
+		Config.Ovens.StartSlots,
+		Config.Ovens.MaxSlots
+	)
+	-- régi mentés (generációk előtt): az eddig vett sütők az 1. generációban számítanak az árba
+	if data.generation == 1 and data.generationBought == 0 and data.ovensBought > 0 then
+		data.generationBought = data.ovensBought
+	end
+	for _, key in { "rarityCount", "rarityUnits", "rarityValue" } do
+		while #data.tray[key] < #Config.Rarities.List do
+			table.insert(data.tray[key], 0)
+		end
+	end
+	-- régi mentés: ritkaság-bontás nélküli collector tartalom → "Sima"
+	local tray = data.tray
+	local function sum(list: { number }): number
+		local total = 0
+		for _, v in list do
+			total += v
+		end
+		return total
+	end
+	if tray.count > 0 and sum(tray.rarityCount) == 0 then
+		tray.rarityCount[1] = tray.count
+	end
+	if tray.units > 0 and sum(tray.rarityUnits) == 0 then
+		tray.rarityUnits[1] = tray.units
+	end
+	if tray.value > 0 and sum(tray.rarityValue) == 0 then
+		tray.rarityValue[1] = tray.value
+	end
+
+	-- Régi mentés (érték nélküli darabok): Lv1 áron számoljuk őket.
+	if data.tray.units > 0 and data.tray.value == 0 then
+		data.tray.value = data.tray.units * Config.Sell.UnitPrice
+	end
+	if data.carried > 0 and data.carriedValue == 0 then
+		data.carriedValue = data.carried * Config.Sell.UnitPrice
+	end
+	if data.counterStock > 0 and data.counterValue == 0 then
+		data.counterValue = data.counterStock * Config.Sell.UnitPrice
+	end
+
+	-- GDD 13: analytics előtti mentés (funnel = 0, de már játszott): ami már megvolt, az ne menjen el
+	-- késői funnel lépésként (sorrend: Services/AnalyticsService STEPS).
+	if data.funnel == 0 and (data.ovensBought > 0 or data.rebirths > 0) then
+		local done = {
+			true, -- Loaded
+			true, -- FirstOven
+			data.stats.merges > 0 or data.rebirths > 0,
+			data.stats.totalSold > 0 or data.rebirths > 0,
+			data.stats.totalEarned > 0 or data.rebirths > 0, -- FirstCollect (közelítés)
+			data.chefs.count > 0 or data.rebirths > 0,
+			#data.pets.inventory > 0,
+			data.rebirths > 0,
+		}
+		for index, passed in done do
+			if passed then
+				data.funnel = bit32.bor(data.funnel, 2 ^ (index - 1))
+			end
+		end
+	end
+
+	-- GDD 3.13: offline kereset a legutóbbi online idő óta (a Claim ablak a kliensen jön fel).
+	-- Ha egy korábbi, fel nem vett összeg is van, hozzáadódik.
+	local now = os.time()
+	if data.lastOnline > 0 then
+		local away = now - data.lastOnline
+		if away >= Config.Offline.MinSeconds then
+			local earned, counted = Formulas.offlineEarnings(data, away)
+			if earned > 0 then
+				data.offline.pending += earned
+				data.offline.seconds = counted
+			end
+		end
+	end
+	data.lastOnline = now
+	return data
+end
 
 function DataService.init()
 	local service = Data.server.Service
 
-	-- Betöltés után, mielőtt a kliens megkapja: adat-migráció.
 	function service.onPlayerInit(_self, _player: Player, data: any)
-		while #data.ovens < Config.Ovens.MaxSlots do
-			table.insert(data.ovens, 0)
-		end
-		while #data.ovenStars < Config.Ovens.MaxSlots do
-			table.insert(data.ovenStars, 0)
-		end
-		data.slots = math.clamp(
-			math.max(data.slots, Formulas.rebirthSlots(data.rebirths)),
-			Config.Ovens.StartSlots,
-			Config.Ovens.MaxSlots
-		)
-		-- régi mentés (generációk előtt): az eddig vett sütők az 1. generációban számítanak az árba
-		if data.generation == 1 and data.generationBought == 0 and data.ovensBought > 0 then
-			data.generationBought = data.ovensBought
-		end
-		for _, key in { "rarityCount", "rarityUnits", "rarityValue" } do
-			while #data.tray[key] < #Config.Rarities.List do
-				table.insert(data.tray[key], 0)
-			end
-		end
-		-- régi mentés: ritkaság-bontás nélküli collector tartalom → "Sima"
-		local tray = data.tray
-		local function sum(list: { number }): number
-			local total = 0
-			for _, v in list do
-				total += v
-			end
-			return total
-		end
-		if tray.count > 0 and sum(tray.rarityCount) == 0 then
-			tray.rarityCount[1] = tray.count
-		end
-		if tray.units > 0 and sum(tray.rarityUnits) == 0 then
-			tray.rarityUnits[1] = tray.units
-		end
-		if tray.value > 0 and sum(tray.rarityValue) == 0 then
-			tray.rarityValue[1] = tray.value
-		end
-
-		-- Régi mentés (érték nélküli darabok): Lv1 áron számoljuk őket.
-		if data.tray.units > 0 and data.tray.value == 0 then
-			data.tray.value = data.tray.units * Config.Sell.UnitPrice
-		end
-		if data.carried > 0 and data.carriedValue == 0 then
-			data.carriedValue = data.carried * Config.Sell.UnitPrice
-		end
-		if data.counterStock > 0 and data.counterValue == 0 then
-			data.counterValue = data.counterStock * Config.Sell.UnitPrice
-		end
-
-		-- GDD 3.13: offline kereset a legutóbbi online idő óta (a Claim ablak a kliensen jön fel).
-		-- Ha egy korábbi, fel nem vett összeg is van, hozzáadódik.
-		local now = os.time()
-		if data.lastOnline > 0 then
-			local away = now - data.lastOnline
-			if away >= Config.Offline.MinSeconds then
-				local earned, counted = Formulas.offlineEarnings(data, away)
-				if earned > 0 then
-					data.offline.pending += earned
-					data.offline.seconds = counted
-				end
-			end
-		end
-		data.lastOnline = now
+		DataService.migrate(data)
 	end
 
 	-- kilépéskor az "utoljára online" idő (a profil mentése előtt)
@@ -100,6 +129,7 @@ function DataService.claimOffline(player: Player): number
 		return 0
 	end
 	data.money(raw.money + pending)
+	AnalyticsService.source(player, pending, "TimedReward", "Offline")
 	data.cycleEarned(raw.cycleEarned + pending) -- az offline kereset is számít a rebirthbe
 	data.offline({ pending = 0, seconds = 0 })
 	return pending
@@ -131,8 +161,15 @@ function DataService.start()
 	end
 
 	-- GDD 3.13: offline kereset felvétele + "utoljára online" mentése percenként (szerver összeomlás esetére)
-	Remotes.ClaimOffline.OnServerEvent:Connect(function(player)
+	Guard.connect(Remotes.ClaimOffline, function(player)
 		DataService.claimOffline(player)
+	end)
+	-- GDD 11.1: beállítások mentése (a kliens küldi, a szerver csak az ismert, érvényes értékeket fogadja el)
+	Guard.connect(Remotes.SaveSettings, function(player, settings: unknown)
+		local data = DataService.get(player)
+		if data and type(settings) == "table" then
+			data.settings(Settings.normalize(settings), false) -- false: a kliensnek nem kell visszaküldeni
+		end
 	end)
 	task.spawn(function()
 		while true do

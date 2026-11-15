@@ -9,6 +9,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Chat = require(script.Parent.Parent.Util.Chat)
+local State = require(script.Parent.Parent.UI.State)
 
 local PetConfig = Config.Pets
 local Palette = Config.Palette
@@ -114,7 +115,9 @@ local function update(dt: number)
 	for _, player in Players:GetPlayers() do
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		local wanted = if root then parseEquipped(player:GetAttribute("EquippedPets")) else {}
+		-- Settings: Other Players' Pets off → only your own pets follow
+		local shown = player == Players.LocalPlayer or State.settings().otherPets
+		local wanted = if root and shown then parseEquipped(player:GetAttribute("EquippedPets")) else {}
 
 		-- a lista igazítása a felszerelt petekhez (sorrendben): ami egyezik, marad, a többi újraépül
 		local old = visuals[player] or {}

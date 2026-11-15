@@ -48,6 +48,11 @@ local random = Random.new()
 local lastPlayed: { [string]: number } = {}
 local MIN_GAP = 0.04
 
+-- Effect volume from the settings (0..1, UI/SettingsWindow).
+function Audio.setVolume(volume: number)
+	group.Volume = math.clamp(volume, 0, 1)
+end
+
 function Audio.play(name: string, speed: number?)
 	local template = templates[name]
 	local now = os.clock()

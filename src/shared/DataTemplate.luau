@@ -3,6 +3,7 @@
 local RunService = game:GetService("RunService")
 
 local Config = require(script.Parent.Config)
+local Settings = require(script.Parent.Settings)
 
 local Template = {
 	version = 1,
@@ -31,6 +32,34 @@ local Template = {
 		tickets = 0,
 		ticketProgress = 0, -- mp játékidő a következő ingyen ticketig
 	},
+
+	-- GDD 3.11: Index felfedezések bitmaszkként (az n. elem = 2^(n-1) bit), megmaradnak rebirthkor
+	index = {
+		ovens = 0,
+		rarities = 0,
+		pets = 0,
+		auras = 0,
+	},
+
+	-- GDD 8: napi jutalom és playtime ajándékok (Config.Rewards), a nap = UTC napszám (os.time() // 86400)
+	--   daily: streak = a sorozatban utoljára felvett nap (1..7, 0 = még semmi), lastDay = melyik napon
+	--   playtime: az aznapi játékidő (mp) és a felvett ajándékok bitmaszkja (az n. ajándék = 2^(n-1))
+	daily = {
+		streak = 0,
+		lastDay = 0,
+	},
+	playtime = {
+		day = 0,
+		seconds = 0,
+		claimed = 0,
+	},
+
+	-- GDD 5.1 ⑦: beváltott kódok ({ [KÓD] = true }, Config.Codes)
+	codes = {},
+
+	-- GDD 11.1: beállítások (a kliens állítja a Settings ablakban, a szerver csak ellenőrzi és menti),
+	-- a kulcsok és az alapértékek: Shared/Settings
+	settings = table.clone(Settings.Defaults),
 
 	-- GDD 3.8: rebirth (megmarad rebirthkor) + rebirth-fa perk szintek
 	rebirths = 0,
@@ -91,6 +120,9 @@ local Template = {
 		level = 1,
 		xp = 0,
 	},
+
+	-- GDD 13: az onboarding funnel már elküldött lépései (bitmaszk, Services/AnalyticsService)
+	funnel = 0,
 
 	stats = {
 		totalSold = 0,

@@ -1,5 +1,11 @@
 -- GDD 4.5: számformátum – 1.2K, 15.6M, 3.4B, 1.1T, 2.5Qa, 7.8Qi ... max 4 értékes jegy.
-local SUFFIXES = { "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc" }
+-- GDD 12.2 BigNum döntés (2026-11-15): nincs BigNum, a pénz sima double (max ~1.8e308, ~15 értékes jegy).
+-- A rebirth követelmény ×1.6-tal nő, a szorzó csak lineárisan, így 1e63 (Vg) ~235 rebirth lenne – a gyakorlatban
+-- elérhetetlen. Ha mégis: e felett tudományos alak (1.23e64), végtelen / NaN helyett "∞" / "0".
+local SUFFIXES = {
+	"K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc",
+	"Ud", "Dd", "Td", "Qad", "Qid", "Sxd", "Spd", "Ocd", "Nod", "Vg",
+}
 
 local NumberFormat = {}
 
@@ -9,6 +15,14 @@ function NumberFormat.short(n: number): string
 	end
 	local sign = if n < 0 then "-" else ""
 	n = math.abs(n)
+	if n == math.huge then
+		return sign .. "∞"
+	end
+	if n >= 10 ^ (3 * (#SUFFIXES + 1)) then
+		local exponent = math.floor(math.log10(n))
+		local mantissa = math.floor(n / 10 ^ exponent * 100) / 100
+		return sign .. string.format("%.2fe%d", mantissa, exponent)
+	end
 
 	if n < 1000 then
 		return sign .. tostring(math.floor(n))

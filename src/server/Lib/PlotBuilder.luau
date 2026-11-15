@@ -63,6 +63,7 @@ function PlotBuilder.build(index: number, parent: Instance): PlotRefs
 
 	local model = Instance.new("Model")
 	model.Name = `Plot{index}`
+	-- StreamingEnabled (GDD 12.2): a telek egyben jön / megy; a tulajdonosnak mindig betöltve (PlotService)
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 	model:SetAttribute("Index", index)
 	model:SetAttribute("Origin", origin)

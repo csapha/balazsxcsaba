@@ -483,6 +483,53 @@
       "decalAssetId": "111460338730268",
       "moderationState": "Approved",
       "uploadOperationId": "0d9ad4e6-b1a1-4691-8a17-ff670da3fa78"
+    },
+    {
+      "key": "Gift",
+      "file": "icons/schnitzel-ui-gift.png",
+      "source": "generated separately; see gift-icon-prompt.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "111048535886079",
+      "decalAssetId": "80383593414728",
+      "moderationState": "Approved",
+      "uploadOperationId": "c7f63c02-1124-458f-b52f-0fa2d5c31e0d",
+      "usedBy": [
+        "Gift",
+        "Daily"
+      ]
+    },
+    {
+      "key": "CoinChest",
+      "file": "icons/schnitzel-ui-coin-chest.png",
+      "source": "generated separately; see money-reward-icons-prompts.md",
+      "size": [1254, 1254],
+      "imageAssetId": "73564604224923",
+      "decalAssetId": "124298974640558",
+      "moderationState": "Approved",
+      "uploadOperationId": "9f35833b-2a38-4064-8aa9-d1be0ea237e2"
+    },
+    {
+      "key": "CoinBag",
+      "file": "icons/schnitzel-ui-coin-bag.png",
+      "source": "generated separately; see money-reward-icons-prompts.md",
+      "size": [1254, 1254],
+      "imageAssetId": "99590768986281",
+      "decalAssetId": "94149831656038",
+      "moderationState": "Approved",
+      "uploadOperationId": "9583116d-ed00-4261-85ae-624127d1e4fa"
+    },
+    {
+      "key": "Settings",
+      "file": "icons/schnitzel-ui-settings.png",
+      "source": "generated separately; see settings-icon-prompt.md",
+      "size": [1254, 1254],
+      "imageAssetId": "137472960814779",
+      "decalAssetId": "76795026560040",
+      "moderationState": "Approved",
+      "uploadOperationId": "6ecc33ff-6442-4904-9b1b-e1827b3f52ad"
     }
   ],
   "uploadedAt": "2026-11-15",
