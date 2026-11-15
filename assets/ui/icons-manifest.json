@@ -1,0 +1,413 @@
+{
+  "source": "schnitzel-ui-icons.png",
+  "icons": [
+    {
+      "key": "Rebirth",
+      "file": "icons/schnitzel-ui-rebirth.png",
+      "sourceBounds": [
+        29,
+        33,
+        274,
+        279
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "96649927080974",
+      "decalAssetId": "103293149085488",
+      "moderationState": "Approved",
+      "uploadOperationId": "7842e1ae-6f88-46cb-9f79-c2f1174ab240"
+    },
+    {
+      "key": "Index",
+      "file": "icons/schnitzel-ui-index.png",
+      "sourceBounds": [
+        348,
+        20,
+        293,
+        302
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "121622520607924",
+      "decalAssetId": "109578729319806",
+      "moderationState": "Approved",
+      "uploadOperationId": "e9760fbe-44d6-454c-bb3b-4adb412b162f"
+    },
+    {
+      "key": "Pets",
+      "file": "icons/schnitzel-ui-pets.png",
+      "sourceBounds": [
+        661,
+        41,
+        309,
+        283
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "118576246638418",
+      "decalAssetId": "119833127596068",
+      "moderationState": "Approved",
+      "uploadOperationId": "a2f5ca2a-9e26-4689-a02f-8b566fd9cbed",
+      "visibleBounds": {
+        "alphaThreshold": 128,
+        "sampleStep": 3,
+        "bounds": [
+          21,
+          36,
+          328,
+          283
+        ]
+      }
+    },
+    {
+      "key": "Crystal",
+      "file": "icons/schnitzel-ui-auras.png",
+      "sourceBounds": [
+        980,
+        43,
+        304,
+        263
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "125727528067073",
+      "decalAssetId": "132494844314173",
+      "moderationState": "Approved",
+      "uploadOperationId": "2821fa22-b5d2-4c28-bdfe-893cc44d59c6",
+      "replacedBy": "Auras"
+    },
+    {
+      "key": "Home",
+      "file": "icons/schnitzel-ui-my-plot.png",
+      "sourceBounds": [
+        1338,
+        23,
+        231,
+        288
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "75262146154870",
+      "decalAssetId": "75538321283782",
+      "moderationState": "Approved",
+      "uploadOperationId": "400d376d-ce3d-4773-8581-e9997173abd4"
+    },
+    {
+      "key": "Egg",
+      "file": "icons/schnitzel-ui-eggs.png",
+      "sourceBounds": [
+        37,
+        348,
+        260,
+        285
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "102597749948484",
+      "decalAssetId": "92888169722008",
+      "moderationState": "Approved",
+      "uploadOperationId": "765ae85b-b54f-45f5-bf78-273af28bf6a8"
+    },
+    {
+      "key": "Coin",
+      "file": "icons/schnitzel-ui-money.png",
+      "sourceBounds": [
+        336,
+        348,
+        290,
+        303
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "128954478415430",
+      "decalAssetId": "111916412053463",
+      "moderationState": "Approved",
+      "uploadOperationId": "8a0064bd-f405-47c0-a080-42556e9c4631"
+    },
+    {
+      "key": "Schnitzel",
+      "file": "icons/schnitzel-ui-schnitzel.png",
+      "sourceBounds": [
+        644,
+        331,
+        316,
+        284
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "98613698863535",
+      "decalAssetId": "100460624576010",
+      "moderationState": "Approved",
+      "uploadOperationId": "884fb7b3-c487-474d-892c-527e2a14dfbf"
+    },
+    {
+      "key": "Clock",
+      "file": "icons/schnitzel-ui-event-timer.png",
+      "sourceBounds": [
+        981,
+        341,
+        294,
+        298
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "129056316950740",
+      "decalAssetId": "90181981479130",
+      "moderationState": "Approved",
+      "uploadOperationId": "b2af91de-ca9b-454a-a5ff-e4a02a0ac736"
+    },
+    {
+      "key": "Energy",
+      "file": "icons/schnitzel-ui-energy.png",
+      "sourceBounds": [
+        1330,
+        348,
+        247,
+        287
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "107477880230933",
+      "decalAssetId": "107084294753600",
+      "moderationState": "Approved",
+      "uploadOperationId": "880cf166-f747-4021-8546-11bdbbb873d3"
+    },
+    {
+      "key": "Star",
+      "file": "icons/schnitzel-ui-token-rarities.png",
+      "sourceBounds": [
+        22,
+        673,
+        284,
+        270
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "96886395265576",
+      "decalAssetId": "128171462374787",
+      "moderationState": "Approved",
+      "uploadOperationId": "296d0dcd-3aa1-4809-9de0-9621b8f46575"
+    },
+    {
+      "key": "Upgrade",
+      "file": "icons/schnitzel-ui-upgrade.png",
+      "sourceBounds": [
+        346,
+        656,
+        271,
+        287
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "117394169798939",
+      "decalAssetId": "71879647328179",
+      "moderationState": "Approved",
+      "uploadOperationId": "7b68e542-47a9-4d3f-b2e0-d6d7e28a52bb"
+    },
+    {
+      "key": "RebirthCash",
+      "file": "icons/schnitzel-ui-money-multiplier.png",
+      "sourceBounds": [
+        644,
+        677,
+        305,
+        276
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "101971163933621",
+      "decalAssetId": "136258845565508",
+      "moderationState": "Approved",
+      "uploadOperationId": "b9725a73-826a-4fe4-9c87-3c4229c6de7c"
+    },
+    {
+      "key": "Ticket",
+      "file": "icons/schnitzel-ui-aura-ticket.png",
+      "sourceBounds": [
+        963,
+        681,
+        333,
+        260
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "97723266944090",
+      "decalAssetId": "134363249619226",
+      "moderationState": "Approved",
+      "uploadOperationId": "ca0f8546-7ec7-4052-8b36-c56a187841f3"
+    },
+    {
+      "key": "Close",
+      "file": "icons/schnitzel-ui-close.png",
+      "sourceBounds": [
+        1326,
+        689,
+        253,
+        251
+      ],
+      "size": [
+        384,
+        384
+      ],
+      "imageAssetId": "71790271242133",
+      "decalAssetId": "72439547443602",
+      "moderationState": "Approved",
+      "uploadOperationId": "fd207d4f-5944-4fc3-b70d-55022e047a1d"
+    },
+    {
+      "key": "Auras",
+      "file": "icons/schnitzel-ui-auras-v2.png",
+      "source": "generated separately; see replacement-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "98809238199668",
+      "decalAssetId": "90803881979267",
+      "moderationState": "Approved",
+      "uploadOperationId": "1a132a35-9d27-4a97-ac0e-6d01cf8b1fbf",
+      "visibleBounds": {
+        "alphaThreshold": 128,
+        "sampleStep": 3,
+        "bounds": [
+          141,
+          156,
+          958,
+          928
+        ]
+      }
+    },
+    {
+      "key": "Rarities",
+      "file": "icons/schnitzel-ui-rarities.png",
+      "source": "generated separately; see replacement-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "136119603869831",
+      "decalAssetId": "120671695375402",
+      "moderationState": "Approved",
+      "uploadOperationId": "7eacc2d9-bba8-4fb0-b1e7-156a459ca0e4",
+      "visibleBounds": {
+        "alphaThreshold": 128,
+        "sampleStep": 3,
+        "bounds": [
+          105,
+          225,
+          1042,
+          859
+        ]
+      }
+    },
+    {
+      "key": "Ovens",
+      "file": "icons/schnitzel-ui-ovens.png",
+      "source": "generated separately; see oven-token-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "104194062098104",
+      "decalAssetId": "137202404270448",
+      "moderationState": "Approved",
+      "uploadOperationId": "4c546078-6f04-4941-9e1a-a75f70e0d7c4"
+    },
+    {
+      "key": "RebirthToken",
+      "file": "icons/schnitzel-ui-rebirth-token.png",
+      "source": "generated separately; see oven-token-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "116751232774202",
+      "decalAssetId": "135212115127862",
+      "moderationState": "Approved",
+      "uploadOperationId": "938c1b72-1ac4-4b09-b179-bd0ceab3f015"
+    },
+    {
+      "key": "OvenSlots",
+      "file": "icons/schnitzel-ui-oven-slots.png",
+      "source": "generated separately; see oven-token-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "107350951768351",
+      "decalAssetId": "109603795187177",
+      "moderationState": "Approved",
+      "uploadOperationId": "d9bd22ca-0df2-4e10-a662-b321d1d7b346"
+    },
+    {
+      "key": "Baking",
+      "file": "icons/schnitzel-ui-baking.png",
+      "source": "generated separately; see bonus-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "124137842813509",
+      "decalAssetId": "75020535666272",
+      "moderationState": "Approved",
+      "uploadOperationId": "a148cae7-dd4e-4013-af99-dae855d8e3f0"
+    },
+    {
+      "key": "Luck",
+      "file": "icons/schnitzel-ui-luck.png",
+      "source": "generated separately; see bonus-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "108179624058657",
+      "decalAssetId": "99493212264026",
+      "moderationState": "Approved",
+      "uploadOperationId": "ebcc0e44-3d94-47f7-9e95-ce077459911e"
+    },
+    {
+      "key": "Chefs",
+      "file": "icons/schnitzel-ui-chefs.png",
+      "source": "generated separately; see bonus-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "88499542528911",
+      "decalAssetId": "83175477678036",
+      "moderationState": "Approved",
+      "uploadOperationId": "856d787e-1dca-449a-aadf-0a38bffb4ba8"
+    }
+  ],
+  "uploadedAt": "2026-11-15",
+  "universeId": "10776638104",
+  "creatorUserId": "568256892"
+}

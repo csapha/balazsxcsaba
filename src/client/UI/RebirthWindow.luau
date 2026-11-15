@@ -45,95 +45,187 @@ local function perkValueText(perk: string, level: number): string
 	return `+{definition.Step * level}`
 end
 
--- The rewards of the next rebirth: { icon, text }.
-local function rewards(rebirths: number): { { icon: string, text: string } }
+type Reward = { icon: string, value: string, label: string, sub: string, color: Color3 }
+
+-- The rewards of the next rebirth, one tile each.
+local function rewards(rebirths: number, tokens: number): { Reward }
 	local upcoming = rebirths + 1
-	local list = {
+	local list: { Reward } = {
 		{
 			icon = Ui.Icons.RebirthCash,
-			text = `x{Formulas.rebirthMultiplier(upcoming)} money (now x{Formulas.rebirthMultiplier(rebirths)})`,
+			value = `x{Formulas.rebirthMultiplier(upcoming)}`,
+			label = "Money",
+			sub = `now x{Formulas.rebirthMultiplier(rebirths)}`,
+			color = C.Money,
 		},
-		{ icon = Ui.Icons.Star, text = `+{Config.Rebirth.TokensPerRebirth} Rebirth Token` },
+		{
+			icon = Ui.Icons.RebirthToken,
+			value = `+{Config.Rebirth.TokensPerRebirth}`,
+			label = `Rebirth Token{if Config.Rebirth.TokensPerRebirth == 1 then "" else "s"}`,
+			sub = `you have {tokens}`,
+			color = Theme.Palettes.Purple.light,
+		},
 	}
 	local slotsNow, slotsNext = Formulas.rebirthSlots(rebirths), Formulas.rebirthSlots(upcoming)
 	if slotsNext > slotsNow then
-		table.insert(list, { icon = Ui.Icons.Upgrade, text = `+{slotsNext - slotsNow} oven slots ({slotsNow} → {slotsNext})` })
+		table.insert(list, {
+			icon = Ui.Icons.OvenSlots,
+			value = `+{slotsNext - slotsNow}`,
+			label = "Oven Slots",
+			sub = `{slotsNow} → {slotsNext}`,
+			color = C.Lemon,
+		})
 	end
 	local chefsNow, chefsNext = Formulas.maxChefs(rebirths), Formulas.maxChefs(upcoming)
 	if chefsNext > chefsNow then
-		table.insert(list, { icon = Ui.Icons.Friends, text = `+{chefsNext - chefsNow} max chef` })
+		table.insert(list, {
+			icon = Ui.Icons.Friends,
+			value = `+{chefsNext - chefsNow}`,
+			label = "Max Chefs",
+			sub = `{chefsNow} → {chefsNext}`,
+			color = Theme.Palettes.Blue.light,
+		})
 	end
 	local soon = Config.Rebirth.ComingSoon[upcoming]
 		or (if upcoming % Config.Rebirth.WorldEvery == 0 then "New world" else nil)
 	if soon then
-		table.insert(list, { icon = Ui.Icons.Crown, text = `{soon} (coming soon)` })
+		table.insert(list, { icon = Ui.Icons.Crown, value = "NEW", label = soon, sub = "coming soon", color = C.Vanilla })
 	end
 	return list
 end
 
-local function rewardRow(index: number): Frame
-	local function entry()
-		return rewards(State.rebirths())[index]
+local MAX_REWARDS = 5
+
+-- A reward tile: glowing icon, big value, what it is, and the before → after line.
+local function rewardTile(index: number): Frame
+	local function entry(): Reward?
+		return rewards(State.rebirths(), State.tokens())[index]
 	end
-	return create "Frame" {
+	local function color(): Color3
+		local e = entry()
+		return if e then e.color else C.CardLine
+	end
+	local function field(key: string): () -> string
+		return function()
+			local e = entry()
+			return if e then (e :: any)[key] else ""
+		end
+	end
+	return Kit.darkBox {
 		Name = "Reward" .. index,
 		LayoutOrder = index,
-		Size = UDim2.new(1, 0, 0, 30),
-		BackgroundTransparency = 1,
+		-- the visible tiles share the full width
+		Size = function()
+			local count = math.max(1, #rewards(State.rebirths(), State.tokens()))
+			return UDim2.new(1 / count, -10 * (count - 1) / count, 1, 0)
+		end,
+		Line = color,
 		Visible = function()
 			return entry() ~= nil
 		end,
 		create "ImageLabel" {
-			Size = UDim2.fromOffset(30, 30),
+			Name = "Glow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.3),
+			Size = UDim2.new(1, 10, 0.55, 0),
 			BackgroundTransparency = 1,
-			Image = function()
-				local e = entry()
-				return if e then e.icon else ""
-			end,
+			Image = Ui.Textures.Soft,
+			ImageColor3 = color,
+			ImageTransparency = 0.6,
+		},
+		create "ImageLabel" {
+			Name = "Icon",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.3),
+			Size = UDim2.fromScale(0.42, 0.42),
+			SizeConstraint = Enum.SizeConstraint.RelativeYY,
+			BackgroundTransparency = 1,
+			Image = field("icon"),
 			ScaleType = Enum.ScaleType.Fit,
+			ZIndex = 3,
 		},
 		Kit.text {
-			Text = function()
-				local e = entry()
-				return if e then e.text else ""
-			end,
-			TextSize = 20,
-			TextColor3 = C.Good,
+			Name = "Value",
+			Text = field("value"),
+			TextSize = 30,
+			StrokeThickness = 3,
+			TextColor3 = color,
 			Gradient = false,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Position = UDim2.fromOffset(38, 0),
-			Size = UDim2.new(1, -38, 1, 0),
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -42),
+			Size = UDim2.new(1, -8, 0, 32),
+			ZIndex = 3,
+		},
+		Kit.text {
+			Name = "Label",
+			Text = field("label"),
+			TextSize = 16,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -24),
+			Size = UDim2.new(1, -8, 0, 18),
+			ZIndex = 3,
+		},
+		Kit.text {
+			Name = "Sub",
+			Text = field("sub"),
+			TextSize = 14,
+			TextColor3 = C.Muted,
+			Gradient = false,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -7),
+			Size = UDim2.new(1, -8, 0, 16),
+			ZIndex = 3,
 		},
 	} :: Frame
 end
 
-local function infoLine(order: number, label: string, text: string | () -> string, color: Color3): Frame
+-- "Resets" / "Keeps" box: coloured title and a wrapped list.
+local function rulesBox(order: number, title: string, color: Color3, text: string | () -> string): Frame
 	return Kit.darkBox {
-		Name = label,
+		Name = title,
 		LayoutOrder = order,
-		Size = UDim2.new(1, 0, 0, 34),
-		Corner = 0,
-		-- the padding sits on an inner frame: on the box itself it would also shift the box's inner ring
+		Size = UDim2.new(0.5, -5, 1, 0),
+		Line = color,
 		create "Frame" {
 			Name = "Content",
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			ZIndex = 3,
-			create "UIPadding" { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) },
+			create "UIPadding" {
+				PaddingLeft = UDim.new(0, 12),
+				PaddingRight = UDim.new(0, 10),
+				PaddingTop = UDim.new(0, 6),
+			},
 			Kit.text {
-				RichText = true,
-				Text = function()
-					local value = if type(text) == "function" then text() else text
-					return `<font color="#{color:ToHex()}">{label}:</font> {value}`
-				end,
-				TextSize = 17,
+				Name = "Title",
+				Text = title,
+				TextSize = 18,
+				TextColor3 = color,
 				Gradient = false,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				TextTruncate = Enum.TextTruncate.AtEnd,
+				Size = UDim2.new(1, 0, 0, 22),
+				ZIndex = 3,
+			},
+			Kit.text {
+				Name = "List",
+				Text = text,
+				TextSize = 14,
+				TextWrapped = true,
+				Gradient = false,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				Position = UDim2.fromOffset(0, 24),
+				Size = UDim2.new(1, 0, 1, -28),
+				ZIndex = 3,
 			},
 		},
 	} :: Frame
 end
+
+local RULES_H = 70
+local BUTTON_H = 70
 
 local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 	local confirming = source(false)
@@ -142,9 +234,9 @@ local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 			confirming(false)
 		end
 	end)
-	local rows = {}
-	for i = 1, 5 do
-		table.insert(rows, rewardRow(i))
+	local tiles = {}
+	for i = 1, MAX_REWARDS do
+		table.insert(tiles, rewardTile(i))
 	end
 	return create "Frame" {
 		Name = "RebirthPage",
@@ -177,55 +269,54 @@ local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 			Value = RebirthWindow.progress,
 		},
 		-- rewards
-		Kit.darkBox {
+		Kit.text {
+			Name = "RewardsTitle",
+			Text = "REWARDS",
+			TextSize = 22,
+			TextColor3 = C.Lemon,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(0, 64),
+			Size = UDim2.new(1, 0, 0, 24),
+		},
+		create "Frame" {
 			Name = "Rewards",
-			Position = UDim2.fromOffset(0, 66),
-			Size = UDim2.new(0.5, -6, 1, -66 - 70),
-			Line = C.CardSelectedLine,
-			create "Frame" {
-				Name = "List",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 1,
-				ZIndex = 3,
-				create "UIPadding" {
-					PaddingLeft = UDim.new(0, 12),
-					PaddingRight = UDim.new(0, 8),
-					PaddingTop = UDim.new(0, 8),
-				},
-				create "UIListLayout" { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder },
-				Kit.text {
-				LayoutOrder = 0,
-				Text = "REWARDS",
-				TextSize = 22,
-				TextColor3 = C.Lemon,
-				Gradient = false,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Size = UDim2.new(1, 0, 0, 26),
-				},
-				rows,
+			Position = UDim2.fromOffset(0, 92),
+			Size = UDim2.new(1, 0, 1, -92 - RULES_H - BUTTON_H - 10),
+			BackgroundTransparency = 1,
+			create "UIListLayout" {
+				FillDirection = Enum.FillDirection.Horizontal,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				Padding = UDim.new(0, 10),
+				SortOrder = Enum.SortOrder.LayoutOrder,
 			},
+			tiles,
 		},
 		-- what resets / what stays
 		create "Frame" {
 			Name = "Rules",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, 0, 0, 66),
-			Size = UDim2.new(0.5, -6, 1, -66 - 70),
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 0, 1, -BUTTON_H),
+			Size = UDim2.new(1, 0, 0, RULES_H),
 			BackgroundTransparency = 1,
-			create "UIListLayout" { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder },
-			infoLine(1, "Resets", "money, ovens, generation", C.Bad),
-			infoLine(2, "Resets", "chefs, sell speed, counter level", C.Bad),
-			infoLine(3, "Keeps", function()
-				return `tokens ({State.tokens()}), slots, pets, auras`
-			end, C.Good),
-			infoLine(4, "Keeps", "Index, rebirth tree perks", C.Good),
+			create "UIListLayout" {
+				FillDirection = Enum.FillDirection.Horizontal,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				Padding = UDim.new(0, 10),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			rulesBox(1, "RESETS", C.Bad, "Money, ovens, chefs, generation, sell speed, counter"),
+			rulesBox(2, "KEEPS", C.Good, function()
+				return `Tokens ({State.tokens()}), slots, pets, auras, Index, perks`
+			end),
 		},
 		Kit.button {
 			Name = "RebirthButton",
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -4),
-			Size = UDim2.fromOffset(320, 56),
-			TextSize = 28,
+			Size = UDim2.new(1, 0, 0, 56), -- full width, in line with the tiles and boxes above
+			TextSize = 32,
+			Bounce = 0.25, -- a full-width button only bounces a little, so it stays inside the window
 			Color = function()
 				if not ready() then
 					return "Gray"
@@ -286,7 +377,7 @@ local function perkRow(order: number, perk: string): Frame
 	return Kit.darkBox {
 		Name = perk,
 		LayoutOrder = order,
-		Size = UDim2.new(1, -8, 0, 62),
+		Size = UDim2.new(1, -6, 0, 62),
 		Line = function()
 			return if canBuy() then C.CardSelectedLine else C.CardLine
 		end,
@@ -343,7 +434,10 @@ local function perkRow(order: number, perk: string): Frame
 				if maxed() then
 					return "MAX"
 				end
-				return `{Tree.TokenCost} token{if Tree.TokenCost == 1 then "" else "s"}`
+				return tostring(Tree.TokenCost)
+			end,
+			InlineIcon = function()
+				return if maxed() then "" else Ui.Icons.RebirthToken
 			end,
 			Activated = function()
 				if canBuy() then
@@ -357,6 +451,8 @@ local function perkRow(order: number, perk: string): Frame
 	} :: Frame
 end
 
+local TOKENS_H = 36
+
 local function treePage(visible: () -> boolean): Frame
 	local rows = {}
 	for order, perk in Tree.Order do
@@ -367,29 +463,68 @@ local function treePage(visible: () -> boolean): Frame
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Visible = visible,
-		Kit.text {
+		-- token balance: the token icon and the count
+		create "Frame" {
 			Name = "Tokens",
-			Text = function()
-				return `Rebirth Tokens: {State.tokens()}`
-			end,
-			TextSize = 22,
-			TextColor3 = C.Lemon,
-			Gradient = false,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Size = UDim2.new(1, 0, 0, 26),
+			Size = UDim2.new(1, 0, 0, TOKENS_H),
+			BackgroundTransparency = 1,
+			create "UIListLayout" {
+				FillDirection = Enum.FillDirection.Horizontal,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				Padding = UDim.new(0, 8),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			create "ImageLabel" {
+				Name = "TokenIcon",
+				LayoutOrder = 1,
+				Size = UDim2.fromOffset(TOKENS_H, TOKENS_H),
+				BackgroundTransparency = 1,
+				Image = Ui.Icons.RebirthToken,
+				ScaleType = Enum.ScaleType.Fit,
+			},
+			Kit.text {
+				Name = "Count",
+				LayoutOrder = 2,
+				Text = function()
+					return tostring(State.tokens())
+				end,
+				TextSize = 30,
+				StrokeThickness = 3,
+				Gradient = ColorSequence.new(Theme.Palettes.Yellow.light, Theme.Palettes.Yellow.bottom),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, TOKENS_H),
+			},
+			Kit.text {
+				Name = "Label",
+				LayoutOrder = 3,
+				Text = function()
+					return `Rebirth Token{if State.tokens() == 1 then "" else "s"}`
+				end,
+				TextSize = 18,
+				TextColor3 = C.Muted,
+				Gradient = false,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, TOKENS_H),
+			},
 		},
 		create "ScrollingFrame" {
 			Name = "Perks",
-			Position = UDim2.fromOffset(0, 32),
-			Size = UDim2.new(1, 0, 1, -32),
+			Position = UDim2.fromOffset(0, TOKENS_H + 6),
+			Size = UDim2.new(1, 0, 1, -(TOKENS_H + 6)),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			ScrollBarThickness = 6,
-			ScrollBarImageColor3 = C.PanelLine,
+			ScrollBarThickness = 0, -- scrolls by drag / wheel, the bar itself is not drawn
+			ScrollBarImageTransparency = 1,
+			VerticalScrollBarInset = Enum.ScrollBarInset.None,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			CanvasSize = UDim2.new(),
-			create "UIListLayout" { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder },
-			create "UIPadding" { PaddingTop = UDim.new(0, 3), PaddingLeft = UDim.new(0, 3), PaddingBottom = UDim.new(0, 6) },
+			create "UIListLayout" {
+				Padding = UDim.new(0, 8),
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			create "UIPadding" { PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 6) },
 			rows,
 		},
 	} :: Frame

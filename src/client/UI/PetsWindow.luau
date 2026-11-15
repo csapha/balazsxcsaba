@@ -28,11 +28,56 @@ local LEFT_W = 250
 local GAP = 12
 local CARD_W = 108
 local CARD_H = 128
+local BONUS_ACTIVE_W = 84
+local BONUS_GAP = 8
+local BONUS_H = 28
 
 local PetsWindow = {}
 
 local function percent(value: number): string
 	return `+{math.floor(value * 100 + 0.5)}%`
+end
+
+local function bonusStat(order: number, name: string, icon: string, value: () -> number, color: Color3, tip: string, alignX: number?): Frame
+	local events, bubble = Kit.tooltip {
+		Title = name,
+		Color = color,
+		Text = tip,
+		Below = true,
+		PointX = UDim.new(0, BONUS_H / 2), -- at the icon
+		AlignX = alignX,
+	}
+	return create "Frame" {
+		Name = name,
+		LayoutOrder = order,
+		Size = UDim2.new(0.25, -(BONUS_ACTIVE_W + BONUS_GAP * 4) / 4, 1, 0),
+		BackgroundTransparency = 1,
+		events,
+		bubble,
+		create "ImageLabel" {
+			Name = "Icon",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.fromScale(0, 0.5),
+			Size = UDim2.fromOffset(BONUS_H, BONUS_H),
+			BackgroundTransparency = 1,
+			Image = icon,
+			ScaleType = Enum.ScaleType.Fit,
+		},
+		Kit.text {
+			Name = "Value",
+			Text = function()
+				return percent(value())
+			end,
+			TextSize = 18,
+			TextScaled = true,
+			TextColor3 = color,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(BONUS_H + 4, 0),
+			Size = UDim2.new(1, -(BONUS_H + 4), 1, 0),
+			create "UITextSizeConstraint" { MinTextSize = 10, MaxTextSize = 18 },
+		},
+	} :: Frame
 end
 
 function PetsWindow.bonusText(id: string, golden: boolean): string
@@ -156,6 +201,9 @@ local function detail(selectedPet: () -> State.Pet?, selected: (number?) -> numb
 				Image = Ui.Textures.Sunburst,
 				ImageColor3 = color,
 				ImageTransparency = 0.7,
+				Visible = function()
+					return selectedPet() ~= nil -- no rays behind "Pick a pet"
+				end,
 			} :: ImageLabel, 26),
 			PetsWindow.avatar(function()
 				local pet = selectedPet()
@@ -169,16 +217,19 @@ local function detail(selectedPet: () -> State.Pet?, selected: (number?) -> numb
 				end,
 				ZIndex = 2,
 			}),
-			Kit.text {
-				Name = "Empty",
-				Text = "Pick a pet",
-				TextSize = 22,
-				TextColor3 = C.Muted,
-				Gradient = false,
-				Visible = function()
-					return selectedPet() == nil
-				end,
-			},
+		},
+		-- nothing selected: the hint sits in the middle of the free space above the buttons
+		Kit.text {
+			Name = "Empty",
+			Text = "Pick a pet",
+			TextSize = 22,
+			TextColor3 = C.Muted,
+			Gradient = false,
+			Size = UDim2.new(1, 0, 1, -(44 * 3 + 16 + 8)),
+			Visible = function()
+				return selectedPet() == nil
+			end,
+			ZIndex = 3,
 		},
 		create "Frame" {
 			Name = "Info",
@@ -437,6 +488,9 @@ end
 
 function PetsWindow.render(anim: Motion.Anim)
 	local selected = source(nil :: number?)
+	local bonuses = derive(function()
+		return Formulas.petBonuses({ pets = State.pets() })
+	end)
 
 	-- inventory: equipped first, then golden, then by rarity
 	local sorted = derive(function()
@@ -473,6 +527,19 @@ function PetsWindow.render(anim: Motion.Anim)
 		return nil
 	end)
 
+	-- on open, select the first pet if nothing (valid) is selected yet
+	Vide.effect(function()
+		if not anim.opened() then
+			return
+		end
+		Vide.untrack(function()
+			local list = sorted()
+			if selectedPet() == nil and #list > 0 then
+				selected(list[1].uid)
+			end
+		end)
+	end)
+
 	return Kit.window {
 		Name = "Pets",
 		Title = "Pets",
@@ -489,24 +556,43 @@ function PetsWindow.render(anim: Motion.Anim)
 		OnClose = State.close,
 		Body = {
 			detail(selectedPet, selected, anim.appear(0.12, 0, Enum.EasingStyle.Back, 0.45)),
-			Kit.text {
+			create "Frame" {
 				Name = "Bonuses",
-				RichText = true,
-				Text = function()
-					local data = State.pets()
-					local bonus = Formulas.petBonuses({ pets = data })
-					return `Active {#data.equipped}/{PetConfig.ActiveSlots}   `
-						.. `<font color="#8BFF3D">Money {percent(bonus.Money)}</font>   `
-						.. `<font color="#FFE066">Baking {percent(bonus.BakeSpeed)}</font>   `
-						.. `<font color="#7FE0C4">Luck {percent(bonus.Luck)}</font>   `
-						.. `<font color="#8AF9FF">Chefs {percent(bonus.ChefSpeed)}</font>`
-				end,
-				TextSize = 18,
-				Gradient = false,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextTruncate = Enum.TextTruncate.AtEnd,
+				BackgroundTransparency = 1,
+				ZIndex = 3, -- above the grid, so the tooltips draw over the cards
 				Position = UDim2.fromOffset(LEFT_W + GAP, 0),
-				Size = UDim2.new(1, -(LEFT_W + GAP), 0, 26),
+				Size = UDim2.new(1, -(LEFT_W + GAP), 0, BONUS_H),
+				create "UIListLayout" {
+					FillDirection = Enum.FillDirection.Horizontal,
+					VerticalAlignment = Enum.VerticalAlignment.Center,
+					SortOrder = Enum.SortOrder.LayoutOrder,
+					Padding = UDim.new(0, BONUS_GAP),
+				},
+				Kit.text {
+					Name = "Active",
+					LayoutOrder = 1,
+					Text = function()
+						return `Active {#State.pets().equipped}/{PetConfig.ActiveSlots}`
+					end,
+					TextSize = 18,
+					TextScaled = true,
+					Gradient = false,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					Size = UDim2.fromOffset(BONUS_ACTIVE_W, BONUS_H),
+					create "UITextSizeConstraint" { MinTextSize = 10, MaxTextSize = 18 },
+				},
+				bonusStat(2, "Money", Ui.Icons.Coin, function()
+					return bonuses().Money
+				end, Color3.fromHex("8BFF3D"), "Schnitzels sell for more"),
+				bonusStat(3, "Baking", Ui.Icons.Baking, function()
+					return bonuses().BakeSpeed
+				end, Color3.fromHex("FFE066"), "Ovens bake faster"),
+				bonusStat(4, "Luck", Ui.Icons.Luck, function()
+					return bonuses().Luck
+				end, Color3.fromHex("7FE0C4"), "Rarer schnitzels more often", 0.5),
+				bonusStat(5, "Chef Speed", Ui.Icons.Chefs, function()
+					return bonuses().ChefSpeed
+				end, Color3.fromHex("8AF9FF"), "Chefs walk faster", 1),
 			},
 			create "ScrollingFrame" {
 				Name = "Grid",
@@ -514,8 +600,10 @@ function PetsWindow.render(anim: Motion.Anim)
 				Size = UDim2.new(1, -(LEFT_W + GAP), 1, -34),
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
-				ScrollBarThickness = 6,
-				ScrollBarImageColor3 = C.PanelLine,
+				ScrollBarThickness = 0, -- scrolls by drag / wheel, the bar itself is not drawn
+				ScrollBarImageTransparency = 1,
+				VerticalScrollBarInset = Enum.ScrollBarInset.None,
+				ScrollingDirection = Enum.ScrollingDirection.Y,
 				AutomaticCanvasSize = Enum.AutomaticSize.Y,
 				CanvasSize = UDim2.new(),
 				create "UIGridLayout" {

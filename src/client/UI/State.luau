@@ -26,6 +26,11 @@ local State = {
 	auras = source({ owned = {}, equipped = "", tickets = 0, ticketProgress = 0 } :: AurasData),
 	offline = source({ pending = 0, seconds = 0 } :: Offline),
 
+	-- aura roll in progress: the Auras window steps aside until the reveal ends (no spoiler, only the roll shows)
+	auraRolling = source(false),
+	auraRevealing = false,
+	lastRolledAura = nil :: string?, -- the Auras window selects it once the reveal ends
+
 	-- the full replicated data (Shared.Data client), for formulas that need the whole profile
 	data = nil :: any,
 }

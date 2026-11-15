@@ -283,8 +283,9 @@ local function render(state: PlotService.PlotState, raw: any)
 		model:SetAttribute(`TrayRarity{rarity}`, count)
 	end
 
+	labels.Pickup.Info:SetAttribute("ShowIcon", raw.tray.units > 0)
 	labels.Pickup.Info.Text = if raw.tray.units > 0
-		then `🥩 {NumberFormat.grouped(raw.tray.units)} ({NumberFormat.money(raw.tray.value)})`
+		then `{NumberFormat.grouped(raw.tray.units)} ({NumberFormat.money(raw.tray.value)})`
 		else "empty"
 
 	local level = raw.upgrades.sellSpeed

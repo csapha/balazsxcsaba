@@ -268,6 +268,142 @@ function Kit.text(props: { [any]: any }): TextLabel
 	} :: TextLabel
 end
 
+-- Hover tooltip in the UI Kit style: a dark panel with the thick ink outline, inner ring, a small pointer
+-- towards the element, a coloured title and a muted line, popping in like the buttons.
+-- Put the returned events and bubble into the element that should show it: create "Frame" { events, bubble, ... }.
+-- Mouse: shown while hovered; touch: shown for 2 s after a tap.
+--   Title / Color: the bold coloured first line (optional); Text: the description;
+--   Below: under the element (default above);
+--   PointX: where the pointer points, along the element (default its centre, e.g. UDim.new(0, 14) for an icon on the left);
+--   AlignX: which way the bubble extends from there: 0 = to the right, 0.5 = both ways, 1 = to the left
+--   (so a tooltip at the window edge stays inside).
+export type TooltipProps = {
+	Title: Value<string>?,
+	Color: Value<Color3>?,
+	Text: Value<string>,
+	Below: boolean?,
+	PointX: UDim?,
+	AlignX: number?,
+}
+
+local TIP_POINTER = 12
+local TIP_POINTER_INSET = 18 -- pointer distance from the bubble's end when the bubble extends to one side
+
+function Kit.tooltip(props: TooltipProps): ({ [string]: any }, Frame)
+	local ax = props.AlignX or 0
+	local below = props.Below == true
+	local shown = source(false)
+	local pop = spring(function()
+		return if shown() then 1 else 0.7
+	end, 0.14, 0.6)
+	local tapToken = 0
+	local events = {
+		MouseEnter = function()
+			shown(true)
+		end,
+		MouseLeave = function()
+			shown(false)
+		end,
+		InputBegan = function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.Touch then
+				tapToken += 1
+				local token = tapToken
+				shown(true)
+				task.delay(2, function()
+					if token == tapToken then
+						shown(false)
+					end
+				end)
+			end
+		end,
+	}
+	-- the pointer sits over the element: near the left / right end of the bubble, or in its middle
+	-- and the bubble is shifted so that the pointer lands exactly on PointX
+	local inset = if ax <= 0 then TIP_POINTER_INSET elseif ax >= 1 then -TIP_POINTER_INSET else 0
+	local pointerX = UDim2.new(math.clamp(ax, 0, 1), inset, 0, 0)
+	local point = props.PointX or UDim.new(0.5, 0)
+	local x = UDim.new(point.Scale, point.Offset - inset)
+	local gap = TIP_POINTER / 2 + 4
+	local bubble = create "Frame" {
+		Name = "Tooltip",
+		AnchorPoint = Vector2.new(ax, if below then 0 else 1),
+		Position = if below then UDim2.new(x, UDim.new(1, gap)) else UDim2.new(x, UDim.new(0, -gap)),
+		Size = UDim2.new(),
+		AutomaticSize = Enum.AutomaticSize.XY,
+		BackgroundColor3 = C.Panel,
+		BackgroundTransparency = 0,
+		Visible = shown,
+		ZIndex = 20,
+		create "UIScale" { Scale = pop },
+		create "UICorner" { CornerRadius = UDim.new(0, CORNER) },
+		Kit.outline(),
+		Kit.ring(C.PanelLine, CORNER),
+		-- pointer: a rotated square half tucked under the bubble, only its tip (and outline) shows
+		create "Frame" {
+			Name = "Pointer",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = pointerX + (if below then UDim2.new() else UDim2.fromScale(0, 1)),
+			Size = UDim2.fromOffset(TIP_POINTER, TIP_POINTER),
+			Rotation = 45,
+			BackgroundColor3 = C.Panel,
+			BorderSizePixel = 0,
+			ZIndex = 0,
+			Kit.outline(),
+		},
+		create "Frame" {
+			-- covers the pointer's inner half so the bubble's edge stays one clean line
+			Name = "PointerCover",
+			AnchorPoint = Vector2.new(0.5, if below then 0 else 1),
+			Position = pointerX + (if below then UDim2.new() else UDim2.fromScale(0, 1)),
+			Size = UDim2.fromOffset(TIP_POINTER * 2, TIP_POINTER),
+			BackgroundColor3 = C.Panel,
+			BorderSizePixel = 0,
+			ZIndex = 1,
+		},
+		create "Frame" {
+			Name = "Content",
+			Size = UDim2.new(),
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			ZIndex = 3,
+			create "UIPadding" {
+				PaddingLeft = UDim.new(0, 10),
+				PaddingRight = UDim.new(0, 10),
+				PaddingTop = UDim.new(0, 6),
+				PaddingBottom = UDim.new(0, 7),
+			},
+			create "UIListLayout" { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder },
+			if props.Title
+				then Kit.text {
+					Name = "Title",
+					LayoutOrder = 1,
+					Text = props.Title,
+					TextSize = 18,
+					TextColor3 = props.Color or C.White,
+					Gradient = if props.Color then false else nil,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					Size = UDim2.new(),
+					AutomaticSize = Enum.AutomaticSize.XY,
+					ZIndex = 3,
+				}
+				else nil,
+			Kit.text {
+				Name = "Text",
+				LayoutOrder = 2,
+				Text = props.Text,
+				TextSize = 15,
+				TextColor3 = C.Muted,
+				Gradient = false,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Size = UDim2.new(),
+				AutomaticSize = Enum.AutomaticSize.XY,
+				ZIndex = 3,
+			},
+		},
+	} :: Frame
+	return events, bubble
+end
+
 function Kit.outline(color: Value<Color3>?, thickness: number?, join: Enum.LineJoinMode?): UIStroke
 	return create "UIStroke" {
 		Color = color or C.Ink,
@@ -386,14 +522,22 @@ local function candyFace(
 	} :: Frame
 end
 
-local function pressable(extra: (() -> number)?, appear: (() -> number)?, grow: number?): (UIScale, { [string]: any })
+-- amount scales the hover / press bounce (1 = normal); stretched buttons use less so they stay inside their row.
+local function pressable(
+	extra: (() -> number)?,
+	appear: (() -> number)?,
+	grow: number?,
+	amount: number?
+): (UIScale, { [string]: any })
 	local hovered = source(false)
 	local pressed = source(false)
 	local hoverScale = grow or 1.05
+	local k = amount or 1
 	local springy = spring(function()
 		local base = if extra then extra() else 1
-		return base * (if pressed() then 0.9 elseif hovered() then hoverScale else 1)
-	end, 0.18, 0.55)
+		local target = if pressed() then 0.9 elseif hovered() then hoverScale else 1
+		return base * (1 + (target - 1) * k)
+	end, 0.18, if k < 1 then 0.8 else 0.55)
 	local scale = if appear
 		then function()
 			return springy() * math.max(0, appear())
@@ -462,22 +606,60 @@ function Kit.button(props: { [any]: any }): ImageButton
 		else (position or UDim2.new()) + shift
 	local scale, events = pressable(if selected then function()
 		return if read(selected) then 1.1 else 0.94
-	end else nil, props.Appear, if wide then 1.03 else nil)
+	end else nil, props.Appear, if wide then 1.03 else nil, props.Bounce)
 	local clicked
 	events, clicked = withSounds(events, props.Activated)
 	local palette = function(): Theme.Palette
 		return Theme.Palettes[read(props.Color or "Blue")]
 	end
 	local textSize = props.TextSize or 24
-	local hasText = props.Text ~= nil
+	local hasText = props.Text ~= nil and props.InlineIcon == nil
 
 	local content = {}
+	if props.InlineIcon then
+		-- text and a small icon side by side, centred together (e.g. "1 [token]"); an empty icon hides it
+		local iconSide = math.floor(height * 0.62)
+		table.insert(content, create "Frame" {
+			Name = "Inline",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ZIndex = 4,
+			create "UIListLayout" {
+				FillDirection = Enum.FillDirection.Horizontal,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				Padding = UDim.new(0, 5),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			Kit.text {
+				Name = "Label",
+				LayoutOrder = 1,
+				Text = props.Text,
+				TextSize = textSize,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, textSize),
+				ZIndex = 4,
+			},
+			create "ImageLabel" {
+				Name = "Icon",
+				LayoutOrder = 2,
+				Size = UDim2.fromOffset(iconSide, iconSide),
+				BackgroundTransparency = 1,
+				Image = props.InlineIcon,
+				Visible = function()
+					return read(props.InlineIcon) ~= ""
+				end,
+				ScaleType = Enum.ScaleType.Fit,
+				ZIndex = 4,
+			},
+		})
+	end
 	if props.Icon then
 		local iconSize = props.IconSize or 0.78
 		table.insert(content, create "ImageLabel" {
 			Name = "Icon",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, if hasText then 0.42 else 0.5),
+			AnchorPoint = props.IconAnchorPoint or Vector2.new(0.5, 0.5),
+			Position = props.IconPosition or UDim2.fromScale(0.5, if hasText then 0.42 else 0.5),
 			Size = UDim2.fromScale(iconSize, iconSize),
 			SizeConstraint = Enum.SizeConstraint.RelativeYY,
 			BackgroundTransparency = 1,
@@ -526,7 +708,7 @@ function Kit.button(props: { [any]: any }): ImageButton
 		candyFace(palette, height, corner, props.Shine ~= false, function()
 			return if selected and not read(selected) then Color3.fromRGB(150, 150, 165) else C.White
 		end, content),
-		passthrough(props, { "Color", "Text", "TextSize", "TextNudge", "Icon", "IconSize", "Corner", "Shine", "Activated", "Selected", "Size", "Appear", "Glyph", "GlyphInside", "AnchorPoint", "Position" }),
+		passthrough(props, { "Color", "Text", "TextSize", "TextNudge", "InlineIcon", "Bounce", "Icon", "IconSize", "IconPosition", "IconAnchorPoint", "Corner", "Shine", "Activated", "Selected", "Size", "Appear", "Glyph", "GlyphInside", "AnchorPoint", "Position" }),
 	} :: ImageButton
 end
 
@@ -565,9 +747,8 @@ function Kit.closeButton(props: { [any]: any }): ImageButton
 	local merged: { [any]: any } = {
 		Name = "Close",
 		Color = "Red",
-		Text = "X",
-		TextSize = 25,
-		TextNudge = -1.5,
+		Icon = Ui.Icons.Close,
+		IconSize = 0.88,
 		Shine = false,
 		Size = UDim2.fromOffset(CLOSE_SIZE, CLOSE_SIZE),
 	}

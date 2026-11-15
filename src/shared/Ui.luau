@@ -1,29 +1,40 @@
--- Shared UI assets (font, icons, textures) – the same set as the Snowboard / EggDrop games.
+-- Shared UI assets; Schnitzel icons are mapped in assets/ui/icons-manifest.json.
 local Ui = {}
 
 Ui.Font = Font.fromEnum(Enum.Font.FredokaOne)
 
 Ui.Icons = {
+	Baking = "rbxassetid://124137842813509",
+	Luck = "rbxassetid://108179624058657",
+	Chefs = "rbxassetid://88499542528911",
+	Ovens = "rbxassetid://104194062098104",
+	RebirthToken = "rbxassetid://116751232774202",
+	OvenSlots = "rbxassetid://107350951768351",
+	Auras = "rbxassetid://98809238199668",
+	Rarities = "rbxassetid://136119603869831",
+	Close = "rbxassetid://71790271242133",
+	Ticket = "rbxassetid://97723266944090",
+	Schnitzel = "rbxassetid://98613698863535",
 	Rocket = "rbxassetid://121204255802248",
-	Coin = "rbxassetid://112296648588822",
+	Coin = "rbxassetid://128954478415430",
 	CoinBag = "rbxassetid://104576122861394",
-	Star = "rbxassetid://93292654368812",
+	Star = "rbxassetid://96886395265576",
 	Perfect = "rbxassetid://100359138171159",
 	Crown = "rbxassetid://98010907624345",
-	Clock = "rbxassetid://102171725944402",
+	Clock = "rbxassetid://129056316950740",
 	Dice = "rbxassetid://90559985843183",
 	Clover = "rbxassetid://132181365383308",
 	Check = "rbxassetid://109580000795959",
-	Upgrade = "rbxassetid://121238272813200",
-	Energy = "rbxassetid://132789735668197",
+	Upgrade = "rbxassetid://117394169798939",
+	Energy = "rbxassetid://107477880230933",
 	Settings = "rbxassetid://87302285465220",
-	Rebirth = "rbxassetid://107895867958209",
-	RebirthCash = "rbxassetid://140253337509832",
+	Rebirth = "rbxassetid://96649927080974",
+	RebirthCash = "rbxassetid://101971163933621",
 	KeepRecord = "rbxassetid://78071540124290",
 	Shop = "rbxassetid://86346701405723",
 	DoubleCoins = "rbxassetid://133077600665893",
 	Gift = "rbxassetid://105723053929618",
-	Crystal = "rbxassetid://73523130116681",
+	Crystal = "rbxassetid://125727528067073",
 	PotionLuck = "rbxassetid://130648621139817",
 	PotionSpeed = "rbxassetid://135386557857245",
 	PotionCoins = "rbxassetid://138457756699787",
@@ -34,11 +45,11 @@ Ui.Icons = {
 	Engine = "rbxassetid://110044400794600",
 	FuelTank = "rbxassetid://106805711958036",
 	Aero = "rbxassetid://90815767719104",
-	-- from the EggDrop set
-	Index = "rbxassetid://137728724613874", -- book
-	Pets = "rbxassetid://83033278034512", -- chick and penguin
-	Egg = "rbxassetid://72513704446696", -- painted egg with a brush
-	Home = "rbxassetid://79862103392613", -- map pin
+	-- Additional navigation and collection icons
+	Index = "rbxassetid://121622520607924",
+	Pets = "rbxassetid://118576246638418",
+	Egg = "rbxassetid://102597749948484",
+	Home = "rbxassetid://75262146154870",
 	Daily = "rbxassetid://119448096104463", -- gift box
 	Friends = "rbxassetid://111792408758191",
 	Quests = "rbxassetid://99026244699085",

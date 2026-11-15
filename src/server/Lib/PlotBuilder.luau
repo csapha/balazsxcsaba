@@ -42,13 +42,13 @@ local function makePart(name: string, size: Vector3, cframe: CFrame, color: Colo
 	return part
 end
 
-local function titleInfo(adornee: BasePart, height: number, width: number): { [string]: TextLabel }
+local function titleInfo(adornee: BasePart, height: number, width: number, icon: string?): { [string]: TextLabel }
 	return Billboard.new(adornee, {
 		offset = Vector3.new(0, height, 0),
 		size = Vector2.new(width, width * 0.4),
 		lines = {
 			{ name = "Title", height = 0.55 },
-			{ name = "Info", color = Palette.Money, height = 0.45 },
+			{ name = "Info", color = Palette.Money, height = 0.45, icon = icon },
 		},
 	})
 end
@@ -267,7 +267,12 @@ function PlotBuilder.build(index: number, parent: Instance): PlotRefs
 		refs.pads[key] = part
 
 		local labelHeight = pad.LabelHeight or 4.5
-		local labels = titleInfo(part, labelHeight, pad.LabelWidth or math.max(pad.Size.X, 7))
+		local labels = titleInfo(
+			part,
+			labelHeight,
+			pad.LabelWidth or math.max(pad.Size.X, 7),
+			if key == "Pickup" then Ui.Icons.Schnitzel else nil
+		)
 		labels.Title.Text = pad.Title
 		refs.labels[key] = labels
 

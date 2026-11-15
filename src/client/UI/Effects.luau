@@ -252,9 +252,12 @@ function Effects.eggReveal(playerGui: Instance, eggIndex: number, petId: string)
 end
 
 -- Aura roll: names flicker faster → slower, then the result pops in its rarity colour with "NEW!" / "Lv n!".
-function Effects.auraRoll(playerGui: Instance, id: string, level: number, isNew: boolean)
+function Effects.auraRoll(playerGui: Instance, id: string, level: number, isNew: boolean, onDone: (() -> ())?)
 	local aura = Config.Auras.List[id]
 	if not aura then
+		if onDone then
+			onDone()
+		end
 		return
 	end
 	local rarity = Config.Auras.Rarities[aura.Rarity]
@@ -302,6 +305,9 @@ function Effects.auraRoll(playerGui: Instance, id: string, level: number, isNew:
 		popIn(sub, 0.4, 1, 0.4)
 		task.wait(1.8)
 		fadeOut(gui, 0.35)
+		if onDone then
+			onDone() -- the Auras window comes back while the reveal fades
+		end
 		task.wait(0.4)
 		destroy()
 	end)

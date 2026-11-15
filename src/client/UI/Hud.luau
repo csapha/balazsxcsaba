@@ -64,14 +64,22 @@ local function serverClock(): () -> number
 	return clock
 end
 
-local function menuButton(order: number, name: string, text: string | () -> string, icon: string, color: string)
+-- Centre the visible artwork rather than the uneven transparent margins in these PNGs.
+local MENU_ICON_ANCHORS = {
+	Pets = Vector2.new(185 / 384, 177.5 / 384),
+	Auras = Vector2.new(620 / 1254, 620 / 1254),
+}
+
+local function menuButton(order: number, name: string, text: string | () -> string, icon: string, color: string, iconSize: number?)
 	return Kit.button {
 		Name = name,
 		LayoutOrder = order,
 		Text = text,
 		TextSize = 15,
 		Icon = icon,
-		IconSize = 0.9,
+		IconSize = iconSize or 0.88,
+		IconPosition = UDim2.fromScale(0.5, 0.46),
+		IconAnchorPoint = MENU_ICON_ANCHORS[name],
 		Color = color,
 		Size = UDim2.fromOffset(74, 74),
 		Activated = function()
@@ -103,7 +111,7 @@ local function leftMenu(): Frame
 		end, Ui.Icons.Rebirth, "Green"),
 		menuButton(2, "Index", "Index", Ui.Icons.Index, "Yellow"),
 		menuButton(3, "Pets", "Pets", Ui.Icons.Pets, "Blue"),
-		menuButton(4, "Auras", "Auras", Ui.Icons.Crystal, "Purple"),
+		menuButton(4, "Auras", "Auras", Ui.Icons.Auras, "Purple", 1.02),
 	} :: Frame
 end
 
@@ -304,13 +312,13 @@ local function stats(): Frame
 					Padding = UDim.new(0, 8),
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				},
-				create "TextLabel" {
+				create "ImageLabel" {
 					Name = "Icon",
 					LayoutOrder = 1,
-					Size = UDim2.fromOffset(44, 40),
+					Size = UDim2.fromOffset(44, 44),
 					BackgroundTransparency = 1,
-					Text = "🥩",
-					TextScaled = true,
+					Image = Ui.Icons.Schnitzel,
+					ScaleType = Enum.ScaleType.Fit,
 					Rotation = -10,
 					create "UIScale" { Scale = pop },
 				},
@@ -413,7 +421,13 @@ function Hud.mount(data: any)
 		Effects.eggReveal(playerGui, eggIndex, petId)
 	end)
 	Remotes.AuraRolled.OnClientEvent:Connect(function(id: string, level: number, isNew: boolean)
-		Effects.auraRoll(playerGui, id, level, isNew)
+		State.auraRevealing = true
+		State.lastRolledAura = id
+		State.auraRolling(true)
+		Effects.auraRoll(playerGui, id, level, isNew, function()
+			State.auraRevealing = false
+			State.auraRolling(false)
+		end)
 	end)
 
 	-- GDD 9.4: blurred background while a window is open
@@ -444,7 +458,7 @@ function Hud.mount(data: any)
 			AnimatedWindow("Rebirth", RebirthWindow.render, nil, true),
 			AnimatedWindow("Index", IndexWindow.render, nil, true),
 			AnimatedWindow("Pets", PetsWindow.render, nil, true),
-			AnimatedWindow("Auras", AurasWindow.render, nil, true),
+			AnimatedWindow("Auras", AurasWindow.render, State.auraRolling, true),
 			AnimatedWindow(hasOffline, OfflineWindow.render),
 		}
 	end, playerGui)

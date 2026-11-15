@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
+local NumberFormat = require(Shared.NumberFormat)
 local Ui = require(Shared.Ui)
 local Kit = require(script.Parent.Kit)
 local Motion = require(script.Parent.Motion)
@@ -17,7 +18,8 @@ local source = Vide.source
 
 local C = Theme.Colors
 
-type Entry = { color: Color3, title: string, subtitle: string }
+-- chips: extra facts shown on the right of a row (rows layout only)
+type Entry = { color: Color3, title: string, subtitle: string, chips: { string }? }
 type Category = {
 	id: string,
 	title: string,
@@ -26,6 +28,7 @@ type Category = {
 	attribute: string,
 	bonus: number,
 	columns: number,
+	rows: boolean?, -- one full-width row per entry instead of a card grid (few entries, more to say)
 	entries: { Entry },
 }
 
@@ -60,11 +63,14 @@ local function categories(): { Category }
 	end
 
 	local rarities = {}
-	for index, rarity in Config.Rarities.List do
+	for _, rarity in Config.Rarities.List do
 		table.insert(rarities, {
 			color = rarity.Color,
 			title = rarity.Name,
-			subtitle = if index == 1 then "x1" else `x{rarity.UnitMult} pieces, x{rarity.ValueMult} price`,
+			subtitle = if rarity.Chance > 0
+				then `1 in {NumberFormat.grouped(math.floor(1 / rarity.Chance + 0.5))} bakes`
+				else "Most bakes",
+			chips = { `x{rarity.UnitMult} pieces`, `x{rarity.ValueMult} price` },
 		})
 	end
 
@@ -84,10 +90,10 @@ local function categories(): { Category }
 
 	local bonuses = Config.Index.Bonuses
 	return {
-		{ id = "Ovens", title = "Ovens", icon = Ui.Icons.Energy, color = "Orange", attribute = "IndexOvens", bonus = bonuses.Ovens, columns = 5, entries = ovens },
-		{ id = "Rarities", title = "Schnitzel Rarities", icon = Ui.Icons.Star, color = "Yellow", attribute = "IndexRarities", bonus = bonuses.Rarities, columns = 5, entries = rarities },
+		{ id = "Ovens", title = "Ovens", icon = Ui.Icons.Ovens, color = "Orange", attribute = "IndexOvens", bonus = bonuses.Ovens, columns = 5, entries = ovens },
+		{ id = "Rarities", title = "Schnitzel Rarities", icon = Ui.Icons.Rarities, color = "Yellow", attribute = "IndexRarities", bonus = bonuses.Rarities, columns = 1, rows = true, entries = rarities },
 		{ id = "Pets", title = "Pets", icon = Ui.Icons.Pets, color = "Blue", attribute = "IndexPets", bonus = bonuses.Pets, columns = 4, entries = pets },
-		{ id = "Auras", title = "Auras", icon = Ui.Icons.Crystal, color = "Purple", attribute = "IndexAuras", bonus = bonuses.Auras, columns = 4, entries = auras },
+		{ id = "Auras", title = "Auras", icon = Ui.Icons.Auras, color = "Purple", attribute = "IndexAuras", bonus = bonuses.Auras, columns = 4, entries = auras },
 	}
 end
 
@@ -133,7 +139,7 @@ local function card(order: number, discovered: () -> boolean, entry: Entry): Fra
 			end,
 			TextSize = 17,
 			TextWrapped = true,
-			Position = UDim2.new(0, 6, 0, 8),
+			Position = UDim2.fromOffset(6, 8),
 			Size = UDim2.new(1, -12, 0.55, -8),
 			ZIndex = 3,
 		},
@@ -156,6 +162,128 @@ local function card(order: number, discovered: () -> boolean, entry: Entry): Fra
 	} :: Frame
 end
 
+-- A full-width row: glowing schnitzel, name and how often it bakes, its multipliers as chips on the right.
+-- Undiscovered rows stay dark with "???" (nothing is given away).
+local function row(order: number, discovered: () -> boolean, entry: Entry): Frame
+	local chips = {}
+	for index, text in entry.chips or {} do
+		table.insert(chips, Kit.darkBox {
+			Name = "Chip" .. index,
+			LayoutOrder = index,
+			Size = UDim2.fromOffset(0, 30),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Fill = C.Panel,
+			Line = entry.color,
+			create "UIPadding" { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) },
+			Kit.text {
+				Text = text,
+				TextSize = 17,
+				TextColor3 = C.Lemon,
+				Gradient = false,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromScale(0, 1),
+				ZIndex = 3,
+			},
+		})
+	end
+	return Kit.darkBox {
+		Name = "Row" .. order,
+		LayoutOrder = order,
+		Line = function()
+			return if discovered() then entry.color else C.CardLine
+		end,
+		Fill = function()
+			return if discovered() then entry.color:Lerp(C.Card, 0.78) else C.Card
+		end,
+		create "Frame" {
+			Name = "Badge",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 8, 0.5, 0),
+			Size = UDim2.new(1, -12, 1, -12),
+			SizeConstraint = Enum.SizeConstraint.RelativeYY,
+			BackgroundTransparency = 1,
+			ZIndex = 2,
+			create "ImageLabel" {
+				Name = "Glow",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromScale(1.6, 1.4),
+				BackgroundTransparency = 1,
+				Image = Ui.Textures.Soft,
+				ImageColor3 = entry.color,
+				ImageTransparency = 0.45,
+				Visible = discovered,
+			},
+			create "ImageLabel" {
+				Name = "Icon",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Image = Ui.Icons.Schnitzel,
+				ImageColor3 = entry.color:Lerp(Color3.new(1, 1, 1), 0.55),
+				ScaleType = Enum.ScaleType.Fit,
+				Visible = discovered,
+				ZIndex = 2,
+			},
+			Kit.text {
+				Name = "Mark",
+				Text = "?",
+				TextSize = 30,
+				TextColor3 = C.Muted,
+				Gradient = false,
+				Visible = function()
+					return not discovered()
+				end,
+				ZIndex = 3,
+			},
+		},
+		Kit.text {
+			Name = "Title",
+			Text = function()
+				return if discovered() then entry.title else "???"
+			end,
+			TextSize = 22,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 72, 0.5, 2),
+			Size = UDim2.new(0.55, -72, 0, 26),
+			ZIndex = 3,
+		},
+		Kit.text {
+			Name = "Subtitle",
+			Text = function()
+				return if discovered() then entry.subtitle else "Not found yet"
+			end,
+			TextSize = 15,
+			TextColor3 = function()
+				return if discovered() then entry.color:Lerp(Color3.new(1, 1, 1), 0.35) else C.Muted
+			end,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.new(0, 72, 0.5, 2),
+			Size = UDim2.new(0.55, -72, 0, 18),
+			ZIndex = 3,
+		},
+		create "Frame" {
+			Name = "Chips",
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.new(0.45, 0, 0, 30),
+			BackgroundTransparency = 1,
+			Visible = discovered,
+			ZIndex = 3,
+			create "UIListLayout" {
+				FillDirection = Enum.FillDirection.Horizontal,
+				HorizontalAlignment = Enum.HorizontalAlignment.Right,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				Padding = UDim.new(0, 8),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			chips,
+		},
+	} :: Frame
+end
+
 local function page(category: Category, mask: () -> number, visible: () -> boolean): Frame
 	local total = #category.entries
 	local function found(): number
@@ -167,7 +295,7 @@ local function page(category: Category, mask: () -> number, visible: () -> boole
 	local cards = {}
 	for index, entry in category.entries do
 		local bit = 2 ^ (index - 1)
-		table.insert(cards, card(index, function()
+		table.insert(cards, (if category.rows then row else card)(index, function()
 			return bit32.btest(mask(), bit)
 		end, entry))
 	end
