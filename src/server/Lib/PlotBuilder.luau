@@ -166,7 +166,7 @@ function PlotBuilder.build(index: number, parent: Instance): PlotRefs
 		size = Vector2.new(12, 5.4),
 		lines = {
 			{ name = "Title", height = 0.36 },
-			{ name = "Info", color = Palette.Money, height = 0.3 },
+			{ name = "Info", color = Palette.Money, height = 0.3, icon = Ui.Icons.Schnitzel },
 			{ name = "Xp", color = Palette.Lemon, height = 0.2 },
 		},
 	})
@@ -271,7 +271,7 @@ function PlotBuilder.build(index: number, parent: Instance): PlotRefs
 			part,
 			labelHeight,
 			pad.LabelWidth or math.max(pad.Size.X, 7),
-			if key == "Pickup" then Ui.Icons.Schnitzel else nil
+			if key == "Pickup" or key == "Deposit" then Ui.Icons.Schnitzel else nil
 		)
 		labels.Title.Text = pad.Title
 		refs.labels[key] = labels

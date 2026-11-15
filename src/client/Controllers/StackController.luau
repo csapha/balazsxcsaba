@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -24,6 +25,7 @@ local MAX_PIECES = 24
 local PIECE_SIZE = Vector3.new(1.6, 0.28, 1.2)
 local GAP = 0.04
 local HEAD_OFFSET = 1.1
+local LABEL_SIZE = Vector2.new(5, 1.1) -- a fej feletti számláló mérete studban
 
 type Tower = {
 	pieces: { BasePart },
@@ -80,20 +82,44 @@ local function getTower(player: Player): Tower
 	anchor.Parent = folder
 
 	local label = Instance.new("BillboardGui")
-	label.Size = UDim2.fromScale(5, 1.1)
+	label.Size = UDim2.fromScale(LABEL_SIZE.X, LABEL_SIZE.Y)
 	label.StudsOffsetWorldSpace = Vector3.new(0, 0.8, 0)
 	label.LightInfluence = 0
 	label.MaxDistance = 80
 	label.Adornee = anchor
+	-- schnitzel ikon + szám egy sorban, középre igazítva
+	local row = Instance.new("Frame")
+	row.Name = "Row"
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.fromScale(1, 1)
+	row.Parent = label
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Padding = UDim.new(0.02, 0)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = row
+	local icon = Ui.icon(Ui.Icons.Schnitzel, 0)
+	icon.LayoutOrder = 1
+	icon.Size = UDim2.fromScale(LABEL_SIZE.Y / LABEL_SIZE.X * 0.9, 0.9)
+	icon.Parent = row
 	local text = Instance.new("TextLabel")
 	text.Name = "Count"
+	text.LayoutOrder = 2
 	text.BackgroundTransparency = 1
-	text.Size = UDim2.fromScale(1, 1)
+	text.Size = UDim2.fromScale(0.5, 1)
 	text.Font = Enum.Font.FredokaOne
 	text.TextScaled = true
 	text.TextColor3 = Palette.Gold
 	Ui.worldText(text)
-	text.Parent = label
+	text:GetPropertyChangedSignal("Text"):Connect(function()
+		-- a szöveg szélessége a hosszához igazodik, hogy az ikon mellette maradjon
+		local bounds = TextService:GetTextSize(text.Text, 100, Enum.Font.FredokaOne, Vector2.new(100000, 1000))
+		local width = LABEL_SIZE.Y * bounds.X / math.max(bounds.Y, 1)
+		text.Size = UDim2.fromScale(math.min(width / LABEL_SIZE.X, 0.75), 1)
+	end)
+	text.Parent = row
 	label.Parent = anchor
 
 	tower = { pieces = {}, label = label, count = 0 }
@@ -153,8 +179,8 @@ local function update()
 
 		local anchor = tower.label.Adornee :: BasePart
 		anchor.CFrame = top
-		local countLabel = tower.label:FindFirstChild("Count") :: TextLabel
-		countLabel.Text = `🥩 {NumberFormat.short(carried)}`
+		local countLabel = tower.label:FindFirstChild("Count", true) :: TextLabel
+		countLabel.Text = NumberFormat.short(carried)
 		-- a saját számunkat a HUD mutatja, a fej felett csak másoknak írjuk ki
 		tower.label.Enabled = player ~= Players.LocalPlayer
 	end

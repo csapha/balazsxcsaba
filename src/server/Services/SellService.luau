@@ -294,11 +294,13 @@ local function render(state: PlotService.PlotState, raw: any)
 	labels.Counter.Title.Text = if bonusPercent > 0
 		then `Counter {NumberFormat.short(rate)}/s, +{bonusPercent}% price`
 		else `Counter {NumberFormat.short(rate)}/s`
+	labels.Counter.Info:SetAttribute("ShowIcon", raw.counterStock > 0)
 	labels.Counter.Info.Text = if raw.counterStock > 0
-		then `🥩 {NumberFormat.grouped(raw.counterStock)} ({NumberFormat.money(raw.counterValue)})`
+		then `{NumberFormat.grouped(raw.counterStock)} ({NumberFormat.money(raw.counterValue)})`
 		else "Empty! Bring schnitzel"
+	labels.Deposit.Info:SetAttribute("ShowIcon", raw.carried > 0)
 	labels.Deposit.Info.Text = if raw.carried > 0
-		then `🥩 {NumberFormat.grouped(raw.carried)} ({NumberFormat.money(raw.carriedValue)})`
+		then `{NumberFormat.grouped(raw.carried)} ({NumberFormat.money(raw.carriedValue)})`
 		else ""
 
 	labels.Collect.Info.Text = NumberFormat.money(raw.moneyPile)
