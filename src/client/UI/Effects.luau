@@ -157,13 +157,100 @@ function Effects.rebirth(playerGui: Instance, rebirths: number, multiplier: numb
 	end)
 end
 
+-- Shop purchase (GDD 5): sunburst in the item's colour, the icon pops in, "THANK YOU!" + what you got, sparkles.
+function Effects.purchase(playerGui: Instance, icon: string, title: string, message: string, color: string?)
+	local gui, stage, destroy = overlay(playerGui, "PurchaseEffect", 0.55)
+	local palette = Theme.Palettes[color or "Yellow"] or Theme.Palettes.Yellow
+	Audio.play("Victory")
+	sunburst(stage, palette.top, 560)
+
+	local image = Instance.new("ImageLabel")
+	image.Name = "Item"
+	image.AnchorPoint = Vector2.new(0.5, 0.5)
+	image.Position = UDim2.fromScale(0.5, 0.4)
+	image.Size = UDim2.fromOffset(190, 190)
+	image.BackgroundTransparency = 1
+	image.Image = icon
+	image.ScaleType = Enum.ScaleType.Fit
+	image.Rotation = -8
+	image.ZIndex = 3
+	image.Parent = stage
+	popIn(image, 0.2, 1, 0.55)
+	TweenService:Create(image, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Rotation = 8,
+	}):Play()
+
+	local heading, line
+	build(gui, function()
+		heading = Kit.text {
+			Text = title,
+			TextSize = 56,
+			StrokeThickness = 5,
+			Gradient = ColorSequence.new(palette.light, palette.top),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.62),
+			Size = UDim2.fromOffset(900, 64),
+			ZIndex = 3,
+			Parent = stage,
+		}
+		line = Kit.text {
+			Text = message,
+			TextSize = 36,
+			StrokeThickness = 4,
+			StrokeColor = C.MoneyStroke,
+			Gradient = ColorSequence.new(C.MoneyTop, C.MoneyBottom),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.72),
+			Size = UDim2.fromOffset(900, 44),
+			ZIndex = 3,
+			Parent = stage,
+		}
+	end)
+	popIn(heading, 0.3, 1, 0.5)
+	task.delay(0.15, function()
+		popIn(line, 0.3, 1, 0.45)
+		Audio.play("Coins")
+		Kit.burst(stage, UDim2.fromScale(0.5, 0.4), palette.light, 16, 2)
+	end)
+	task.delay(2.1, function()
+		fadeOut(gui, 0.45)
+		task.delay(0.5, destroy)
+	end)
+end
+
 -- Egg reveal: the egg shakes, bursts open, the pet card pops out in its rarity colour.
-function Effects.eggReveal(playerGui: Instance, eggIndex: number, petId: string)
-	local egg = Config.Pets.Eggs[eggIndex]
-	local pet = Config.Pets.List[petId]
-	if not egg or not pet then
+-- Several reveals (Fast Egg x3, Golden Egg x3 / x10) play one after another, not on top of each other.
+local revealQueue: { () -> () } = {}
+local revealing = false
+local function nextReveal()
+	local run = table.remove(revealQueue, 1)
+	if not run then
+		revealing = false
 		return
 	end
+	revealing = true
+	run()
+end
+
+-- eggIndex 0 = the Golden Egg (Robux). fast: shorter shake and card (Fast Egg gamepass, multi-open).
+function Effects.eggReveal(playerGui: Instance, eggIndex: number, petId: string, fast: boolean?)
+	table.insert(revealQueue, function()
+		Effects.eggRevealNow(playerGui, eggIndex, petId, fast, nextReveal)
+	end)
+	if not revealing then
+		nextReveal()
+	end
+end
+
+function Effects.eggRevealNow(playerGui: Instance, eggIndex: number, petId: string, fast: boolean?, onDone: () -> ())
+	local egg = if eggIndex == 0 then Config.Pets.RobuxEgg else Config.Pets.Eggs[eggIndex]
+	local pet = Config.Pets.List[petId]
+	if not egg or not pet then
+		onDone()
+		return
+	end
+	local shakes = if fast then 5 else 14
+	local hold = if fast then 0.9 else 2.2
 	local rarity = Config.Pets.Rarities[pet.Rarity]
 	local gui, stage, destroy = overlay(playerGui, "EggReveal")
 
@@ -188,7 +275,7 @@ function Effects.eggReveal(playerGui: Instance, eggIndex: number, petId: string)
 	popIn(eggFrame, 0.4, 1, 0.35)
 
 	task.spawn(function()
-		for i = 1, 14 do
+		for i = 1, shakes do
 			eggFrame.Rotation = (if i % 2 == 0 then 1 else -1) * (4 + i)
 			if i % 3 == 0 then
 				Audio.play("Tick")
@@ -244,10 +331,11 @@ function Effects.eggReveal(playerGui: Instance, eggIndex: number, petId: string)
 			}
 		end)
 		popIn(card, 0.3, 1, 0.45)
-		task.wait(2.2)
+		task.wait(hold)
 		fadeOut(gui, 0.35)
 		task.wait(0.4)
 		destroy()
+		onDone()
 	end)
 end
 

@@ -233,7 +233,8 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 			Adornee = adornee :: any,
 			-- Offset size: fixed pixels regardless of zoom and distance.
 			Size = UDim2.fromOffset(CANVAS.X, CANVAS.Y),
-			StudsOffsetWorldSpace = Vector3.new(0, 1.5, 0),
+			-- "Row" attribute: several prompts on one part (e.g. Open / Open 3 / Fast Open on an egg) stack downwards
+			StudsOffsetWorldSpace = Vector3.new(0, 1.5 - (prompt:GetAttribute("Row") or 0) * 2, 0),
 			AlwaysOnTop = true,
 			LightInfluence = 0,
 			Active = true,

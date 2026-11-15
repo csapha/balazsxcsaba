@@ -1,7 +1,8 @@
 -- GDD 9.3: active multipliers, bottom right. One chip per kind (money, bake speed, luck, chef speed, event);
 -- hover / tap shows where the value comes from. Money is always shown, the others only while they are active.
 -- The money total is the same product the server uses when the counter sells (SellService.sellTick):
--- counter level × rebirth × (1 + pets & aura) × (1 + rebirth tree) × Index × Friend Boost.
+-- counter level × rebirth × (1 + pets & aura) × (1 + rebirth tree) × Shop (passes, boosts, group) × Index × Friend Boost.
+-- Bake speed and luck: (1 + pets & aura) × gamepass × timed boost (Formulas.bakeInterval / Formulas.luck).
 -- On touch the row sits above Roblox's jump button.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,6 +30,10 @@ local GAP = 10
 
 local Multipliers = {}
 
+-- How far the top of the row is from the bottom of the screen (px), so other bottom-right UI can sit above it
+-- (UI/OfferToast).
+Multipliers.top = source(14 + CHIP)
+
 -- x1.25, x12.5, x150, x1.2K
 local function times(value: number): string
 	if value >= 1000 then
@@ -44,6 +49,36 @@ end
 
 local function percent(value: number): string
 	return `+{math.round(value * 100)}%`
+end
+
+local function countdown(seconds: number): string
+	seconds = math.max(0, math.ceil(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, seconds % 3600 // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+-- The Shop part of a multiplier: a gamepass and / or a timed boost (Config.Shop), as tooltip lines.
+-- now: server time (the boosts' expiry is os.time() on the server).
+local function shopFactor(lines: { any }, now: number, passKey: string?, boostKey: string?): number
+	local shop = Config.Shop
+	local data = { passes = State.passes(), timedBoosts = State.timedBoosts() }
+	local factor = 1
+	if passKey and Formulas.hasPass(data, passKey) then
+		local value = shop.PassEffects[passKey]
+		factor *= value
+		table.insert(lines, { label = `{shop.Passes[passKey].Name} pass`, value = times(value) })
+	end
+	if boostKey then
+		local remaining = Formulas.boostRemaining(data, boostKey, now)
+		if remaining > 0 then
+			local value = shop.BoostEffects[boostKey]
+			factor *= value
+			table.insert(lines, { label = `{shop.BoostNames[boostKey]} boost ({countdown(remaining)})`, value = times(value) })
+		end
+	end
+	return factor
 end
 
 -- A Vide source that follows a player attribute.
@@ -186,6 +221,9 @@ function Multipliers.render(clock: () -> number): Frame
 	local indexPets = attribute("IndexPets")
 	local indexAuras = attribute("IndexAuras")
 	local lift = touchLift()
+	Vide.effect(function()
+		Multipliers.top(14 + lift() + CHIP * Kit.screenScale())
+	end)
 
 	-- money: every factor of the sale, as lines for the tooltip and their product
 	local function money(): (number, { Line })
@@ -220,6 +258,16 @@ function Multipliers.render(clock: () -> number): Frame
 			table.insert(lines, { label = "Rebirth tree", value = percent(tree) })
 		end
 
+		-- Shop (Formulas.shopMoneyMultiplier): x2 Money pass, VIP, x2 Money boost, group
+		local now = clock()
+		total *= shopFactor(lines, now, "DoubleMoney", "Money")
+		total *= shopFactor(lines, now, "VIP", nil)
+		if State.shop().inGroup then
+			local bonus = Config.Shop.Group.MoneyBonus
+			total *= 1 + bonus
+			table.insert(lines, { label = "Group", value = percent(bonus) })
+		end
+
 		local index = Formulas.indexMoneyBonus({
 			Ovens = indexOvens(),
 			Rarities = indexRarities(),
@@ -239,7 +287,11 @@ function Multipliers.render(clock: () -> number): Frame
 		return total, lines
 	end
 
-	-- bake speed / luck / chef speed: pets + aura
+	-- bake speed / luck / chef speed: pets + aura, then the Shop's gamepass and timed boost
+	local SHOP_KEYS = {
+		BakeSpeed = { pass = "DoubleBake", boost = "Bake" },
+		Luck = { pass = "Lucky", boost = "Luck" },
+	}
 	local function boost(kind: string): (number, { Line })
 		local pets, aura, auraName = petAndAura()
 		local lines = {}
@@ -249,7 +301,12 @@ function Multipliers.render(clock: () -> number): Frame
 		if aura[kind] > 0 then
 			table.insert(lines, { label = auraName or "Aura", value = percent(aura[kind]) })
 		end
-		return 1 + pets[kind] + aura[kind], lines
+		local total = 1 + pets[kind] + aura[kind]
+		local keys = SHOP_KEYS[kind]
+		if keys then
+			total *= shopFactor(lines, clock(), keys.pass, keys.boost)
+		end
+		return total, lines
 	end
 
 	local function event(): any?

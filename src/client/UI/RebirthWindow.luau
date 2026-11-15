@@ -15,6 +15,7 @@ local Kit = require(script.Parent.Kit)
 local Motion = require(script.Parent.Motion)
 local State = require(script.Parent.State)
 local Theme = require(script.Parent.Theme)
+local ShopWindow = require(script.Parent.ShopWindow)
 
 local create = Vide.create
 local source = Vide.source
@@ -226,6 +227,7 @@ end
 
 local RULES_H = 70
 local BUTTON_H = 70
+local SKIP_W = 190 -- the Rebirth Skip button next to REBIRTH
 
 local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 	local confirming = source(false)
@@ -238,6 +240,18 @@ local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 	for i = 1, MAX_REWARDS do
 		table.insert(tiles, rewardTile(i))
 	end
+	local function skipReady(): boolean
+		return Formulas.rebirthSkipReady({ cycleEarned = State.earned(), rebirths = State.rebirths() })
+	end
+	local skipTipEvents, skipTip = Kit.tooltip {
+		Title = "Rebirth Skip",
+		Color = Theme.Palettes.Purple.light,
+		Text = function()
+			local min = math.floor(Config.Shop.RebirthSkip.MinProgress * 100 + 0.5)
+			return `Get the rebirth reward now and KEEP your ovens and money.\nFrom {min}% progress.`
+		end,
+		AlignX = 1,
+	}
 	return create "Frame" {
 		Name = "RebirthPage",
 		Size = UDim2.fromScale(1, 1),
@@ -310,11 +324,41 @@ local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 				return `Tokens ({State.tokens()}), slots, pets, auras, Index, perks`
 			end),
 		},
+		-- GDD 6.3 Rebirth Skip (Robux, decision 2026-11-15): the rebirth reward WITHOUT the reset (ovens, money and
+		-- generation stay), from MinProgress of the requirement; the price follows the next rebirth's number.
+		create "Frame" {
+			Name = "Skip",
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, 0, 1, -4),
+			Size = UDim2.fromOffset(SKIP_W, 56),
+			BackgroundTransparency = 1,
+			skipTipEvents,
+			skipTip,
+			Kit.button {
+				Name = "SkipButton",
+				Size = UDim2.fromScale(1, 1),
+				TextSize = 20,
+				Bounce = 0.4,
+				Color = function()
+					return if skipReady() then "Purple" else "Gray"
+				end,
+				Text = function()
+					return `SKIP · R$ {ShopWindow.productPrice(Formulas.rebirthSkipProduct(State.rebirths()))}`
+				end,
+				Activated = function()
+					if skipReady() then
+						Remotes.ShopBuy:FireServer("Product", Formulas.rebirthSkipProduct(State.rebirths()))
+					else
+						Audio.play("Error")
+					end
+				end,
+			},
+		},
 		Kit.button {
 			Name = "RebirthButton",
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -4),
-			Size = UDim2.new(1, 0, 0, 56), -- full width, in line with the tiles and boxes above
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 0, 1, -4),
+			Size = UDim2.new(1, -SKIP_W - 10, 0, 56), -- the rest of the width, next to the Skip button
 			TextSize = 32,
 			Bounce = 0.25, -- a full-width button only bounces a little, so it stays inside the window
 			Color = function()

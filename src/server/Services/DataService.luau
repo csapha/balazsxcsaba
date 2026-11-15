@@ -1,5 +1,6 @@
 -- Mentés (ProfileStore a DataServiceTyped-en keresztül) + leaderstats (GDD 8: szerver ranglista).
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -99,6 +100,18 @@ function DataService.migrate(data: any): any
 		end
 	end
 	data.lastOnline = now
+
+	-- GDD 5.1: a Kezdőcsomag időzítője az első belépéstől fut
+	if data.shop.firstJoin == 0 then
+		data.shop.firstJoin = now
+	end
+
+	-- GDD 7: a tutorial előtti mentés (már van haladás) → a tutorial kész; Studióban kikapcsolható
+	local tutorial = data.tutorial
+	local studioOff = RunService:IsStudio() and not Config.Tutorial.StudioEnabled
+	if not tutorial.done and tutorial.step == "" and (data.ovensBought > 0 or data.rebirths > 0 or studioOff) then
+		tutorial.done = true
+	end
 	return data
 end
 

@@ -24,6 +24,11 @@ local indexes = Vide.indexes
 local C = Theme.Colors
 local PetConfig = Config.Pets
 
+-- active pet slots (3, or 4 with the "+1 Pet Slot" gamepass – GDD 6.2)
+local function petSlots(): number
+	return Formulas.petSlots({ passes = State.passes() })
+end
+
 local LEFT_W = 250
 local GAP = 12
 local CARD_W = 108
@@ -175,7 +180,7 @@ local function detail(selectedPet: () -> State.Pet?, selected: (number?) -> numb
 		return if pet.golden then Config.Palette.RarityGold else rarityOf(pet.id).Color
 	end
 	local function full(): boolean
-		return #State.pets().equipped >= PetConfig.ActiveSlots
+		return #State.pets().equipped >= petSlots()
 	end
 	return Kit.darkBox {
 		Name = "Detail",
@@ -309,7 +314,7 @@ local function detail(selectedPet: () -> State.Pet?, selected: (number?) -> numb
 					if pet and isEquipped(pet.uid) then
 						return "UNEQUIP"
 					end
-					return if full() then `FULL ({PetConfig.ActiveSlots}/{PetConfig.ActiveSlots})` else "EQUIP"
+					return if full() then `FULL ({petSlots()}/{petSlots()})` else "EQUIP"
 				end,
 				Activated = function()
 					local pet = selectedPet()
@@ -572,7 +577,7 @@ function PetsWindow.render(anim: Motion.Anim)
 					Name = "Active",
 					LayoutOrder = 1,
 					Text = function()
-						return `Active {#State.pets().equipped}/{PetConfig.ActiveSlots}`
+						return `Active {#State.pets().equipped}/{petSlots()}`
 					end,
 					TextSize = 18,
 					TextScaled = true,

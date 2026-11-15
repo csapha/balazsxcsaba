@@ -16,6 +16,7 @@ local AnalyticsService = require(script.Parent.AnalyticsService)
 local EventState = require(ReplicatedStorage.Shared.EventState)
 local PlotService = require(script.Parent.PlotService)
 local SellService = require(script.Parent.SellService)
+local TutorialService = require(script.Parent.TutorialService)
 
 local Settings = Config.Chefs
 local Palette = Config.Palette
@@ -140,10 +141,17 @@ local function wake(chef: Chef, raw: any, now: number, byPlayer: boolean)
 end
 
 local function tickChef(state: PlotService.PlotState, chef: Chef, raw: any, now: number, count: number)
-	if chef.phase ~= "sleep" then
+	-- GDD 6.2–6.3: Tireless Chefs gamepass / Chef Energy Drink → nem alszanak el (az alvót rögtön felkeltjük)
+	if Formulas.chefsTireless(raw) then
+		if chef.phase == "sleep" then
+			wake(chef, raw, now, false)
+		end
+		chef.stamina = math.max(chef.stamina, TICK)
+	elseif chef.phase ~= "sleep" then
 		chef.stamina -= TICK
 		if chef.stamina <= 0 then
 			fallAsleep(chef, now)
+			TutorialService.event(state.player, "ChefAsleep") -- GDD 7.3: "Wake him up!" (csak egyszer)
 			return
 		end
 	end
@@ -176,6 +184,7 @@ local function tickChef(state: PlotService.PlotState, chef: Chef, raw: any, now:
 		walk(chef, raw, "toCollector", chef.to, collector, now)
 	elseif chef.phase == "sleep" then
 		wake(chef, raw, now, false)
+		TutorialService.event(state.player, "ChefWoken") -- magától felkelt
 	end
 end
 
@@ -232,10 +241,12 @@ function ChefService.hire(state: PlotService.PlotState): boolean
 	local data = state.data
 	local raw = data()
 	local count = raw.chefs.count
-	if count >= Formulas.maxChefs(raw.rebirths) then
+	if count >= Formulas.maxChefs(raw.rebirths, raw) then
 		return false
 	end
-	local price = Formulas.chefHirePrice(count)
+	-- GDD 7.3: az ajándék chef (a tutorial "ChefGift" lépésében) ingyen jár
+	local free = TutorialService.chefFree(raw)
+	local price = if free then 0 else Formulas.chefHirePrice(count)
 	if raw.money < price then
 		return false
 	end
@@ -243,6 +254,9 @@ function ChefService.hire(state: PlotService.PlotState): boolean
 	AnalyticsService.sink(state.player, price, "Shop", "ChefHire")
 	AnalyticsService.step(state.player, "FirstChef")
 	data.chefs.count(count + 1)
+	if free then
+		TutorialService.event(state.player, "ChefHired")
+	end
 	return true
 end
 
@@ -280,15 +294,20 @@ local function render(state: PlotService.PlotState, raw: any)
 
 	local count = raw.chefs.count
 	local hire = labels.ChefHire
-	if count >= Formulas.maxChefs(raw.rebirths) then
-		hire.Title.Text = `Chefs: {count}/{Formulas.maxChefs(raw.rebirths)}`
+	if count >= Formulas.maxChefs(raw.rebirths, raw) then
+		hire.Title.Text = `Chefs: {count}/{Formulas.maxChefs(raw.rebirths, raw)}`
 		hire.Info.Text = "MAX"
 		hire.Info.TextColor3 = Palette.Lemon
 	else
 		local price = Formulas.chefHirePrice(count)
-		hire.Title.Text = `+1 Chef ({count}/{Formulas.maxChefs(raw.rebirths)})`
-		hire.Info.Text = NumberFormat.money(price)
-		hire.Info.TextColor3 = if raw.money >= price then Palette.Money else Palette.Danger
+		hire.Title.Text = `+1 Chef ({count}/{Formulas.maxChefs(raw.rebirths, raw)})`
+		if TutorialService.chefFree(raw) then
+			hire.Info.Text = "FREE" -- GDD 7.3 ajándék chef
+			hire.Info.TextColor3 = Palette.Money
+		else
+			hire.Info.Text = NumberFormat.money(price)
+			hire.Info.TextColor3 = if raw.money >= price then Palette.Money else Palette.Danger
+		end
 	end
 
 	for key, pad in Pads do
@@ -337,6 +356,7 @@ local function onWake(player: Player, chefIndex: unknown)
 	end
 
 	wake(chef, state.data(), workspace:GetServerTimeNow(), true)
+	TutorialService.event(player, "ChefWoken")
 	Remotes.ChefWoke:FireAllClients(state.plot.index, chef.index)
 end
 

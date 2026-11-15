@@ -147,23 +147,39 @@ function Formulas.chefStatPrice(stat: string, level: number): number
 end
 
 -- GDD 3.9: tojás dobás – súlyozott véletlen pet a tojás listájából. Visszaad: pet id.
-function Formulas.rollEgg(rng: Random, eggIndex: number): string?
-	local egg = Config.Pets.Eggs[eggIndex]
+-- luck (opcionális, pl. VIP terület 1.1): a legelső (leggyakoribb) kivételével minden pet súlya ×luck.
+function Formulas.rollEgg(rng: Random, eggIndex: number, luck: number?): string?
+	local egg = if eggIndex == 0 then Config.Pets.RobuxEgg else Config.Pets.Eggs[eggIndex] -- 0: Golden Egg (Robux)
 	if not egg then
 		return nil
 	end
+	local function weight(index: number, entry: any): number
+		return if index > 1 then entry[2] * (luck or 1) else entry[2]
+	end
 	local total = 0
-	for _, entry in egg.Pets do
-		total += entry[2]
+	for index, entry in egg.Pets do
+		total += weight(index, entry)
 	end
 	local roll = rng:NextNumber() * total
-	for _, entry in egg.Pets do
-		roll -= entry[2]
+	for index, entry in egg.Pets do
+		roll -= weight(index, entry)
 		if roll < 0 then
 			return entry[1]
 		end
 	end
 	return egg.Pets[#egg.Pets][1]
+end
+
+-- GDD 6.2 VIP terület a Tojás téren (a tojások mögött): közép (világ) és méret (X, Z).
+function Formulas.vipArea(): (Vector3, Vector2)
+	local area = Config.Shop.Vip.Area
+	return Config.Pets.Plaza.Center + area.Offset, area.Size
+end
+
+function Formulas.insideVipArea(position: Vector3): boolean
+	local center, size = Formulas.vipArea()
+	local offset = position - center
+	return math.abs(offset.X) <= size.X / 2 and math.abs(offset.Z) <= size.Y / 2
 end
 
 -- Pult: ennyi XP kell a `level` → `level + 1` szintlépéshez.
@@ -207,23 +223,127 @@ function Formulas.rebirthSlots(rebirths: number): number
 	)
 end
 
--- Max chefek száma (alap + rebirth bónuszok).
-function Formulas.maxChefs(rebirths: number): number
+-- GDD 6.2: van-e a játékosnak ilyen gamepassa (data.passes, a ShopService tölti).
+function Formulas.hasPass(data: any, key: string): boolean
+	local passes = data and data.passes
+	return passes ~= nil and passes[key] == true
+end
+
+-- GDD 6.3: időszakos boost hátralévő ideje (mp, 0 = nem aktív). now: os.time().
+function Formulas.boostRemaining(data: any, key: string, now: number?): number
+	local boosts = data and data.timedBoosts
+	local expires = if boosts then boosts[key] else nil
+	if not expires then
+		return 0
+	end
+	return math.max(0, expires - (now or os.time()))
+end
+
+function Formulas.boostActive(data: any, key: string, now: number?): boolean
+	return Formulas.boostRemaining(data, key, now) > 0
+end
+
+-- A Shop pénzszorzója: x2 Money pass, VIP, x2 Money boost.
+function Formulas.shopMoneyMultiplier(data: any): number
+	local shop = Config.Shop
+	local multiplier = 1
+	if Formulas.hasPass(data, "DoubleMoney") then
+		multiplier *= shop.PassEffects.DoubleMoney
+	end
+	if Formulas.hasPass(data, "VIP") then
+		multiplier *= shop.PassEffects.VIP
+	end
+	if Formulas.boostActive(data, "Money") then
+		multiplier *= shop.BoostEffects.Money
+	end
+	-- GDD 6.4: csoporttagoknak +10%
+	if data and data.shop and data.shop.inGroup then
+		multiplier *= 1 + shop.Group.MoneyBonus
+	end
+	return multiplier
+end
+
+-- Rebirth Skip (döntés 2026-11-15): az aktuális lépcső terméke (a következő rebirth sorszáma szerint),
+-- és hogy most vehető-e (a követelmény legalább MinProgress része megvan).
+function Formulas.rebirthSkipProduct(rebirths: number): string
+	local upcoming = rebirths + 1
+	for _, tier in Config.Shop.RebirthSkip.Tiers do
+		if upcoming <= tier.UpTo then
+			return tier.Product
+		end
+	end
+	return Config.Shop.RebirthSkip.Tiers[#Config.Shop.RebirthSkip.Tiers].Product
+end
+
+function Formulas.rebirthSkipReady(data: any): boolean
+	local progress = data.cycleEarned / Formulas.rebirthRequirement(data.rebirths)
+	return progress >= Config.Shop.RebirthSkip.MinProgress
+end
+
+-- Max chefek száma (alap + rebirth bónuszok + "+2 Chef Slots" gamepass).
+function Formulas.maxChefs(rebirths: number, data: any?): number
 	local max = Config.Chefs.MaxChefs
 	for required, bonus in Config.Rebirth.ChefBonus do
 		if rebirths >= required then
 			max += bonus
 		end
 	end
+	if Formulas.hasPass(data, "ChefSlots") then
+		max += Config.Shop.PassEffects.ChefSlots
+	end
 	return max
 end
 
--- Eladáskori pénzszorzó: pult szint × rebirth. Később: pet, gamepass, event (GDD 4.1).
+-- Aktív pet helyek ("+1 Pet Slot" gamepass).
+function Formulas.petSlots(data: any): number
+	local slots = Config.Pets.ActiveSlots
+	if Formulas.hasPass(data, "PetSlot") then
+		slots += Config.Shop.PassEffects.PetSlot
+	end
+	return slots
+end
+
+-- A chefek nem alszanak el (Tireless Chefs gamepass vagy Chef Energy Drink boost).
+function Formulas.chefsTireless(data: any): boolean
+	return Formulas.hasPass(data, "TirelessChefs") or Formulas.boostActive(data, "ChefEnergy")
+end
+
+-- Ritkaság-szerencse (1 = alap): pet / aura bónusz × Lucky gamepass × x2 Luck boost.
+function Formulas.luck(data: any): number
+	local luck = 1 + Formulas.boosts(data).Luck
+	if Formulas.hasPass(data, "Lucky") then
+		luck *= Config.Shop.PassEffects.Lucky
+	end
+	if Formulas.boostActive(data, "Luck") then
+		luck *= Config.Shop.BoostEffects.Luck
+	end
+	return luck
+end
+
+-- GDD 5.1: a Kezdőcsomag hátralévő ideje (mp, 0 = már nem vehető).
+function Formulas.starterRemaining(data: any, now: number?): number
+	local shop = data and data.shop
+	if not shop or shop.starterBought or shop.firstJoin <= 0 then
+		return 0
+	end
+	return math.max(0, shop.firstJoin + Config.Shop.StarterDays * 86400 - (now or os.time()))
+end
+
+-- GDD 5.1: a mai napi akció (UTC naponta vált) és a következő váltásig hátralévő mp.
+function Formulas.dailyDeal(now: number?): (number, number)
+	local t = now or os.time()
+	local day = t // 86400
+	local deals = Config.Shop.Deals
+	return day % #deals + 1, (day + 1) * 86400 - t
+end
+
+-- Eladáskori pénzszorzó: pult szint × rebirth × pet / aura × rebirth-fa × Shop (gamepass, boost).
 function Formulas.moneyMultiplier(data: any): number
 	return Formulas.counterPriceMultiplier(data.counter.level)
 		* Formulas.rebirthMultiplier(data.rebirths)
 		* (1 + Formulas.boosts(data).Money)
 		* (1 + Formulas.perkValue(data, "Money"))
+		* Formulas.shopMoneyMultiplier(data)
 end
 
 -- GDD 3.11: Index pénzbónusz a teljesített kategóriákból (1 = nincs bónusz).
@@ -269,12 +389,21 @@ function Formulas.perkValue(data: any, perk: string): number
 end
 
 -- GDD 3.13: offline arány és max idő (a rebirth-fával nő).
+-- (+ "Offline x2 + 12h" gamepass: x2 arány, +10 óra)
 function Formulas.offlineRate(data: any): number
-	return Config.Offline.BaseRate + Formulas.perkValue(data, "OfflineRate")
+	local rate = Config.Offline.BaseRate + Formulas.perkValue(data, "OfflineRate")
+	if Formulas.hasPass(data, "OfflineBoost") then
+		rate *= Config.Shop.PassEffects.OfflineRate
+	end
+	return rate
 end
 
 function Formulas.offlineMaxSeconds(data: any): number
-	return Config.Offline.BaseMaxSeconds + Formulas.perkValue(data, "OfflineTime")
+	local seconds = Config.Offline.BaseMaxSeconds + Formulas.perkValue(data, "OfflineTime")
+	if Formulas.hasPass(data, "OfflineBoost") then
+		seconds += Config.Shop.PassEffects.OfflineExtraSeconds
+	end
+	return seconds
 end
 
 -- Offline kereset `seconds` távollét után: becsült bevétel × arány × min(idő, max). Visszaad: pénz, számolt mp.
@@ -360,9 +489,16 @@ function Formulas.petBonusValue(id: string, golden: boolean): number
 	return definition.Value * (if golden then Config.Pets.GoldenMultiplier else 1)
 end
 
--- Sütési idő (mp) a pet "Sütés" bónuszával: BakeInterval / (1 + bónusz).
+-- Sütési idő (mp) a pet "Sütés" bónuszával: BakeInterval / (1 + bónusz), és a Shop: x2 Baking pass / boost.
 function Formulas.bakeInterval(data: any): number
-	return Ovens.BakeInterval / (1 + Formulas.boosts(data).BakeSpeed)
+	local speed = 1 + Formulas.boosts(data).BakeSpeed
+	if Formulas.hasPass(data, "DoubleBake") then
+		speed *= Config.Shop.PassEffects.DoubleBake
+	end
+	if Formulas.boostActive(data, "Bake") then
+		speed *= Config.Shop.BoostEffects.Bake
+	end
+	return Ovens.BakeInterval / speed
 end
 
 -- Csillagok (döntés 2026-11-12): a Lv15 sütő csillagonként +Bonus értéket ad (csak a max szinten számít).
@@ -378,7 +514,7 @@ end
 -- A szorzók benne vannak, így minden rebirth után ugyanannyi ideig tart a csillagozás.
 function Formulas.starPrice(data: any, stars: number): number
 	local settings = Ovens.Stars
-	local rarity = Formulas.rarityValueMultiplier(1 + Formulas.boosts(data).Luck)
+	local rarity = Formulas.rarityValueMultiplier(Formulas.luck(data))
 	local perSecond = Formulas.batchValue(Formulas.maxLevel()) / Formulas.bakeInterval(data)
 		* Formulas.moneyMultiplier(data)
 		* rarity

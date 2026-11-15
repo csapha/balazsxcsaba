@@ -13,6 +13,8 @@ export type Daily = { streak: number, lastDay: number }
 export type Playtime = { day: number, seconds: number, claimed: number }
 local Settings = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Settings"))
 export type Settings = Settings.Settings
+export type ShopData = { firstJoin: number, starterBought: boolean, toasts: { [string]: boolean }, inGroup: boolean? }
+export type Cosmetics = { owned: { [string]: boolean }, trail: string, theme: string }
 
 local State = {
 	window = source(nil :: string?),
@@ -44,6 +46,15 @@ local State = {
 	loaded = source(false),
 	-- server time (workspace:GetServerTimeNow()), ticks twice a second: reward days and countdowns
 	now = source(workspace:GetServerTimeNow()),
+
+	-- Shop (GDD 5–6): owned gamepasses, timed boosts (key → expiry, os.time), starter pack, offer toasts
+	passes = source({} :: { [string]: boolean }),
+	timedBoosts = source({} :: { [string]: number }),
+	shop = source({ firstJoin = 0, starterBought = false, toasts = {} } :: ShopData),
+	cosmetics = source({ owned = {}, trail = "", theme = "Classic" } :: Cosmetics),
+	-- GDD 7 FTUE: the tutorial step and playtime (UI/Tutorial)
+	tutorial = source({ step = "", done = false, playtime = 0 } :: any),
+	highestOven = source(0), -- the highest oven level ever (stats.highestOven): reveals the Index button
 
 	-- aura roll in progress: the Auras window steps aside until the reveal ends (no spoiler, only the roll shows)
 	auraRolling = source(false),

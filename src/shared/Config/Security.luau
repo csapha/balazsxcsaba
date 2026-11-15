@@ -14,6 +14,11 @@ return table.freeze({
 		ClaimPlaytime = table.freeze({ Rate = 2, Burst = 6 }),
 		RedeemCode = table.freeze({ Rate = 0.5, Burst = 3 }),
 		SaveSettings = table.freeze({ Rate = 2, Burst = 6 }),
+		ShopBuy = table.freeze({ Rate = 2, Burst = 5 }),
+		ToastSeen = table.freeze({ Rate = 2, Burst = 5 }),
+		CosmeticAction = table.freeze({ Rate = 4, Burst = 8 }),
+		TutorialIntroDone = table.freeze({ Rate = 0.5, Burst = 2 }),
+		TutorialSkip = table.freeze({ Rate = 0.5, Burst = 2 }),
 	}),
 
 	-- Távolság-ellenőrzés (stud): a ProximityPrompt / Touched mellé a szerver is megnézi, hol áll a játékos.

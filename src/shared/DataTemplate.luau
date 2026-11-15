@@ -123,6 +123,39 @@ local Template = {
 
 	-- GDD 13: az onboarding funnel már elküldött lépései (bitmaszk, Services/AnalyticsService)
 	funnel = 0,
+	-- GDD 5–6: Shop. passes: { [passKulcs] = true } (a Roblox gamepassokat belépéskor ide írjuk),
+	-- timedBoosts: { [boostKulcs] = lejárat (os.time) }, shop: kezdőcsomag, ajánlat-toastok, VIP / Premium ajándék.
+	-- (A beváltott kódok: `codes`, RewardService.)
+	passes = {},
+	timedBoosts = {},
+	shop = {
+		firstJoin = 0, -- os.time() az első belépéskor (Kezdőcsomag időzítő)
+		starterBought = false,
+		toasts = {}, -- { [toastId] = true } a már megmutatott ajánlat-toastok (GDD 6.5)
+		vipGiftDay = 0, -- az utolsó VIP napi ajándék napja (os.time() // 86400)
+		premiumGiftDay = 0, -- az utolsó Premium napi ajándék napja
+		vipPetGiven = false,
+		inGroup = false, -- a játék csoportjának tagja (belépéskor frissül, +10% pénz)
+	},
+	-- GDD 7 FTUE: a tutorial lépése (Config.Tutorial), a játékidő az első 10 percig, és az egyszeri események
+	tutorial = {
+		step = "", -- "" = még nem indult; a fő lépések, "Free", "ChefGift", "Wake", "FreeEgg"
+		done = false,
+		playtime = 0, -- mp (amíg a tutorial tart)
+		chefGift = false,
+		wake = false,
+		freeEgg = false,
+		collected = false, -- a "Take your money!" lépés teljesült (SellService.collect)
+		introDone = false, -- a kliens lejátszotta a repülő kamerát (Remotes.TutorialIntroDone)
+	},
+	-- Kozmetikumok (GDD 5.1 ⑥): megvett trail-ek / témák, és ami épp fel van szerelve
+	cosmetics = {
+		owned = {}, -- { [id] = true } (trail és téma kulcsok)
+		trail = "",
+		theme = "Classic",
+	},
+	-- a már teljesített Robux vásárlások (PurchaseId), hogy egy vásárlás ne teljesüljön kétszer
+	receipts = {},
 
 	stats = {
 		totalSold = 0,

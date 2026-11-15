@@ -14,6 +14,7 @@ local Guard = require(script.Parent.Parent.Lib.Guard)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local PetService = require(script.Parent.PetService)
+local ShopService = require(script.Parent.ShopService)
 
 local Rewards = Config.Rewards
 local Palette = Config.Palette
@@ -47,6 +48,10 @@ local function grant(player: Player, reward: any, sku: string): (string, number,
 		data.auras.tickets(raw.auras.tickets + reward.Amount)
 		return "Tickets", reward.Amount, nil
 	end
+	if reward.Kind == "Boost" then
+		ShopService.addBoost(data, reward.Boost, reward.Minutes * 60)
+		return "Boost", reward.Minutes, reward.Boost
+	end
 	local amount = Formulas.rewardMoney(raw, reward.Minutes)
 	data.money(raw.money + amount)
 	AnalyticsService.source(player, amount, "TimedReward", sku)
@@ -67,6 +72,8 @@ local function announce(player: Player, kind: string, amount: number, petId: str
 		end
 	elseif kind == "Tickets" then
 		Remotes.EventReward:FireClient(player, `+{amount} Aura Ticket{if amount == 1 then "" else "s"}`, Palette.Lemon)
+	elseif kind == "Boost" and petId then
+		Remotes.EventReward:FireClient(player, `{Config.Shop.BoostNames[petId]} for {amount} min!`, Palette.Lemon)
 	else
 		Remotes.EventReward:FireClient(player, `+{NumberFormat.money(amount)}`, Palette.Money)
 	end
@@ -129,6 +136,7 @@ function RewardService.redeemCode(player: Player, input: string): (boolean, stri
 	announce(player, kind, amount, petId)
 	local text = if kind == "Pet"
 		then Config.Pets.List[petId :: string].Name
+		elseif kind == "Boost" then `{Config.Shop.BoostNames[petId :: string]} for {amount} min`
 		elseif kind == "Tickets" then `{amount} Aura Ticket{if amount == 1 then "" else "s"}`
 		else NumberFormat.money(amount)
 	return true, `Code redeemed! You got {text}.`

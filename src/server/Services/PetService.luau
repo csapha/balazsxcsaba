@@ -12,11 +12,12 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Guard = require(script.Parent.Parent.Lib.Guard)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
+local TutorialService = require(script.Parent.TutorialService)
 
 local PetConfig = Config.Pets
 local Palette = Config.Palette
 
-local OPEN_COOLDOWN = 0.6 -- mp (gyors tojásnyitás gamepass később, GDD 6.2)
+local OPEN_COOLDOWN = 0.6 -- mp (Fast Egg gamepass: Config.Pets.FastEggCooldown)
 
 local PetService = {}
 
@@ -56,52 +57,138 @@ local function snapshot(player: Player): (any?, { any }, { number }, number)
 	return raw, table.clone(raw.pets.inventory), table.clone(raw.pets.equipped), raw.pets.nextId
 end
 
-function PetService.openEgg(player: Player, eggIndex: number): string?
+-- A Shop állítja be (ShopService.init): gamepass vásárlás indítása a tojás promptjairól (a ShopService
+-- requireolja a PetService-t, ezért fordítva nem lehet).
+PetService.requestPass = function(_player: Player, _key: string) end
+
+-- multi: az "Open 3" prompt (Open 3 Eggs gamepass: egyszerre 3 tojás, amennyire pénz és hely van).
+-- Fast Open gamepass: rövidebb várakozás és gyors animáció.
+function PetService.openEgg(player: Player, eggIndex: number, multi: boolean?): string?
 	local egg = PetConfig.Eggs[eggIndex]
 	local stand = eggStands[eggIndex]
 	if not egg or not stand then
 		return nil
 	end
 
+	local current = DataService.get(player)
+	local fast = current ~= nil and Formulas.hasPass(current(), "FastEgg")
+	local triple = multi == true and current ~= nil and Formulas.hasPass(current(), "TripleEgg")
 	local now = os.clock()
-	if lastOpen[player] and now - lastOpen[player] < OPEN_COOLDOWN then
+	local cooldown = if fast then PetConfig.FastEggCooldown else OPEN_COOLDOWN
+	if lastOpen[player] and now - lastOpen[player] < cooldown then
 		return nil
 	end
 
 	-- távolság-ellenőrzés (GDD 12.2): a prompt mellett a szerver is megnézi, hogy a tojásnál áll-e
-	if not Guard.near(player, stand.Position, PetConfig.Plaza.OpenDistance + Config.Security.EggOpenSlack) then
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root or not Guard.near(player, stand.Position, PetConfig.Plaza.OpenDistance + Config.Security.EggOpenSlack) then
 		return nil
 	end
 
 	local raw, inventory, equipped, nextId = snapshot(player)
-	if not raw or #inventory >= PetConfig.MaxInventory or raw.money < egg.Price then
+	-- GDD 7.3: a tutorial ingyen tojása (az 1. tojás egyszer ingyen, egyesével)
+	local free = raw ~= nil and TutorialService.eggFree(raw, eggIndex)
+	local price = if free then 0 else egg.Price
+	if not raw or #inventory >= PetConfig.MaxInventory or raw.money < price then
 		return nil
 	end
-	local petId = Formulas.rollEgg(rng, eggIndex)
-	if not petId then
+	local count = if triple and not free then PetConfig.MultiOpenCount else 1
+	if price > 0 then
+		count = math.min(count, math.floor(raw.money / price))
+	end
+	count = math.min(count, PetConfig.MaxInventory - #inventory)
+	-- GDD 6.2 VIP terület: bentről nyitva a ritkább petek esélye nagyobb
+	local luck = if Formulas.hasPass(raw, "VIP") and Formulas.insideVipArea(root.Position)
+		then 1 + Config.Shop.Vip.EggLuck
+		else 1
+
+	local hatched = {}
+	for _ = 1, count do
+		local petId = Formulas.rollEgg(rng, eggIndex, luck)
+		if not petId then
+			break
+		end
+		local uid = nextId
+		nextId += 1
+		table.insert(inventory, { uid = uid, id = petId, golden = false })
+		-- ha van szabad aktív hely, rögtön felszereljük
+		if #equipped < Formulas.petSlots(raw) then
+			table.insert(equipped, uid)
+		end
+		table.insert(hatched, petId)
+	end
+	if #hatched == 0 then
 		return nil
 	end
 	lastOpen[player] = now
 
 	local data = DataService.get(player)
-	data.money(raw.money - egg.Price)
-	AnalyticsService.sink(player, egg.Price, "Shop", `Egg{eggIndex}`)
+	data.money(raw.money - price * #hatched)
+	if price > 0 then
+		AnalyticsService.sink(player, price * #hatched, "Shop", `Egg{eggIndex}`)
+	end
 	AnalyticsService.step(player, "FirstEgg")
+	if free then
+		TutorialService.event(player, "EggOpened")
+	end
+	writePets(player, inventory, equipped, nextId)
 
+	for _, petId in hatched do
+		Remotes.EggOpened:FireClient(player, eggIndex, petId, fast)
+		local rarity = PetConfig.Rarities[PetConfig.List[petId].Rarity]
+		if rarity.Announce then
+			Remotes.PetHatched:FireAllClients(player.DisplayName, petId)
+		end
+	end
+	return hatched[1]
+end
+
+-- GDD 6.3 Golden Egg (Robux, már kifizetve): count db exkluzív pet, a leltár-limittől függetlenül.
+function PetService.openRobuxEgg(player: Player, count: number): { string }
+	local raw, inventory, equipped, nextId = snapshot(player)
+	if not raw then
+		return {}
+	end
+	local fast = Formulas.hasPass(raw, "FastEgg") or count > 1
+	local hatched = {}
+	for _ = 1, count do
+		local petId = Formulas.rollEgg(rng, 0)
+		if petId then
+			local uid = nextId
+			nextId += 1
+			table.insert(inventory, { uid = uid, id = petId, golden = false })
+			if #equipped < Formulas.petSlots(raw) then
+				table.insert(equipped, uid)
+			end
+			table.insert(hatched, petId)
+		end
+	end
+	writePets(player, inventory, equipped, nextId)
+	for _, petId in hatched do
+		Remotes.EggOpened:FireClient(player, 0, petId, fast)
+		local rarity = PetConfig.Rarities[PetConfig.List[petId].Rarity]
+		if rarity.Announce then
+			Remotes.PetHatched:FireAllClients(player.DisplayName, petId)
+		end
+	end
+	return hatched
+end
+
+-- Pet ajándék (pl. Shop Kezdőcsomag): a leltárba kerül (a leltár-limittől függetlenül, mert fizetett),
+-- és ha van szabad aktív hely, fel is szereljük. Visszaad: sikerült-e.
+function PetService.give(player: Player, petId: string): boolean
+	local raw, inventory, equipped, nextId = snapshot(player)
+	if not raw or not PetConfig.List[petId] then
+		return false
+	end
 	local uid = nextId
 	table.insert(inventory, { uid = uid, id = petId, golden = false })
-	-- ha van szabad aktív hely, rögtön felszereljük
-	if #equipped < PetConfig.ActiveSlots then
+	if #equipped < Formulas.petSlots(raw) then
 		table.insert(equipped, uid)
 	end
 	writePets(player, inventory, equipped, nextId + 1)
-
-	Remotes.EggOpened:FireClient(player, eggIndex, petId)
-	local rarity = PetConfig.Rarities[PetConfig.List[petId].Rarity]
-	if rarity.Announce then
-		Remotes.PetHatched:FireAllClients(player.DisplayName, petId)
-	end
-	return petId
+	return true
 end
 
 -- Ajándék pet (napi jutalom, GDD 8): tojás nélkül a leltárba, ha van szabad aktív hely, fel is szereli.
@@ -136,7 +223,7 @@ function actions.equip(player: Player, uid: unknown)
 	if not raw or type(uid) ~= "number" or not indexOfUid(inventory, uid, "uid") then
 		return
 	end
-	if indexOfUid(equipped, uid) or #equipped >= PetConfig.ActiveSlots then
+	if indexOfUid(equipped, uid) or #equipped >= Formulas.petSlots(raw) then
 		return
 	end
 	table.insert(equipped, uid)
@@ -209,7 +296,7 @@ function actions.golden(player: Player, petId: unknown)
 
 	local uid = nextId
 	table.insert(inventory, { uid = uid, id = petId, golden = true })
-	if usedEquipped or #equipped < PetConfig.ActiveSlots then
+	if usedEquipped or #equipped < Formulas.petSlots(raw) then
 		table.insert(equipped, uid)
 	end
 	writePets(player, inventory, equipped, nextId + 1)
@@ -297,6 +384,39 @@ local function buildPlaza()
 		prompt.Triggered:Connect(function(player)
 			PetService.openEgg(player, index)
 		end)
+
+		-- GDD 6.2 (döntés 2026-11-15): a tojásnál lehet 1-et vagy 3-at nyitni; a 3-as nyitás az "Open 3 Eggs"
+		-- gamepass (örökre), mellette a "Fast Open" gamepass. Gamepass nélkül a prompt a vásárlást indítja.
+		-- A szövegüket / láthatóságukat játékosonként a kliens állítja (ShopEffectsController, "EggPrompt").
+		local function extraPrompt(kind: string, row: number, key: Enum.KeyCode, passKey: string, open: (Player) -> ())
+			local extra = Instance.new("ProximityPrompt")
+			extra.Name = `{kind}Prompt`
+			extra.ActionText = kind
+			extra.ObjectText = egg.Name
+			extra.Style = Enum.ProximityPromptStyle.Custom
+			extra:SetAttribute("Color", "Yellow")
+			extra:SetAttribute("Icon", Ui.Icons.Egg)
+			extra:SetAttribute("Row", row)
+			extra:SetAttribute("EggPrompt", kind)
+			extra:SetAttribute("EggPrice", egg.Price)
+			extra.KeyboardKeyCode = key
+			extra.HoldDuration = 0
+			extra.MaxActivationDistance = plaza.OpenDistance
+			extra.RequiresLineOfSight = false
+			extra.Parent = eggPart
+			extra.Triggered:Connect(function(player)
+				local data = DataService.get(player)
+				if data and Formulas.hasPass(data(), passKey) then
+					open(player)
+				else
+					PetService.requestPass(player, passKey)
+				end
+			end)
+		end
+		extraPrompt("Open3", 1, Enum.KeyCode.R, "TripleEgg", function(player)
+			PetService.openEgg(player, index, true)
+		end)
+		extraPrompt("FastOpen", 2, Enum.KeyCode.F, "FastEgg", function(_player) end)
 	end
 end
 

@@ -463,7 +463,7 @@ end
 ------------------------------------------------------------------------------------------------
 local function bake(s)
 	local interval = Formulas.bakeInterval(s)
-	local luck = 1 + Formulas.boosts(s).Luck
+	local luck = Formulas.luck(s)
 	for slot = 1, MAX_SLOTS do
 		local level = s.ovens[slot]
 		if level > 0 then
@@ -643,7 +643,7 @@ if GAPS then
 	end
 	print(
 		`\nA futás végén: bevétel {money(income(s))}/mp, pénzszorzó {string.format("%.1f", Formulas.moneyMultiplier(s))}×,`
-			.. ` ritkaság-átlag {string.format("%.2f", Formulas.rarityValueMultiplier(1 + Formulas.boosts(s).Luck))}×,`
+			.. ` ritkaság-átlag {string.format("%.2f", Formulas.rarityValueMultiplier(Formulas.luck(s)))}×,`
 			.. ` csillagárak: {table.concat(starPrices, " / ")}`
 	)
 	print("\nAz 1. futás várakozásai az első 10 percben (≥ 20 mp; kezdete → hossz: amit utána vett):")

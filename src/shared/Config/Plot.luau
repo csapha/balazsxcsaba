@@ -225,6 +225,31 @@ return table.freeze({
 			ChefStat = "AntiSleep",
 			LabelWidth = 8.5,
 		}),
+
+		-- GDD 6.1: sárga Robux padek ott, ahol a vágy keletkezik (RobuxPass: Config.Shop.Passes kulcs).
+		-- Rálépve feljön a gamepass vásárlás; ha már megvan, "OWNED".
+		RobuxBake = table.freeze({
+			Position = Vector2.new(25.5, 8), -- a vásárló gombok sorában a 6. hely
+			Size = Vector2.new(6, 6),
+			Color = Palette.Gold,
+			Title = "x2 Baking",
+			RobuxPass = "DoubleBake",
+		}),
+		RobuxCollect = table.freeze({
+			Position = Vector2.new(24, 29), -- a pénz raklap mellett
+			Size = Vector2.new(6, 6),
+			Color = Palette.Gold,
+			Title = "Auto Collect",
+			RobuxPass = "AutoCollect",
+		}),
+		RobuxChefs = table.freeze({
+			Position = Vector2.new(-27, 44), -- a chefek mellett (Wake Boost mellé)
+			Size = Vector2.new(6, 6),
+			Color = Palette.Gold,
+			Title = "Tireless Chefs",
+			RobuxPass = "TirelessChefs",
+			LabelWidth = 8.5,
+		}),
 	}),
 
 	-- 8. Sütő-generáció tábla (GDD 3.1, 3.7): a telek jobb szélén, a chef-részleg tükörképeként,
