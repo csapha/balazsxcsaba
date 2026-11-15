@@ -664,6 +664,7 @@ src/
 - Rojo projekt + Wally csomagok (Vide, DataServiceTyped / ProfileStore, Networker, Signal), `rojo serve` működik.
 - 6 játékos / szerver, mindenkinek saját telek; belépéskor automatikus kiosztás és teleport, tulajdonos tábla.
 - Mentés ProfileStore-ral (Studióban alapból mock, nem ment; Studióban $1B kezdőpénz a teszteléshez).
+- Csak Studióban: `ServerStorage.DevCommand` (BindableFunction, `DevService`) – a szerver command barból / MCP-ből olvassa és írja a játékos adatát, és meghívja a service-függvényeket (`get` / `set` / `call`), mert a command bar külön module cache-t használ.
 - HUD (mobile-first): pénz (felpörgő számláló), nálad lévő schnitzel + értéke, bal oldali menü (Rebirth, Index, Petek, Aurák), fent navigáció (🏠 Telkem, 🥚 Tojások) és event időzítő.
 - Számformátum (4.5): 1.2K, 15.6M, 3.4B …
 
@@ -671,7 +672,7 @@ src/
 - Szimmetrikus telek: emelt platform, rajta 2 sütősor, köztük futószalag középre → csúszda → **Collector** a fal tövében.
 - 15 sütőszint a tervbeli nevekkel; sütő felett név, szint, progress bar.
 - 10 slot (kezdőpénz $100); bővítés 14 → 18 → 22-re az 1–3. rebirth jutalmaként (**Eltérés:** a terv pénzes / +5-ös bővítést nem írt elő pontosan).
-- Vásárló gombok: 1 / 3 / 5 / 15 (merge nélkül) és 100 (Auto Merge); a 6. hely a Robux gombnak marad. A 100-as gomb tele sorban a legalacsonyabb sütőbe "vásárol bele" (ha ehhez ≤ 100 sütő kell – lásd lent: Félkész).
+- Vásárló gombok: 1 / 3 / 5 / 15 (merge nélkül) és 100 (Auto Merge); a 6. hely a Robux gombnak marad. A 100-as gomb tele sorban a legalacsonyabb sütőbe "vásárol bele" (annyit vesz, amennyi kell, akár 100-nál többet), ha pedig minden sütő Lv15, csillagot vesz (lásd lent: Csillagok).
 - MERGE pad: kaszkád merge, "Lv 7 – Ipari Fritőz!" felirat (a teljes animáció a 10. fejezetben).
 - **Eltérés – gazdaság ("A" modell):** a sütő szintje duplázza a darabszámot **és** az árat is (szintenként 4× bevétel).
 
@@ -734,15 +735,24 @@ src/
 - Eredmény (szimulátor, medián): első merge 21 mp, első chef 3:17, Lv5 ~3 perc, első tojás ~5–7 perc, Gen2 ~18 perc, Rebirth 1 ~37–40 perc.
 - **Eltérés a 4.3 céloktól:** az első merge (cél 30–45 mp) és a Lv5 (cél 6–8 perc) korábban jön – a 30 mp-es szabály fontosabb.
 
-### Félkész (2026-11-13) – a végjátéki várakozás megszüntetése
-- **Gond:** a végjátékban 20–45 percet kell várni a következő rebirthre, mert
-  1. tele sornál a 100-as gomb csak akkor vesz, ha a legalacsonyabb sütőhöz ≤ 100 alapsütő kell (pl. Gen4-ben egy Lv11-hez már 128 kell), így a sütők elakadnak;
-  2. ha már minden slot Lv15, nincs mit venni.
-- **Döntés 1:** tele sornál a 100-as gomb annyit vesz, amennyi a legalacsonyabb sütő következő szintjéhez kell (akár 100-nál többet). *A szimulátorban kész, a játékban (OvenService.buyIntoLowest) még nincs.*
-- **Döntés 2 – Csillagok:** ha a sor tele van és minden sütő Lv15, a 100-as gomb csillagot vesz a legkevesebb csillagú sütőre. Max 5★, csillagonként +50% érték (5★ = 3.5×), a rebirth nullázza. Az ár egy Lv15 sütő valós bevételének (pénzszorzók, pet sütési sebesség, ritkaság-átlag) X mp-e, csillagonként ×3.
-  - Kész: `Config.Ovens.Stars`, `Formulas.starPrice / starTarget / starMultiplier / rarityValueMultiplier`, a `Formulas.production` csillagokkal, a szimulátor.
-  - Hátravan: mentés (`ovenStars`), OvenService (gomb + felirat, sütés × csillag), RebirthService nullázás, ★ a sütők felett.
-  - Legjobb eddigi beállítás (szimulátor): csillagár 120 mp × 3ⁿ, rebirth követelmény $2T / $600T / $3Qa / $8Qa → Rebirth 1 ~40 perc, Rebirth 2 ~1:41 óra, Rebirth 5 ~6:10 óra, a leghosszabb várakozás 37 → 17 perc. *Még nincs beírva a Configba* (most: PriceSeconds 600 × 2ⁿ, követelmény $1T / $300T / $1.2Qa / $2.8Qa).
+### Csillagok + végjátéki várakozás (2026-11-15) – ✅ Studióban tesztelve (2 pont nyitott)
+> **Studio teszt (2026-11-15, MCP-vel, `DevService`):**
+> 1. ✅ Tele sor, pár nélkül (Gen4, legalacsonyabb Lv11): a gomb "Upgrade Lv 11 → 12" / $2.525M; rálépve 128 sütőt vett pontosan ennyiért, utána kaszkád merge 12 → 15.
+> 2. ✅ Minden sütő Lv15: "Buy Star ★ (1/5)" / $23.98B, a sütő felett "Lv 15 ☆☆☆☆☆". $1T-ből 10× 1★ + 10× 2★ (mindig a legkevesebb csillagú sütőre), a levont összeg fillérre stimmel. Felugró felirat: "3★: x2.5 value!".
+> 3. ✅ Darab/sütés 0★ és 5★ mellett is 16 384; érték/darab (Classic) pontosan 3.5×.
+> 4. ✅ Minden sütő 5★: "ALL MAXED ★" / "Time to Rebirth!" (sárga), rálépve nem von le pénzt.
+> 5. ⚠️ **Élő mentéssel még nincs kipróbálva** (a Studio mock nem ment). Kódból: a ProfileStore `Reconcile()` pótolja a hiányzó `ovenStars`-t, az `onPlayerInit` feltölti 25 elemre → régi mentés betölt.
+> 6. ✅ Rebirth után a csillagok és a sütők nullázódnak (14 slot); a "RESETS" sorban ott van a "stars".
+> 7. ⚠️ **A szimulátor még nem futott** (nincs lune). Számolás: a csillagár valóban ~120 mp termelés (az eladó-fejlesztés Lv60-ig összesen ~$12.7B, a végjátékban nem korlát). Egy kör (minden sütő +1★) ideje a sütők számától független: ~3 / 6 / 13 / 32 / 80 perc (1★…5★), összesen ~2:15 óra. Csillagok nélkül 10 Lv15 sütővel a $2T ~25 perc.
+> - Apróság: `OvenService.buy` a csillag-vásárlást nem számolja a visszaadott darabszámba (a pad nem használja).
+
+- **Gond volt:** a végjátékban 20–45 percet kellett várni a következő rebirthre, mert tele sornál a 100-as gomb csak ≤ 100 sütős belevásárlást csinált (Gen4-ben egy Lv11-hez már 128 kell), és ha minden slot Lv15, nem volt mit venni.
+- **Belevásárlás:** tele sornál, pár nélkül a 100-as gomb annyi sütőt vesz, amennyi a legalacsonyabb sütő következő szintjéhez kell (akár 100-nál többet). A gomb felirata ilyenkor: "Upgrade Lv 11 → 12" + ár. (`Formulas.intoLowest`, a szimulátor is ezt használja.)
+- **Csillagok:** ha a sor tele van és minden sütő Lv15, a 100-as gomb csillagot vesz mindig a legkevesebb csillagú sütőre, amíg van rá pénz. Max 5★, csillagonként +50% érték (5★ = 3.5×), a darabszám nem változik. A rebirth nullázza.
+  - Ár: egy Lv15 sütő valós bevételének (pénzszorzók, pet sütési sebesség, ritkaság-átlag) 120 mp-e, csillagonként ×3.
+  - A sütő felett: "Lv 15 ★★☆☆☆", vásárláskor felirat ("3★: x2.5 value!"); a gomb: "Buy Star ★ (3/5)" + ár, ha minden sütő 5★: "ALL MAXED ★ – Time to Rebirth!".
+  - Mentés: `ovenStars` (slotonként). Kód: `OvenService.buyStars`, `Formulas.starPrice / starTarget / starMultiplier`.
+- **Rebirth követelmény:** $2T / $600T / $3Qa / $8Qa (×1.6 utána). A szimulátor szerint ezzel: Rebirth 1 ~40 perc, Rebirth 2 ~1:41 óra, Rebirth 5 ~6:10 óra, a leghosszabb várakozás 37 → 17 perc.
 - A GDD 4.1 / 4.2 táblái még a régi számokat mutatják.
 
 ### Későbbre hagyva
@@ -750,8 +760,7 @@ src/
 - Robux: gamepassok, Robux gombok, Robux tojás / aura dobás, Claim x10, Rebirth Skip (6. fejezet).
 - FTUE (7.), napi jutalmak / questek / ranglisták (8.).
 - Index mentése, chef ritkaságok (chef gacha), Főchef auto-merge, telek-skinek és világok.
-- Balance: a végjátéki várakozás befejezése (lásd fent: Félkész).
 
 ---
 
-*Utolsó frissítés: 2026-11-13*
+*Utolsó frissítés: 2026-11-15*

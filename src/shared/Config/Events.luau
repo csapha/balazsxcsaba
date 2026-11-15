@@ -1,6 +1,8 @@
 -- GDD 3.12: random eventek – szerver-szintűek, mindenki egyszerre éli meg.
 -- Döntések (2026-11-12): a Panírvihar az utcán közös (aki elsőként felkapja); az Ételkritikus akkor
 -- elégedett, ha a pult 30 mp-en belül elad; Studióban 60–90 mp-enként jön event a teszteléshez.
+local Ui = require(script.Parent.Parent.Ui)
+
 return table.freeze({
 	IntervalMin = 300, -- élesben 5–7 percenként
 	IntervalMax = 420,
@@ -13,7 +15,7 @@ return table.freeze({
 	List = table.freeze({
 		LunchRush = table.freeze({
 			Name = "Lunch Rush",
-			Icon = "🍽️",
+			Icon = Ui.Icons.EventLunchRush,
 			Description = "Twice the customers, double selling speed!",
 			Duration = 60,
 			Weight = 25,
@@ -24,7 +26,7 @@ return table.freeze({
 		}),
 		GoldenOil = table.freeze({
 			Name = "Golden Oil",
-			Icon = "🛢️",
+			Icon = Ui.Icons.EventGoldenOil,
 			Description = "5x chance for Golden Schnitzel!",
 			Duration = 45,
 			Weight = 20,
@@ -33,7 +35,7 @@ return table.freeze({
 		}),
 		PanirStorm = table.freeze({
 			Name = "Breadcrumb Storm",
-			Icon = "🌧️",
+			Icon = Ui.Icons.EventBreadcrumbStorm,
 			Description = "Schnitzels are falling on the street! Grab them first!",
 			Duration = 30,
 			Weight = 20,
@@ -44,7 +46,7 @@ return table.freeze({
 		}),
 		Critic = table.freeze({
 			Name = "Food Critic",
-			Icon = "🎩",
+			Icon = Ui.Icons.EventFoodCritic,
 			Description = "A VIP guest is coming! Serve them within 30 seconds!",
 			Duration = 30,
 			Weight = 15,
@@ -54,7 +56,7 @@ return table.freeze({
 		}),
 		Grandma = table.freeze({
 			Name = "Grandma's Visit",
-			Icon = "👵",
+			Icon = Ui.Icons.EventGrandma,
 			Description = "Every oven bakes at +1 level!",
 			Duration = 30,
 			Weight = 15,
@@ -63,7 +65,7 @@ return table.freeze({
 		}),
 		Blackout = table.freeze({
 			Name = "Blackout",
-			Icon = "🔌",
+			Icon = Ui.Icons.EventBlackout,
 			Description = "The ovens are off… but chefs are 3x faster!",
 			Duration = 20,
 			Weight = 5,

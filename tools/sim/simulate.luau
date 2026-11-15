@@ -275,10 +275,8 @@ local function bestOption(s)
 		table.insert(options, { kind = "oven", price = price, gain = gain, slot = free })
 	else
 		-- tele, nincs pár: a 100-as gomb "belevásárlás" a legalacsonyabb sütőbe (annyit vesz, amennyi kell)
-		local lowestSlot, lowest = Formulas.lowestOven(s.ovens, s.slots)
-		if lowestSlot and lowest < Formulas.maxLevel() and lowest >= base then
-			local needed = 2 ^ (lowest - base)
-			local price = Formulas.ovenPriceSum(s.generation, s.generationBought, needed)
+		local lowestSlot, lowest, needed, price = Formulas.intoLowest(s)
+		if lowestSlot then
 			local gain = sutoGain(function()
 				s.ovens[lowestSlot] = lowest + 1
 				s.ovens = (Formulas.merge(s.ovens))

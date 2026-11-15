@@ -84,7 +84,7 @@ return table.freeze({
 	-- Rálépős padek. Position = (X, Z) közép, Size = (X, Z) méret.
 	-- BuyCount: sütővásárló gomb (annyit rak le, amennyi hely és pénz van).
 	-- AutoMerge: ha megtelik a sor, merge-el és folytatja (csak a 100-as gomb, döntés 2026-11-12);
-	-- ha nincs pár sem, a legalacsonyabb sütőbe vesz bele (soha nem akad el).
+	-- ha nincs pár sem, a legalacsonyabb sütőbe vesz bele (soha nem akad el); ha minden sütő Lv15, csillagot vesz.
 	-- Height / Flat: nem neon, magasabb pad (pl. a collector). LabelHeight: a felirat magassága a pad felett.
 	-- Table: asztal (lap + lábak), Reach: ennyi studon belül a padtól már aktiválódik (rálépés nélkül).
 	-- LabelWidth: a felirat szélessége studban (alapból a pad szélessége, min. 7).

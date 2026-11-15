@@ -34,6 +34,7 @@ end
 -- Annyit vesz, amennyi hely és pénz van (döntés 2026-11-12).
 -- autoMerge: ha megtelik a sor, merge-el és folytatja (csak a 100-as gomb). Ha tele van és pár
 -- sincs (minden sütő más szintű), a legalacsonyabb sütőbe "vesz bele" – így sosem akad el a játék.
+-- Ha minden sütő Lv15, csillagot vesz (lásd buyStars).
 function OvenService.buy(state: PlotService.PlotState, count: number, autoMerge: boolean?): number
 	local data = state.data
 	local raw = data()
@@ -59,8 +60,9 @@ function OvenService.buy(state: PlotService.PlotState, count: number, autoMerge:
 			end
 			bought += 1
 		elseif autoMerge then
-			local used = OvenService.buyIntoLowest(state, count - bought)
+			local used = OvenService.buyIntoLowest(state)
 			if used == 0 then
+				OvenService.buyStars(state, count - bought)
 				break
 			end
 			bought += used
@@ -74,30 +76,13 @@ end
 
 -- Tele sor, nincs pár: egyszerre annyi alapszintű sütőt vesz, amennyiből összeáll a legalacsonyabb
 -- sütő szintje (Lv k-hoz 2^(k - alapszint) darab), és rögtön összevonja vele (szabad slot nélkül),
--- majd kaszkád merge. Csak akkor vásárol, ha belefér a keretbe (`budget` darab) és van rá pénz.
--- Visszaad: megvett darab.
-function OvenService.buyIntoLowest(state: PlotService.PlotState, budget: number): number
+-- majd kaszkád merge. Annyit vesz, amennyi kell, akkor is, ha 100-nál több (döntés 2026-11-12,
+-- különben a sor elakad: pl. Gen4-ben egy Lv11-hez 128 sütő kell). Visszaad: megvett darab (0, ha nincs rá pénz).
+function OvenService.buyIntoLowest(state: PlotService.PlotState): number
 	local data = state.data
 	local raw = data()
-	local base = Formulas.generationLevel(raw.generation)
-
-	local lowestSlot, lowest = nil, math.huge
-	for slot = 1, raw.slots do
-		local level = raw.ovens[slot] or 0
-		if level > 0 and level < lowest then
-			lowestSlot, lowest = slot, level
-		end
-	end
-	if not lowestSlot or lowest >= Formulas.maxLevel() or lowest < base then
-		return 0
-	end
-
-	local needed = 2 ^ (lowest - base)
-	if needed > budget then
-		return 0
-	end
-	local price = Formulas.ovenPriceSum(raw.generation, raw.generationBought, needed)
-	if raw.money < price then
+	local lowestSlot, lowest, needed, price = Formulas.intoLowest(raw)
+	if not lowestSlot or raw.money < price then
 		return 0
 	end
 
@@ -111,6 +96,31 @@ function OvenService.buyIntoLowest(state: PlotService.PlotState, budget: number)
 
 	OvenService.mergeAll(state) -- kaszkád: ha így pár keletkezett, tovább görget
 	return needed
+end
+
+-- Csillagok (GDD Félkész, döntés 2026-11-12): ha a sor tele van és minden sütő Lv15, a 100-as gomb
+-- mindig a legkevesebb csillagú sütőre vesz csillagot, amíg van rá pénz (legfeljebb `budget` darabot).
+-- Visszaad: megvett csillagok száma.
+function OvenService.buyStars(state: PlotService.PlotState, budget: number): number
+	local data = state.data
+	local raw = data()
+	local bought = 0
+	while bought < budget do
+		local slot, stars = Formulas.starTarget(raw.ovens, raw.ovenStars, raw.slots)
+		if not slot then
+			break
+		end
+		local price = Formulas.starPrice(raw, stars)
+		if raw.money < price then
+			break
+		end
+		data.money(raw.money - price)
+		data.ovenStars[slot](stars + 1)
+		state.starPops = state.starPops or {}
+		state.starPops[slot] = stars + 1
+		bought += 1
+	end
+	return bought
 end
 
 -- Merge: minden lehetséges pár összevonódik, alulról felfelé kaszkádban (GDD 3.3).
@@ -139,6 +149,16 @@ function OvenService.mergeAll(state: PlotService.PlotState): number
 	data.stats.merges(raw.stats.merges + count)
 	data.stats.highestOven(highest)
 	return count
+end
+
+-- "Lv 15 ★★☆☆☆": a Lv15 sütőn a csillagok is (az üres csillagok jelzik, hogy lehet még venni).
+local function levelText(level: number, stars: number): string
+	if level < Formulas.maxLevel() then
+		return `Lv {level}`
+	end
+	local max = Config.Ovens.Stars.Max
+	stars = math.clamp(stars, 0, max)
+	return `Lv {level} {string.rep("★", stars)}{string.rep("☆", max - stars)}`
 end
 
 local function buildOven(state: PlotService.PlotState, slot: number, level: number): BasePart
@@ -178,7 +198,7 @@ local function buildOven(state: PlotService.PlotState, slot: number, level: numb
 		},
 	})
 	labels.Name.Text = info.Name
-	labels.Level.Text = `Lv {level}`
+	labels.Level.Text = levelText(level, 0)
 
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"
@@ -203,41 +223,61 @@ local function syncOvens(state: PlotService.PlotState, raw: any)
 	for slot = 1, Config.Ovens.MaxSlots do
 		local level = raw.ovens[slot] or 0
 		local existing = state.ovenParts[slot]
-		if existing and existing:GetAttribute("Level") == level then
-			continue
+		if not existing or existing:GetAttribute("Level") ~= level then
+			if existing then
+				existing:Destroy()
+				state.ovenParts[slot] = nil
+			end
+			existing = if level > 0 then buildOven(state, slot, level) else nil
+			state.ovenParts[slot] = existing
 		end
-		if existing then
-			existing:Destroy()
-			state.ovenParts[slot] = nil
-		end
-		if level > 0 then
-			state.ovenParts[slot] = buildOven(state, slot, level)
+
+		-- csillagok: csak a felirat változik, a sütőt nem kell újraépíteni
+		local stars = if level >= Formulas.maxLevel() then raw.ovenStars[slot] or 0 else 0
+		if existing and existing:GetAttribute("Stars") ~= stars then
+			existing:SetAttribute("Stars", stars)
+			local label = existing:FindFirstChild("Level", true) :: TextLabel?
+			if label then
+				label.Text = levelText(level, stars)
+			end
 		end
 	end
 end
 
-local function showMergePops(state: PlotService.PlotState)
-	local pops = state.mergePops
-	if not pops then
+local function popText(state: PlotService.PlotState, slot: number, text: string)
+	local oven = state.ovenParts and state.ovenParts[slot]
+	if not oven then
 		return
 	end
-	state.mergePops = nil
-	for slot, level in pops do
-		local oven = state.ovenParts and state.ovenParts[slot]
-		if not oven then
-			continue
+	local labels = Billboard.new(oven, {
+		offset = Vector3.new(0, Layout.Ovens.Size.Y / 2 + 5.5, 0),
+		size = Vector2.new(9, 1.6),
+		maxDistance = 120,
+		lines = { { name = "Text", color = Palette.Lemon, height = 1 } },
+	})
+	labels.Text.Text = text
+	local gui = labels.Text.Parent :: BillboardGui
+	gui.Name = "MergePop"
+	gui.AlwaysOnTop = true
+	Debris:AddItem(gui, MERGE_POP_TIME)
+end
+
+local function showMergePops(state: PlotService.PlotState)
+	local pops = state.mergePops
+	if pops then
+		state.mergePops = nil
+		for slot, level in pops do
+			popText(state, slot, `Lv {level}: {Formulas.levelInfo(level).Name}!`)
 		end
-		local labels = Billboard.new(oven, {
-			offset = Vector3.new(0, Layout.Ovens.Size.Y / 2 + 5.5, 0),
-			size = Vector2.new(9, 1.6),
-			maxDistance = 120,
-			lines = { { name = "Text", color = Palette.Lemon, height = 1 } },
-		})
-		labels.Text.Text = `Lv {level}: {Formulas.levelInfo(level).Name}!`
-		local gui = labels.Text.Parent :: BillboardGui
-		gui.Name = "MergePop"
-		gui.AlwaysOnTop = true
-		Debris:AddItem(gui, MERGE_POP_TIME)
+	end
+
+	local starPops = state.starPops
+	if starPops then
+		state.starPops = nil
+		for slot, stars in starPops do
+			local multiplier = Formulas.starMultiplier(Formulas.maxLevel(), stars)
+			popText(state, slot, `{stars}★: x{multiplier} value!`)
+		end
 	end
 end
 
@@ -263,13 +303,31 @@ local function render(state: PlotService.PlotState, raw: any)
 			continue
 		end
 		local label = labels[key]
-		local price = Formulas.ovenPriceSum(raw.generation, raw.generationBought, count)
+		local title, price = pad.Title, Formulas.ovenPriceSum(raw.generation, raw.generationBought, count)
 		-- GDD 3.2: ha tele a sor, a gomb piros → "Merge-elj!" (az Auto Merge gomb sosem akad el)
 		local full = not hasFree and not pad.AutoMerge
-		label.Title.Text = if full then "FULL! Merge!" else pad.Title
-		label.Title.TextColor3 = if full then Palette.Danger else Palette.White
-		label.Info.Text = NumberFormat.money(price)
-		label.Info.TextColor3 = if not full and raw.money >= price then Palette.Money else Palette.Danger
+		local maxed = false
+
+		-- Auto Merge gomb tele sorban, pár nélkül: belevásárlás a legalacsonyabb sütőbe, vagy csillag
+		if pad.AutoMerge and not hasFree and merges == 0 then
+			local intoSlot, lowest, _, intoPrice = Formulas.intoLowest(raw)
+			local starSlot, stars = Formulas.starTarget(raw.ovens, raw.ovenStars, raw.slots)
+			if intoSlot then
+				title, price = `Upgrade Lv {lowest} → {lowest + 1}`, intoPrice
+			elseif starSlot then
+				title, price = `Buy Star ★ ({stars + 1}/{Config.Ovens.Stars.Max})`, Formulas.starPrice(raw, stars)
+			elseif Formulas.lowestOven(raw.ovens, raw.slots) then
+				maxed = true
+			end
+		end
+
+		label.Title.Text = if full then "FULL! Merge!" elseif maxed then "ALL MAXED ★" else title
+		label.Title.TextColor3 = if full then Palette.Danger elseif maxed then Palette.Lemon else Palette.White
+		label.Info.Text = if maxed then "Time to Rebirth!" else NumberFormat.money(price)
+		label.Info.TextColor3 = if maxed
+			then Palette.Lemon
+			elseif not full and raw.money >= price then Palette.Money
+			else Palette.Danger
 	end
 
 	labels.Merge.Info.Text = if merges > 0 then `{merges} merge{if merges == 1 then "" else "s"}` else "no pairs"
@@ -349,6 +407,8 @@ local function bakeTick()
 				local rarityIndex = Formulas.rollRarity(rng, luck, chanceMultipliers)
 				local bakeLevel = math.min(level + levelBonus, Formulas.maxLevel())
 				local units, value = Formulas.bakeResult(bakeLevel, rarityIndex)
+				-- csillagok: a Lv15 sütő értéke csillagonként +50% (a darabszám nem változik)
+				value *= Formulas.starMultiplier(level, raw.ovenStars[slot])
 				table.insert(state.pending, {
 					arriveAt = now + Formulas.travelTime(slot),
 					units = units,

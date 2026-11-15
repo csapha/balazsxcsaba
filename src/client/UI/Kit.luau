@@ -31,6 +31,25 @@ local INNER_TRANSPARENCY = 0.45
 local RING_RADIUS = 20
 local WELD_TILE = 84
 
+-- Boxes with full-size decoration layers (inner ring, candy face, weld): a UIPadding or a layout placed
+-- directly in them also moves / shrinks those layers (the coloured border ends up inset from the outline).
+-- Put padding / layouts in a "Content" frame or on the child itself instead. Warns in Studio.
+local LAYOUT_CLASSES = { UIPadding = true, UIListLayout = true, UIGridLayout = true, UITableLayout = true, UIPageLayout = true }
+local isStudio = RunService:IsStudio()
+local function checkDecorated(props: { [any]: any }, who: string)
+	if not isStudio then
+		return
+	end
+	for _, child in ipairs(props) do
+		if type(child) == "table" then
+			checkDecorated(child, who) -- Vide children can come in nested arrays
+		elseif typeof(child) == "Instance" and LAYOUT_CLASSES[child.ClassName] then
+			warn(`[Kit.{who}] {child.ClassName} directly in "{props.Name or who}" also moves its border/face layers;`
+				.. " put it in a Content frame or on the child instead.\n" .. debug.traceback(nil, 3))
+		end
+	end
+end
+
 local function passthrough(props: { [any]: any }, custom: { string }): { [any]: any }
 	local out = {}
 	for k, v in props do
@@ -589,6 +608,7 @@ local function withSounds(events: { [string]: any }, activated: ((...any) -> ())
 end
 
 function Kit.button(props: { [any]: any }): ImageButton
+	checkDecorated(props, "button")
 	local corner = props.Corner or CORNER
 	local size: UDim2 = props.Size or UDim2.fromOffset(150, 48)
 	local height = if size.Y.Offset > 0 then size.Y.Offset else 48
@@ -713,6 +733,7 @@ function Kit.button(props: { [any]: any }): ImageButton
 end
 
 function Kit.plate(props: { [any]: any }): Frame
+	checkDecorated(props, "plate")
 	local size: UDim2 = props.Size or UDim2.new(1, 0, 0, 38)
 	local height = if size.Y.Offset > 0 then size.Y.Offset else 38
 	local palette = function(): Theme.Palette
@@ -829,6 +850,7 @@ function Kit.softBehind(labels: { TextLabel }, props: { [string]: any }?): Image
 end
 
 function Kit.darkBox(props: { [any]: any }): Frame
+	checkDecorated(props, "darkBox")
 	local corner = props.Corner or SMALL_CORNER
 	return create "Frame" {
 		BackgroundColor3 = props.Fill or C.Card,

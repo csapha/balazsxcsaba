@@ -17,6 +17,9 @@ function DataService.init()
 		while #data.ovens < Config.Ovens.MaxSlots do
 			table.insert(data.ovens, 0)
 		end
+		while #data.ovenStars < Config.Ovens.MaxSlots do
+			table.insert(data.ovenStars, 0)
+		end
 		data.slots = math.clamp(
 			math.max(data.slots, Formulas.rebirthSlots(data.rebirths)),
 			Config.Ovens.StartSlots,

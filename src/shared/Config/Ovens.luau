@@ -32,22 +32,20 @@ return table.freeze({
 	GenerationThresholds = table.freeze({ 1_000, 10_000, 50_000, 200_000, 1_000_000 }),
 	GenerationPriceGrowth = 1.8,
 
-	-- FÉLKÉSZ (döntés 2026-11-12, a szimulátorban már így működik, a játékban még nem):
-	-- Tele sornál a 100-as gomb a legalacsonyabb sütőbe "vásárol bele": Lv k-hoz 2^(k - alapszint) sütő kell,
-	-- és annyit vegyen, amennyi kell, akkor is, ha 100-nál több (különben a sor elakad). A játékban
-	-- (OvenService.buyIntoLowest) még a 100-as korlát él.
+	-- Döntés (2026-11-12): tele sornál a 100-as gomb a legalacsonyabb sütőbe "vásárol bele": Lv k-hoz
+	-- 2^(k - alapszint) sütő kell, és annyit vesz, amennyi kell, akkor is, ha 100-nál több (különben a sor
+	-- elakad). Formulas.intoLowest, OvenService.buyIntoLowest.
 
-	-- FÉLKÉSZ – Csillagok (döntés 2026-11-12): ha a sor tele van és minden sütő Lv15, a 100-as gomb csillagot
+	-- Csillagok (döntés 2026-11-12): ha a sor tele van és minden sütő Lv15, a 100-as gomb csillagot
 	-- vesz a legkevesebb csillagú sütőre. Csillagonként +Bonus érték (5★ = 3.5×); a rebirth nullázza.
-	-- Kész: képletek (Formulas.starPrice / starTarget / starMultiplier) + szimulátor.
-	-- Hátravan: mentés (ovenStars), OvenService (gomb + sütés), RebirthService nullázás, ★ a sütők felett.
-	-- A PriceSeconds még nincs véglegesítve (a szimulátor alapján 120 és PriceGrowth 3 a legjobb eddig).
+	-- Mentés: Data.ovenStars. Formulas.starPrice / starTarget / starMultiplier, OvenService.buyStars.
 	-- ár = egy Lv15 sütő bevételének (pénzszorzókkal) PriceSeconds mp-e × PriceGrowth^(a sütő csillagai)
+	-- 120 mp × 3ⁿ: a szimulátor szerint a legjobb (a leghosszabb végjátéki várakozás 37 → 17 perc).
 	Stars = table.freeze({
 		Max = 5,
 		Bonus = 0.5,
-		PriceSeconds = 600,
-		PriceGrowth = 2,
+		PriceSeconds = 120,
+		PriceGrowth = 3,
 	}),
 
 	-- A gyűjtőtálcának nincs kapacitása: annyit gyűjt, amennyit a sütők sütnek (döntés 2026-11-12).

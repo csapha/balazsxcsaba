@@ -174,7 +174,8 @@ local function row(order: number, discovered: () -> boolean, entry: Entry): Fram
 			AutomaticSize = Enum.AutomaticSize.X,
 			Fill = C.Panel,
 			Line = entry.color,
-			create "UIPadding" { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) },
+			-- the padding goes on the text, not on the box: a UIPadding on the box would also shrink
+			-- its full-size inner ring (the coloured border would sit inset from the outline)
 			Kit.text {
 				Text = text,
 				TextSize = 17,
@@ -183,6 +184,7 @@ local function row(order: number, discovered: () -> boolean, entry: Entry): Fram
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromScale(0, 1),
 				ZIndex = 3,
+				create "UIPadding" { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) },
 			},
 		})
 	end

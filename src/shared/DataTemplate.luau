@@ -13,6 +13,8 @@ local Template = {
 	slots = Config.Ovens.StartSlots,
 	ovens = table.create(Config.Ovens.MaxSlots, 0),
 	ovensBought = 0, -- az utolsó rebirth óta vett sütők (generáció küszöb)
+	-- Csillagok: slot → csillagszám (0..Ovens.Stars.Max), csak a Lv15 sütőn számít; a rebirth nullázza.
+	ovenStars = table.create(Config.Ovens.MaxSlots, 0),
 
 	-- GDD 3.9: petek (megmaradnak rebirthkor)
 	--   inventory: { { uid: number, id: string, golden: boolean } }, equipped: { uid }

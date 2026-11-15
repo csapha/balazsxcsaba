@@ -1,5 +1,5 @@
 -- Rebirth (GDD 3.8). A kliens a Rebirth ablakból kéri (Remotes.RequestRebirth), a szerver ellenőrzi.
--- Teljes újrakezdés: pénz → kezdőpénz, sütők, generáció, eladó, chefek, pult, minden készlet nullázódik.
+-- Teljes újrakezdés: pénz → kezdőpénz, sütők + csillagok, generáció, eladó, chefek, pult, minden készlet nullázódik.
 -- Megmarad: rebirth szám, tokenek, slotok (a rebirth bővíti), Index, statisztikák.
 -- Jutalom: pénzszorzó x(1 + rebirthek), +1 Rebirth Token, az 1–3. rebirth +4 slot, a 3. +1 max chef.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -50,6 +50,7 @@ function RebirthService.rebirth(state: PlotService.PlotState): boolean
 	-- nullázás
 	data.money(startMoney)
 	data.ovens(table.create(Config.Ovens.MaxSlots, 0))
+	data.ovenStars(table.create(Config.Ovens.MaxSlots, 0))
 	data.ovensBought(0)
 	data.cycleEarned(0)
 	data.generation(startGeneration)

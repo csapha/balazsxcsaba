@@ -370,6 +370,19 @@ function Formulas.lowestOven(levels: { number }, slots: number): (number?, numbe
 	return lowestSlot, lowest
 end
 
+-- Tele sor, nincs pár: a 100-as gomb "belevásárlása" a legalacsonyabb sütőbe (Lv k-hoz 2^(k - alapszint)
+-- alapszintű sütő kell, annyi, amennyi – akár 100-nál több). Visszaad: slot, szint, darab, összár
+-- (slot = nil, ha nincs mibe: üres sor, minden sütő Lv15, vagy az alapszint alatti sütő).
+function Formulas.intoLowest(data: any): (number?, number, number, number)
+	local base = Formulas.generationLevel(data.generation)
+	local slot, lowest = Formulas.lowestOven(data.ovens, data.slots)
+	if not slot or lowest >= Formulas.maxLevel() or lowest < base then
+		return nil, 0, 0, 0
+	end
+	local needed = 2 ^ (lowest - base)
+	return slot, lowest, needed, Formulas.ovenPriceSum(data.generation, data.generationBought, needed)
+end
+
 -- Csillag-vásárlás célpontja: ha a sor tele van és minden sütő Lv15, a legkevesebb csillagú sütő.
 -- Visszaad: slot, jelenlegi csillagszám (nil, ha még nem lehet / minden sütő max csillagos).
 function Formulas.starTarget(levels: { number }, stars: { number }?, slots: number): (number?, number)

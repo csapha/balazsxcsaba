@@ -28,6 +28,9 @@ local darkness: ColorCorrectionEffect
 local BANNER_W = 620
 local BANNER_H = 100
 local BANNER_TOP = 104 -- below the HUD's top bar
+-- Vignette strength: the frame's transparency while an event runs, multiplied by the edge gradient below
+-- (0.4 here × 0.3 at the very edge ≈ 40% colour on the border, fading out within ~10% of the screen).
+local VIGNETTE_TRANSPARENCY = 0.4
 
 -- Each event gets a candy palette from its colour (Kit plates look palettes up by name).
 for id, event in Config.Events.List do
@@ -51,14 +54,14 @@ local function showBanner(id: string, config: any)
 				Color = "Event" .. id,
 				Text = "",
 				Size = UDim2.fromOffset(BANNER_W, BANNER_H),
-				create "TextLabel" {
+				create "ImageLabel" {
 					Name = "Icon",
 					AnchorPoint = Vector2.new(0, 0.5),
 					Position = UDim2.new(0, 14, 0.5, -4),
 					Size = UDim2.fromOffset(64, 64),
 					BackgroundTransparency = 1,
-					Text = config.Icon,
-					TextScaled = true,
+					Image = config.Icon,
+					ScaleType = Enum.ScaleType.Fit,
 					Rotation = -8,
 					ZIndex = 6,
 				},
@@ -116,7 +119,7 @@ local function onActiveChanged()
 			vignette.BackgroundColor3 = config.Color
 		end
 		TweenService:Create(vignette, TweenInfo.new(if config then 0.5 else 0.8), {
-			BackgroundTransparency = if config then 0.25 else 1,
+			BackgroundTransparency = if config then VIGNETTE_TRANSPARENCY else 1,
 		}):Play()
 	end
 	if id and config then
@@ -187,10 +190,12 @@ function EventController.init()
 		local gradient = Instance.new("UIGradient")
 		gradient.Rotation = rotation
 		gradient.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.2),
-			NumberSequenceKeypoint.new(0.12, 1),
-			NumberSequenceKeypoint.new(0.88, 1),
-			NumberSequenceKeypoint.new(1, 0.2),
+			NumberSequenceKeypoint.new(0, 0.3),
+			NumberSequenceKeypoint.new(0.04, 0.75),
+			NumberSequenceKeypoint.new(0.1, 1),
+			NumberSequenceKeypoint.new(0.9, 1),
+			NumberSequenceKeypoint.new(0.96, 0.75),
+			NumberSequenceKeypoint.new(1, 0.3),
 		})
 		gradient.Parent = vignette
 		vignette.Parent = gui

@@ -4,6 +4,12 @@ local Ui = {}
 Ui.Font = Font.fromEnum(Enum.Font.FredokaOne)
 
 Ui.Icons = {
+	EventLunchRush = "rbxassetid://82806216790833",
+	EventGoldenOil = "rbxassetid://132702915273035",
+	EventBreadcrumbStorm = "rbxassetid://77872438516889",
+	EventFoodCritic = "rbxassetid://119592672316765",
+	EventGrandma = "rbxassetid://94583228102412",
+	EventBlackout = "rbxassetid://112459192301040",
 	Baking = "rbxassetid://124137842813509",
 	Luck = "rbxassetid://108179624058657",
 	Chefs = "rbxassetid://88499542528911",

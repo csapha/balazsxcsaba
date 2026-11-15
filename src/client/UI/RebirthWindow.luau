@@ -305,7 +305,7 @@ local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 				Padding = UDim.new(0, 10),
 				SortOrder = Enum.SortOrder.LayoutOrder,
 			},
-			rulesBox(1, "RESETS", C.Bad, "Money, ovens, chefs, generation, sell speed, counter"),
+			rulesBox(1, "RESETS", C.Bad, "Money, ovens, stars, chefs, generation, sell speed, counter"),
 			rulesBox(2, "KEEPS", C.Good, function()
 				return `Tokens ({State.tokens()}), slots, pets, auras, Index, perks`
 			end),

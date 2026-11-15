@@ -185,10 +185,15 @@ local function topBar(clock: () -> number): Frame
 				SortOrder = Enum.SortOrder.LayoutOrder,
 			},
 			create "ImageLabel" {
+				Name = "EventIcon",
 				LayoutOrder = 1,
 				Size = UDim2.fromOffset(28, 28),
 				BackgroundTransparency = 1,
-				Image = Ui.Icons.Clock,
+				Image = function()
+					clock()
+					local config = EventState.config()
+					return if config then config.Icon else Ui.Icons.Clock
+				end,
 				ScaleType = Enum.ScaleType.Fit,
 			},
 			Kit.text {

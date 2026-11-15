@@ -9,8 +9,9 @@
 return table.freeze({
 	-- az 1., 2., 3., 4. rebirth követelménye ($ keresett pénz); utána mindig az előző × RequirementGrowth
 	-- (a balance szimulátorral hangolva: tools/sim/simulate.luau)
-	-- szimuláció (5 futás, aktív játékos): Rebirth 1 ≈ 40 perc, Rebirth 2 ≈ 2 óra, Rebirth 5 ≈ 8 óra (GDD 4.3)
-	Requirements = table.freeze({ 1e12, 3e14, 1.2e15, 2.8e15 }),
+	-- szimuláció csillagokkal (aktív játékos): Rebirth 1 ≈ 40 perc, Rebirth 2 ≈ 1:41 óra, Rebirth 5 ≈ 6:10 óra
+	-- (GDD 4.3; korábban, csillagok nélkül: $1T / $300T / $1.2Qa / $2.8Qa)
+	Requirements = table.freeze({ 2e12, 6e14, 3e15, 8e15 }),
 	RequirementGrowth = 1.6,
 
 	-- pénzszorzó: x(1 + rebirthek száma) → 1. = x2, 2. = x3, 3. = x4, 4. = x5, utána +1 / rebirth

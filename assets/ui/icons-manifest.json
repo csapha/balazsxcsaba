@@ -405,6 +405,84 @@
       "decalAssetId": "83175477678036",
       "moderationState": "Approved",
       "uploadOperationId": "856d787e-1dca-449a-aadf-0a38bffb4ba8"
+    },
+    {
+      "key": "EventLunchRush",
+      "file": "icons/schnitzel-ui-event-lunch-rush.png",
+      "source": "generated separately; see event-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "82806216790833",
+      "decalAssetId": "92582520395518",
+      "moderationState": "Approved",
+      "uploadOperationId": "cf8c8407-ab63-4d3e-baed-bd4ddc4c7654"
+    },
+    {
+      "key": "EventGoldenOil",
+      "file": "icons/schnitzel-ui-event-golden-oil.png",
+      "source": "generated separately; see event-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "132702915273035",
+      "decalAssetId": "93081458206145",
+      "moderationState": "Approved",
+      "uploadOperationId": "c142c264-788d-4d31-94ee-edaf0a28a314"
+    },
+    {
+      "key": "EventBreadcrumbStorm",
+      "file": "icons/schnitzel-ui-event-breadcrumb-storm.png",
+      "source": "generated separately; see event-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "77872438516889",
+      "decalAssetId": "122819078960566",
+      "moderationState": "Approved",
+      "uploadOperationId": "4c0bfc5e-cd4c-42c5-8fbb-6d25e0474e68"
+    },
+    {
+      "key": "EventFoodCritic",
+      "file": "icons/schnitzel-ui-event-food-critic.png",
+      "source": "generated separately; see event-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "119592672316765",
+      "decalAssetId": "79318869809356",
+      "moderationState": "Approved",
+      "uploadOperationId": "33f10842-956c-41ab-b1fb-b1597ec1b0aa"
+    },
+    {
+      "key": "EventGrandma",
+      "file": "icons/schnitzel-ui-event-grandma.png",
+      "source": "generated separately; see event-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "94583228102412",
+      "decalAssetId": "133163780908745",
+      "moderationState": "Approved",
+      "uploadOperationId": "2c368ed7-c684-43bd-8137-d1dab1c8c390"
+    },
+    {
+      "key": "EventBlackout",
+      "file": "icons/schnitzel-ui-event-blackout.png",
+      "source": "generated separately; see event-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "112459192301040",
+      "decalAssetId": "111460338730268",
+      "moderationState": "Approved",
+      "uploadOperationId": "0d9ad4e6-b1a1-4691-8a17-ff670da3fa78"
     }
   ],
   "uploadedAt": "2026-11-15",

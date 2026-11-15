@@ -1,5 +1,36 @@
 # UI ikonok
 
+## Random event ikonok (2026-11-15)
+
+Mind a hat random event saját, átlátszó, 1254 × 1254 pixeles PNG-t kapott,
+a meglévő készlet vastag sötét körvonalas, élénk rajzfilmes stílusában.
+A képek a beépített `image_gen` eszközzel készültek; a végleges promptok:
+`event-icons-prompts.md`. A fájlok az `icons/schnitzel-ui-event-*.png` képek
+(a korábbi `event-timer` továbbra is az óraikon). Minden új feltöltés Approved;
+az image/decal ID-k és a feltöltési műveletek az `icons-manifest.json` fájlban vannak.
+
+| Event | Ui.Icons kulcs | Grafika |
+| --- | --- | --- |
+| Lunch Rush | EventLunchRush | Schnitzeles tányér evőeszközökkel és sebességcsíkokkal |
+| Golden Oil | EventGoldenOil | Arany étolajos üveg |
+| Breadcrumb Storm | EventBreadcrumbStorm | Felhőből hulló schnitzelek |
+| Food Critic | EventFoodCritic | Lila cilinder és arany monokli |
+| Grandma's Visit | EventGrandma | Mosolygó, szemüveges nagymama |
+| Blackout | EventBlackout | Széthúzott kék csatlakozó |
+
+A `Config.Events.List[*].Icon` közös `Ui.Icons` képhivatkozás lett.
+Az `EventController` bannerében az emoji TextLabel helyett ImageLabel jelenik meg,
+64 pixeles képdobozban, `ScaleType.Fit` értékkel. A HUD aktív eseménynél ugyanazt
+az ikont mutatja 28 pixeles képdobozban; események között visszaáll az óra.
+
+Ellenőrzés: mind a hat PNG alfa csatornás, átlátszó sarkú; a Rojo build és a
+módosított fájlok `git diff --check` ellenőrzése sikeres. MCP playtestben mind a
+hat kép a valódi banner és HUD ImageLabel példányán `IsLoaded == true` értéket
+adott, a banner ikonja nem ér a címbe, az óra visszaállítása működik.
+A Lunch Rush első betöltésénél még nem töltődött be 0,7 másodperc alatt,
+az ismételt ellenőrzésben mindkét példánya betöltődött. A próbához a kliens
+ideiglenes EventState attribútumokat kapott, majd az eredeti értékeket visszaállítottuk.
+
 ## Állapot (2026-11-15)
 
 Az eredeti 15 kivágott, átlátszó, 384 × 384 pixeles PNG feltöltve Robloxra és bekötve.
