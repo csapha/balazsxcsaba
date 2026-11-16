@@ -530,6 +530,128 @@
       "decalAssetId": "76795026560040",
       "moderationState": "Approved",
       "uploadOperationId": "6ecc33ff-6442-4904-9b1b-e1827b3f52ad"
+    },
+    {
+      "key": "Shop",
+      "file": "icons/schnitzel-ui-shop.png",
+      "source": "generated separately; see shop-icon-prompt.md",
+      "size": [1254, 1254],
+      "imageAssetId": "81892568453108",
+      "decalAssetId": "92463090101097",
+      "moderationState": "Approved",
+      "uploadOperationId": "267f076f-f243-4c01-80cc-57917bd75f93",
+      "uploadedAt": "2026-11-16",
+      "referenceImageAssetId": "86346701405723"
+    },
+    {
+      "key": "SeasonPass",
+      "file": "icons/schnitzel-ui-pass.png",
+      "source": "generated separately; see pass-icon-prompt.md",
+      "size": [1254, 1254],
+      "imageAssetId": "123967822702376",
+      "decalAssetId": "139318191443224",
+      "moderationState": "Approved",
+      "uploadOperationId": "52149daa-d952-4179-af4c-924303e6c6ac",
+      "uploadedAt": "2026-11-16",
+      "usedBy": ["SeasonPassController", "SeasonPassWindow header", "SeasonPassWindow Pass tab"]
+    },
+    {
+      "key": "PassXp",
+      "file": "icons/schnitzel-ui-pass-xp.png",
+      "source": "generated separately; see pass-reward-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "135613592435419",
+      "decalAssetId": "111061028833768",
+      "moderationState": "Approved",
+      "uploadOperationId": "263b921b-bb66-4e55-be93-9d432909a737",
+      "uploadedAt": "2026-11-16",
+      "usedBy": [
+        "SeasonPassWindow XP header",
+        "SeasonPassWindow XP tab"
+      ]
+    },
+    {
+      "key": "GoldenEgg",
+      "file": "icons/schnitzel-ui-golden-egg.png",
+      "source": "generated separately; see pass-reward-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "103079801895752",
+      "decalAssetId": "73163801612639",
+      "moderationState": "Approved",
+      "uploadOperationId": "12a0bb85-d036-417d-98c8-340b73b46941",
+      "uploadedAt": "2026-11-16",
+      "usedBy": [
+        "SeasonPassWindow Golden Egg rewards"
+      ]
+    },
+    {
+      "key": "LemonZestTrail",
+      "file": "icons/schnitzel-ui-lemon-zest-trail.png",
+      "source": "generated separately; see pass-reward-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "88256764839025",
+      "decalAssetId": "93267805617292",
+      "moderationState": "Approved",
+      "uploadOperationId": "dc0d8eb6-4521-4fe3-84c8-856299fbe23a",
+      "uploadedAt": "2026-11-16",
+      "usedBy": [
+        "SeasonPassWindow LemonZest reward"
+      ]
+    },
+    {
+      "key": "SeasonHedgehog",
+      "file": "icons/schnitzel-ui-season-hedgehog.png",
+      "source": "generated separately; see pass-reward-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "140393696072231",
+      "decalAssetId": "108031193474508",
+      "moderationState": "Approved",
+      "uploadOperationId": "c695f0bf-c2c7-4185-8a9d-024616c0bf53",
+      "uploadedAt": "2026-11-16",
+      "usedBy": [
+        "SeasonPassWindow Free tier 30"
+      ]
+    },
+    {
+      "key": "SeasonGriffin",
+      "file": "icons/schnitzel-ui-season-griffin.png",
+      "source": "generated separately; see pass-reward-icons-prompts.md",
+      "size": [
+        1254,
+        1254
+      ],
+      "imageAssetId": "110574327552854",
+      "decalAssetId": "134489519548311",
+      "moderationState": "Approved",
+      "uploadOperationId": "61663b40-1b38-438c-849d-34d4fc8fe6a6",
+      "uploadedAt": "2026-11-16",
+      "usedBy": [
+        "SeasonPassWindow Premium tier 30"
+      ]
+    },
+    {
+      "key": "MergeOvens",
+      "file": "icons/schnitzel-ui-merge-ovens.png",
+      "source": "generated separately; see merge-ovens-icon-prompt.md",
+      "size": [1254, 1254],
+      "imageAssetId": "81165098929205",
+      "decalAssetId": "76312952595886",
+      "moderationState": "Approved",
+      "uploadOperationId": "af92216e-e2bc-4933-aac7-67b61bc58f1b",
+      "uploadedAt": "2026-11-16",
+      "usedBy": ["SeasonPassWindow Merge Ovens XP card"]
     }
   ],
   "uploadedAt": "2026-11-15",

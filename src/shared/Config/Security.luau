@@ -19,6 +19,7 @@ return table.freeze({
 		CosmeticAction = table.freeze({ Rate = 4, Burst = 8 }),
 		TutorialIntroDone = table.freeze({ Rate = 0.5, Burst = 2 }),
 		TutorialSkip = table.freeze({ Rate = 0.5, Burst = 2 }),
+		SeasonClaim = table.freeze({ Rate = 4, Burst = 10 }),
 	}),
 
 	-- Távolság-ellenőrzés (stud): a ProximityPrompt / Touched mellé a szerver is megnézi, hol áll a játékos.

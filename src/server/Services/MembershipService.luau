@@ -15,6 +15,7 @@ local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
 local IndexService = require(script.Parent.IndexService)
 local PetService = require(script.Parent.PetService)
+local TutorialService = require(script.Parent.TutorialService)
 
 local ShopConfig = Config.Shop
 local Palette = Config.Palette
@@ -46,6 +47,10 @@ end
 local function dailyGifts(player: Player)
 	local data = DataService.get(player)
 	if not data then
+		return
+	end
+	-- GDD 7: a tutorial vezetett része alatt még nem (a percenkénti ellenőrzés utána odaadja)
+	if TutorialService.guided(data()) then
 		return
 	end
 	local day = today()

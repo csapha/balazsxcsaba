@@ -16,6 +16,7 @@ local EventState = require(ReplicatedStorage.Shared.EventState)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local NumberFormat = require(ReplicatedStorage.Shared.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local Guard = require(script.Parent.Parent.Lib.Guard)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local DataService = require(script.Parent.DataService)
@@ -69,9 +70,7 @@ local function dropSchnitzel(config: any)
 		DROP_HEIGHT,
 		rng:NextNumber(-STREET_HALF_DEPTH, STREET_HALF_DEPTH)
 	) * CFrame.Angles(rng:NextNumber(0, 6), rng:NextNumber(0, 6), 0)
-	local sparkles = Instance.new("Sparkles")
-	sparkles.SparkleColor = Palette.Gold
-	sparkles.Parent = part
+	Ui.sparkles(part, Palette.Gold, 6) -- glowing star sparkles (not Roblox's default Sparkles)
 
 	local taken = false
 	part.Touched:Connect(function(hit)

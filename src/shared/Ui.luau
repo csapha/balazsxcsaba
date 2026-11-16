@@ -14,6 +14,7 @@ Ui.Icons = {
 	Luck = "rbxassetid://108179624058657",
 	Chefs = "rbxassetid://88499542528911",
 	Ovens = "rbxassetid://104194062098104",
+	MergeOvens = "rbxassetid://81165098929205",
 	RebirthToken = "rbxassetid://116751232774202",
 	OvenSlots = "rbxassetid://107350951768351",
 	Auras = "rbxassetid://98809238199668",
@@ -25,6 +26,12 @@ Ui.Icons = {
 	Coin = "rbxassetid://128954478415430",
 	CoinBag = "rbxassetid://99590768986281",
 	Star = "rbxassetid://96886395265576",
+	SeasonPass = "rbxassetid://123967822702376", -- golden star with schnitzel emblem
+	PassXp = "rbxassetid://135613592435419",
+	GoldenEgg = "rbxassetid://103079801895752",
+	LemonZestTrail = "rbxassetid://88256764839025",
+	SeasonHedgehog = "rbxassetid://140393696072231",
+	SeasonGriffin = "rbxassetid://110574327552854",
 	Perfect = "rbxassetid://100359138171159",
 	Crown = "rbxassetid://98010907624345",
 	Clock = "rbxassetid://129056316950740",
@@ -37,7 +44,7 @@ Ui.Icons = {
 	Rebirth = "rbxassetid://96649927080974",
 	RebirthCash = "rbxassetid://101971163933621",
 	KeepRecord = "rbxassetid://78071540124290",
-	Shop = "rbxassetid://86346701405723",
+	Shop = "rbxassetid://81892568453108", -- red shopping basket
 	DoubleCoins = "rbxassetid://133077600665893",
 	Gift = "rbxassetid://111048535886079", -- red gift box (Daily Rewards, Playtime Gifts)
 	Crystal = "rbxassetid://125727528067073",
@@ -83,7 +90,43 @@ Ui.Textures = {
 	TutorialArrow = "rbxassetid://71387266491638",
 	SnowFlake = "rbxassetid://138089411214946",
 	SnowCrystal = "rbxassetid://126552947346487",
+	-- 3D particle textures instead of Roblox's default sparkles / fire / smoke (decision 2026-11-16,
+	-- from ui-resources.com: "star" whiteglowingstar.png, Kek's flame 5 and smoke 1)
+	ParticleStar = "rbxassetid://125113188801545",
+	ParticleFlame = "rbxassetid://76881140970195",
+	-- Kek's smoke 1 (rbxassetid://118842987946808) did not load yet (in moderation on 2026-11-16): until it does,
+	-- the smoke aura uses our own soft puff (the same as Soft), so it is never empty or a Roblox default
+	ParticleSmoke = "rbxassetid://139896213305360",
 }
+
+-- Twinkling 4-point star sparkles (the replacement of the old Roblox Sparkles object): small glowing stars that
+-- pop up around the part, grow, turn a little and fade. rate: stars per second.
+function Ui.sparkles(parent: Instance, color: Color3, rate: number?): ParticleEmitter
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "Sparkles"
+	emitter.Texture = Ui.Textures.ParticleStar
+	emitter.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.15), color)
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Rate = rate or 5
+	emitter.Lifetime = NumberRange.new(0.6, 1)
+	emitter.Speed = NumberRange.new(0.4, 1.2)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Rotation = NumberRange.new(-20, 20)
+	emitter.RotSpeed = NumberRange.new(-40, 40)
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.3, 1.4, 0.4),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(0.7, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Parent = parent
+	return emitter
+end
 
 Ui.Vfx = {
 	Bolt1 = "rbxassetid://104997565351359",

@@ -360,9 +360,11 @@ function IndexWindow.render(anim: Motion.Anim)
 	local pages, tabs = {}, {}
 	for index, category in list do
 		local mask = attributeSource(player, category.attribute)
-		table.insert(pages, page(category, mask, function()
+		local function selected(): boolean
 			return tab() == index
-		end))
+		end
+		-- only the selected category's page is in the GUI tree (Kit.tabPage)
+		table.insert(pages, Kit.tabPage(page(category, mask, selected), selected))
 		table.insert(tabs, Kit.button {
 			Name = category.id,
 			LayoutOrder = index,

@@ -32,6 +32,7 @@ local OfflineWindow = require(script.Parent.OfflineWindow)
 local PetsWindow = require(script.Parent.PetsWindow)
 local RebirthWindow = require(script.Parent.RebirthWindow)
 local RewardsWindow = require(script.Parent.RewardsWindow)
+local SeasonPassWindow = require(script.Parent.SeasonPassWindow)
 local SettingsWindow = require(script.Parent.SettingsWindow)
 local ShopWindow = require(script.Parent.ShopWindow)
 local Audio = require(script.Parent.Audio)
@@ -82,7 +83,7 @@ local MENU_ICON_ANCHORS = {
 }
 
 local function menuButton(order: number, name: string, text: string | () -> string, icon: string, color: string, iconSize: number?)
-	-- GDD 7 FTUE: the buttons appear one by one (Tutorial.revealed), popping in with a sound
+	-- GDD 7 FTUE: the buttons appear after the guided tutorial steps (Tutorial.revealed), popping in with a sound
 	local function revealed(): boolean
 		return Tutorial.revealed(name)
 	end
@@ -93,8 +94,7 @@ local function menuButton(order: number, name: string, text: string | () -> stri
 	Vide.effect(function()
 		local now = revealed()
 		if now and not was then
-			Audio.play("New")
-			Tutorial.announce(`New: {name}!`) -- the chef introduces it
+			Tutorial.announce(name) -- the chef introduces it (with the "New" sound)
 		end
 		was = now
 	end)
@@ -542,6 +542,7 @@ function Hud.mount(data: any)
 	bind(State.offline, data.offline)
 	bind(State.daily, data.daily)
 	bind(State.playtime, data.playtime)
+	bind(State.seasonPass, data.seasonPass)
 	-- settings: from the save once, then the client owns them (UI/SettingsWindow)
 	State.settings(Settings.normalize(data.settings()))
 	local localPlayer = Players.LocalPlayer
@@ -648,6 +649,8 @@ function Hud.mount(data: any)
 			AnimatedWindow("Auras", AurasWindow.render, State.auraRolling, true),
 			-- daily rewards + playtime gifts, from the TopbarPlus "Rewards" icon (Controllers/RewardsController)
 			AnimatedWindow("Rewards", RewardsWindow.render, nil, true),
+			-- the Schnitzel Pass, from the TopbarPlus "Pass" icon (Controllers/SeasonPassController)
+			AnimatedWindow("SeasonPass", SeasonPassWindow.render, nil, true),
 			-- settings + codes, from the TopbarPlus "Settings" icon (Controllers/SettingsController)
 			AnimatedWindow("Settings", SettingsWindow.render, nil, true),
 			AnimatedWindow("Shop", ShopWindow.render, nil, true),

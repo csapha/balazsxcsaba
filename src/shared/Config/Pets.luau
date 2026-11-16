@@ -54,6 +54,10 @@ Pets.List = table.freeze({
 	ChefBear = table.freeze({ Name = "Head Chef Bear", Rarity = "Legendary", Bonus = "ChefSpeed", Value = 3.00, Color = Color3.fromRGB(250, 250, 245), Exclusive = true }),
 	SchnitzelKing = table.freeze({ Name = "Schnitzel King", Rarity = "Exclusive", Bonus = "Money", Value = 4.00, Color = Color3.fromRGB(255, 170, 40), Exclusive = true }),
 	VipPoodle = table.freeze({ Name = "VIP Golden Poodle", Rarity = "Exclusive", Bonus = "BakeSpeed", Value = 2.00, Color = Color3.fromRGB(255, 215, 0), Exclusive = true }),
+	-- Schnitzel Pass 1. szezon (Config.SeasonPass): a Free sáv 30. szintje és a Premium sáv 30. szintje.
+	-- Csak a szezonban szerezhetők, ezért ezek sem számítanak az Indexbe.
+	SeasonHedgehog = table.freeze({ Name = "Crispy Hedgehog", Rarity = "Epic", Bonus = "Luck", Value = 1.50, Color = Color3.fromRGB(196, 132, 60), Exclusive = true }),
+	SeasonGriffin = table.freeze({ Name = "Golden Schnitzel Griffin", Rarity = "Exclusive", Bonus = "Money", Value = 3.50, Color = Color3.fromRGB(255, 196, 60), Exclusive = true }),
 })
 
 -- Megjelenítési sorrend (UI, Index)
@@ -99,7 +103,7 @@ Pets.RobuxEgg = table.freeze({
 	Pets = table.freeze({ { "GoldPig", 55 }, { "LemonDragon", 25 }, { "ChefBear", 15 }, { "SchnitzelKing", 5 } }),
 })
 Pets.VipPet = "VipPoodle" -- a VIP gamepass ajándék petje (egyszer)
-Pets.ExclusiveOrder = table.freeze({ "GoldPig", "LemonDragon", "ChefBear", "SchnitzelKing", "VipPoodle" })
+Pets.ExclusiveOrder = table.freeze({ "GoldPig", "LemonDragon", "ChefBear", "SchnitzelKing", "VipPoodle", "SeasonHedgehog", "SeasonGriffin" })
 
 Pets.ActiveSlots = 3 -- egyszerre aktív petek (gamepass: +1, GDD 6.2)
 Pets.FastEggCooldown = 0.4 -- Fast Open gamepass: ennyi mp két nyitás között (alap: lásd PetService)

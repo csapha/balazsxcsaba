@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Ui = require(ReplicatedStorage.Shared.Ui)
 local Kit = require(script.Parent.Kit)
+local Motion = require(script.Parent.Motion)
 local Theme = require(script.Parent.Theme)
 local create = Vide.create
 local read = Vide.read
@@ -15,13 +16,8 @@ export type TileState = "claimed" | "ready" | "locked"
 type Value<T> = Kit.Value<T>
 
 -- Végtelen tween, a hívó hatókörével együtt áll le.
-local function loop(instance: Instance, info: TweenInfo, goal: { [string]: any })
-	local tween = TweenService:Create(instance, info, goal)
-	tween:Play()
-	Vide.cleanup(function()
-		tween:Cancel()
-	end)
-end
+-- endless tweens only run while the window is open (Motion.loop)
+local loop = Motion.loop
 
 -- A jutalom matricája (Config.Rewards: Money / Tickets / Pet).
 function Parts.icon(reward: any): string

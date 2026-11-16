@@ -2,7 +2,6 @@
 --   left: the selected aura (what it gives, its level, how to level it) and EQUIP / UNEQUIP;
 --   right: tickets + the two roll buttons on top, the collection (8 auras) below. Tap a card to select it.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Shared = ReplicatedStorage.Shared
@@ -53,13 +52,10 @@ local function rarityOf(id: string)
 end
 
 local function spinForever(instance: GuiObject, seconds: number): GuiObject
-	local tween = TweenService:Create(instance, TweenInfo.new(seconds, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
+	-- only spins while the window is open (Motion.loop pauses it while the window is detached)
+	Motion.loop(instance, TweenInfo.new(seconds, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
 		Rotation = instance.Rotation + 360,
 	})
-	tween:Play()
-	Vide.cleanup(function()
-		tween:Cancel()
-	end)
 	return instance
 end
 

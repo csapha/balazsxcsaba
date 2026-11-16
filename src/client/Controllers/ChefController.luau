@@ -194,7 +194,7 @@ local function update()
 			local duration = chef:GetAttribute("Duration") or 0
 			local alpha = if duration > 0 then math.clamp((now - start) / duration, 0, 1) else 1
 			local position = from:Lerp(to, alpha)
-			local walking = (phase == "toCollector" or phase == "toTable") and alpha < 1
+			local walking = (phase == "toCollector" or phase == "toTable" or phase == "toRest") and alpha < 1
 			local sleeping = phase == "sleep"
 
 			-- a menetirány felé fordul; álló helyzetben megtartja az irányt

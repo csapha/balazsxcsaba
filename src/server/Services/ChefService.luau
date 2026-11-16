@@ -1,7 +1,8 @@
 -- Chefek (GDD 3.6, 12.2): a szerver csak időalapon szimulálja a körutat, a kliens rajzolja ki őket.
 -- Körút: collector → (felvesz max Stack sütést) → leadó asztal → (lead) → vissza a collectorhoz.
--- Stamina: ha elfogy, a chef ott helyben elalszik; SleepTime után magától felkel, vagy a tulajdonos
--- felébreszti (Anti-Sleep boost: gyorsabb egy ideig).
+-- Stamina: ha elfogy, a chef átsétál a Chef Rest négyzetre (döntés 2026-11-16: ne a padokon / gombokon aludjon), és
+-- ott alszik el; SleepTime után magától felkel, vagy a tulajdonos felébreszti (Anti-Sleep boost: gyorsabb egy ideig),
+-- és onnan folytatja (ha visz sütést, a leadó asztalhoz megy, különben a collectorhoz).
 -- Replikáció: plot.Chefs/Chef{i} (Configuration) attribútumai, csak fázisváltáskor frissülnek:
 --   Phase, From, To (telek-lokális Vector3), Start (szerveridő), Duration, Carrying (sütés), BoostUntil.
 local Players = game:GetService("Players")
@@ -32,7 +33,7 @@ local STAT_FIELDS = {
 	AntiSleep = "antiSleep",
 }
 
-type Phase = "toCollector" | "atCollector" | "toTable" | "atTable" | "sleep"
+type Phase = "toCollector" | "atCollector" | "toTable" | "atTable" | "toRest" | "sleep"
 
 type Chef = {
 	index: number,
@@ -45,7 +46,6 @@ type Chef = {
 	stamina: number,
 	boostUntil: number,
 	carrying: { count: number, units: number, value: number }?,
-	resume: { phase: Phase, to: Vector3 }?,
 }
 
 local ChefService = {}
@@ -115,14 +115,27 @@ local function targets(chef: Chef, count: number): (Vector3, Vector3)
 	return point(Settings.CollectorPoint, lane), point(Settings.TablePoint, lane)
 end
 
-local function fallAsleep(chef: Chef, now: number)
-	local position = currentPosition(chef, now)
-	chef.resume = { phase = chef.phase, to = chef.to }
-	setPhase(chef, "sleep", position, position, now, Settings.SleepTime)
+-- The chef's bed on the Chef Rest square (12 × 12 studs): the first one in the middle, the others around it.
+local REST_SPACING = 2.6
+local REST_SPOTS = {
+	Vector2.new(0, 0), Vector2.new(-1, 0), Vector2.new(1, 0), Vector2.new(0, -1), Vector2.new(0, 1),
+	Vector2.new(-1, -1), Vector2.new(1, -1), Vector2.new(-1, 1), Vector2.new(1, 1),
+	Vector2.new(-2, 0), Vector2.new(2, 0), Vector2.new(0, -2), Vector2.new(0, 2),
+	Vector2.new(-2, -2), Vector2.new(2, -2), Vector2.new(-2, 2), Vector2.new(2, 2), -- up to 17 chefs (15 + the pass)
+}
+local function restSpot(chef: Chef): Vector3
+	local spot = REST_SPOTS[(chef.index - 1) % #REST_SPOTS + 1] * REST_SPACING
+	local center = Settings.RestPoint
+	return Vector3.new(center.X + spot.X, 0, center.Y + spot.Y)
+end
+
+-- Out of stamina: walk to the Chef Rest square first (not asleep on the collector / table pads).
+local function goToRest(chef: Chef, raw: any, now: number)
+	walk(chef, raw, "toRest", currentPosition(chef, now), restSpot(chef), now)
 end
 
 local function wake(chef: Chef, raw: any, now: number, byPlayer: boolean)
-	if chef.phase ~= "sleep" then
+	if chef.phase ~= "sleep" and chef.phase ~= "toRest" then
 		return
 	end
 	chef.stamina = Formulas.chefStat("Stamina", statLevel(raw, "Stamina"))
@@ -130,28 +143,27 @@ local function wake(chef: Chef, raw: any, now: number, byPlayer: boolean)
 		chef.boostUntil = now + Formulas.chefStat("AntiSleep", statLevel(raw, "AntiSleep"))
 	end
 
-	local position = chef.from
-	local resume = chef.resume or { phase = "toCollector" :: Phase, to = position }
-	chef.resume = nil
-	if resume.phase == "toCollector" or resume.phase == "toTable" then
-		walk(chef, raw, resume.phase, position, resume.to, now)
+	-- back to work from where it is: with schnitzels to the table, otherwise to the collector
+	local collector, tableSpot = targets(chef, raw.chefs.count)
+	local position = currentPosition(chef, now)
+	if chef.carrying then
+		walk(chef, raw, "toTable", position, tableSpot, now)
 	else
-		setPhase(chef, resume.phase, position, position, now, Settings.PickupTime)
+		walk(chef, raw, "toCollector", position, collector, now)
 	end
 end
 
 local function tickChef(state: PlotService.PlotState, chef: Chef, raw: any, now: number, count: number)
 	-- GDD 6.2–6.3: Tireless Chefs gamepass / Chef Energy Drink → nem alszanak el (az alvót rögtön felkeltjük)
 	if Formulas.chefsTireless(raw) then
-		if chef.phase == "sleep" then
+		if chef.phase == "sleep" or chef.phase == "toRest" then
 			wake(chef, raw, now, false)
 		end
 		chef.stamina = math.max(chef.stamina, TICK)
-	elseif chef.phase ~= "sleep" then
+	elseif chef.phase ~= "sleep" and chef.phase ~= "toRest" then
 		chef.stamina -= TICK
 		if chef.stamina <= 0 then
-			fallAsleep(chef, now)
-			TutorialService.event(state.player, "ChefAsleep") -- GDD 7.3: "Wake him up!" (csak egyszer)
+			goToRest(chef, raw, now)
 			return
 		end
 	end
@@ -182,6 +194,9 @@ local function tickChef(state: PlotService.PlotState, chef: Chef, raw: any, now:
 			SellService.depositFromChef(state, carrying.units, carrying.value)
 		end
 		walk(chef, raw, "toCollector", chef.to, collector, now)
+	elseif chef.phase == "toRest" then
+		setPhase(chef, "sleep", chef.to, chef.to, now, Settings.SleepTime)
+		TutorialService.event(state.player, "ChefAsleep") -- GDD 7.3: "Wake him up!" (csak egyszer)
 	elseif chef.phase == "sleep" then
 		wake(chef, raw, now, false)
 		TutorialService.event(state.player, "ChefWoken") -- magától felkelt

@@ -13,6 +13,8 @@
 --   RebirthSkip   – rebirth jutalom NULLÁZÁS NÉLKÜL (döntés 2026-11-15), lépcsős ár (Shop.RebirthSkip)
 --   SuperJump / SchnitzelRain / Tenderize – troll / fun termékek (GDD 6.3)
 --   Cosmetic      – kozmetikum (trail / telek téma), egyszeri: data.cosmetics.owned
+--   SeasonPremium – a Schnitzel Pass Premium sávja az aktuális szezonra (Config.SeasonPass)
+--   SeasonSkip    – +1 Pass szint (a következő szint eléréséhez hiányzó XP)
 local Shop = {}
 
 local HOUR = 60 * 60
@@ -25,6 +27,8 @@ Shop.Tabs = table.freeze({ "Featured", "Passes", "Items" })
 Shop.ItemSections = table.freeze({ "Cash", "Boosts", "Fun" })
 
 -- GDD 6.2: gamepassok (egyszeri vásárlás). Price: R$ (csak kijelzés, a valódi árat a Roblox adja).
+-- A Gamepasses fül kártyái (döntés 2026-11-16, az Egg Drop bolt mintájára): Tag (kis címke fent), Perk (zöld előny),
+-- Details (két soros leírás), Headline (csak a kiemelt, széles kártya címe; nélküle a Name).
 -- A Gamepasses fülön ezek látszanak (döntés 2026-11-15: kevesebb dolog a Shopban). A többi gamepass ott jelenik meg,
 -- ahol értelme van: VIP – kezdőlap; Tireless Chefs – chef-pad + toast, ha elalszik a chef; Offline x2 – az Offline
 -- ablakban; Open 3 Eggs és Fast Open – a tojásoknál (külön prompt).
@@ -32,13 +36,13 @@ Shop.PassOrder = table.freeze({
 	"DoubleMoney", "DoubleBake", "AutoCollect", "Lucky", "ChefSlots", "PetSlot",
 })
 Shop.Passes = table.freeze({
-	DoubleMoney = table.freeze({ Name = "x2 Money", Description = "All money x2, forever", Price = 149, Icon = "DoubleCoins", Color = "Green", GamePassId = 0 }),
-	DoubleBake = table.freeze({ Name = "x2 Baking Speed", Description = "Ovens bake 2x faster", Price = 99, Icon = "Baking", Color = "Orange", GamePassId = 0 }),
-	AutoCollect = table.freeze({ Name = "Auto Collect", Description = "Sale money goes straight to you", Price = 49, Icon = "CoinBag", Color = "Yellow", GamePassId = 0 }),
-	Lucky = table.freeze({ Name = "Lucky Schnitzel x2", Description = "Rare schnitzel chances x2", Price = 99, Icon = "Clover", Color = "Green", GamePassId = 0 }),
+	DoubleMoney = table.freeze({ Headline = "DOUBLE YOUR MONEY!", Tag = "DOUBLE EARNINGS", Perk = "x2 ALL MONEY", Details = "Every sale pays twice as much.\nWorks with all your boosts, forever!", Name = "x2 Money", Description = "All money x2, forever", Price = 149, Icon = "DoubleCoins", Color = "Green", GamePassId = 0 }),
+	DoubleBake = table.freeze({ Tag = "FASTER OVENS", Perk = "x2 BAKING SPEED", Details = "Every oven bakes twice as fast.\nMore schnitzel, more money!", Name = "x2 Baking Speed", Description = "Ovens bake 2x faster", Price = 99, Icon = "Baking", Color = "Orange", GamePassId = 0 }),
+	AutoCollect = table.freeze({ Tag = "NO MORE WALKING", Perk = "MONEY STRAIGHT TO YOU", Details = "Counter sales land in your wallet,\nno need to collect them.", Name = "Auto Collect", Description = "Sale money goes straight to you", Price = 49, Icon = "CoinBag", Color = "Yellow", GamePassId = 0 }),
+	Lucky = table.freeze({ Tag = "RARER SCHNITZEL", Perk = "x2 RARE CHANCE", Details = "Rare schnitzels show up twice as often.\nThey sell for way more!", Name = "Lucky Schnitzel x2", Description = "Rare schnitzel chances x2", Price = 99, Icon = "Clover", Color = "Green", GamePassId = 0 }),
 	TirelessChefs = table.freeze({ Name = "Tireless Chefs", Description = "Chefs never fall asleep", Price = 129, Icon = "Energy", Color = "Yellow", GamePassId = 0 }),
-	ChefSlots = table.freeze({ Name = "+2 Chef Slots", Description = "+2 max chefs", Price = 99, Icon = "Chefs", Color = "Blue", GamePassId = 0 }),
-	PetSlot = table.freeze({ Name = "+1 Pet Slot", Description = "Equip 4 pets at once", Price = 79, Icon = "Pets", Color = "Pink", GamePassId = 0 }),
+	ChefSlots = table.freeze({ Tag = "BIGGER KITCHEN", Perk = "+2 MAX CHEFS", Details = "Hire two more chefs\nto work in your shop.", Name = "+2 Chef Slots", Description = "+2 max chefs", Price = 99, Icon = "Chefs", Color = "Blue", GamePassId = 0 }),
+	PetSlot = table.freeze({ Tag = "BIGGER TEAM", Perk = "EQUIP 4 PETS", Details = "One more pet at your side.\nMore pet bonuses at once!", Name = "+1 Pet Slot", Description = "Equip 4 pets at once", Price = 79, Icon = "Pets", Color = "Pink", GamePassId = 0 }),
 	OfflineBoost = table.freeze({ Name = "Offline x2 + 12h", Description = "x2 offline earnings, up to 12 hours", Price = 79, Icon = "Clock", Color = "Purple", GamePassId = 0 }),
 	VIP = table.freeze({ Name = "VIP", Description = "x1.5 money, [VIP] tag, VIP area, VIP Golden Poodle, daily gift", Price = 299, Icon = "Crown", Color = "Yellow", GamePassId = 0 }),
 	TripleEgg = table.freeze({ Name = "Open 3 Eggs", Description = "Open 3 eggs at once, forever", Price = 99, Icon = "Egg", Color = "Pink", GamePassId = 0 }),
@@ -77,7 +81,7 @@ Shop.ProductOrder = table.freeze({
 	"CashS", "CashM", "CashL", "CashXL", "OfflineX10",
 	"BoostMoney15", "BoostMoney60", "BoostLuck15", "BoostBake15", "ChefEnergy",
 	"RobuxEgg1", "RobuxEgg3", "RobuxEgg10", "AuraRoll",
-	"Starter", "RebirthSkip1", "RebirthSkip2", "RebirthSkip3", "RebirthSkip4", "SuperJump", "SchnitzelRain", "Tenderize",
+	"Starter", "SeasonPremium", "SeasonSkip", "RebirthSkip1", "RebirthSkip2", "RebirthSkip3", "RebirthSkip4", "SuperJump", "SchnitzelRain", "Tenderize",
 })
 Shop.Products = table.freeze({
 	-- Pénz: az aktuális bevételhez skálázva (GDD 5.1 ③)
@@ -102,6 +106,10 @@ Shop.Products = table.freeze({
 
 	-- Ajánlatok (GDD 5.1 ①, 6.3)
 	Starter = table.freeze({ Tab = "Featured", Name = "Starter Pack", Description = "x2 Money for 1 hour + Wooden Spoon Owl (Epic pet) + $100K", Price = 49, Icon = "Gift", Color = "Pink", ProductId = 0, Effect = "Starter", Boost = "Money", Duration = HOUR, Pet = "Bagoly", Cash = 100_000 }),
+	-- Schnitzel Pass (GDD 6.4, döntés 2026-11-16): a Pass ablakban. A Premium szezononként vehető meg újra
+	-- (ugyanaz a termék, a szerver az aktuális szezonra írja), a +1 Tier ismételhető.
+	SeasonPremium = table.freeze({ Tab = "Pass", Name = "Schnitzel Pass Premium", Description = "Unlock the Premium rewards of this season", Price = 199, Icon = "Crown", Color = "Yellow", ProductId = 0, Effect = "SeasonPremium" }),
+	SeasonSkip = table.freeze({ Tab = "Pass", Name = "+1 Pass Tier", Description = "Jump straight to the next tier", Price = 29, Icon = "Upgrade", Color = "Green", ProductId = 0, Effect = "SeasonSkip" }),
 	-- Rebirth Skip: lépcsőnként külön termék (a Roblox ár fix); a Rebirth ablakban, mindig az aktuális lépcső (Shop.RebirthSkip)
 	RebirthSkip1 = table.freeze({ Tab = "Rebirth", Name = "Rebirth Skip", Description = "Rebirth now and keep your ovens + money", Price = 49, Icon = "Rebirth", Color = "Green", ProductId = 0, Effect = "RebirthSkip", SkipTier = 1 }),
 	RebirthSkip2 = table.freeze({ Tab = "Rebirth", Name = "Rebirth Skip", Description = "Rebirth now and keep your ovens + money", Price = 99, Icon = "Rebirth", Color = "Green", ProductId = 0, Effect = "RebirthSkip", SkipTier = 2 }),
@@ -202,6 +210,8 @@ Shop.Trails = table.freeze({
 	GoldenSparkle = table.freeze({ Name = "Golden Sparkle", Description = "A shining gold trail", Price = 49, ProductId = 0, Colors = { Color3.fromRGB(255, 240, 140), Color3.fromRGB(255, 180, 20) }, Glow = true }),
 	PaprikaFire = table.freeze({ Name = "Paprika Fire", Description = "Spicy red flames", Price = 79, ProductId = 0, Colors = { Color3.fromRGB(255, 220, 80), Color3.fromRGB(230, 40, 20) }, Glow = true }),
 	Rainbow = table.freeze({ Name = "Rainbow Schnitzel", Description = "Every colour at once", Price = 99, ProductId = 0, Colors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(80, 160, 255) }, Rainbow = true, Glow = true }),
+	-- Schnitzel Pass jutalom (Config.SeasonPass): nem vehető meg, ezért nincs a TrailOrder-ben
+	LemonZest = table.freeze({ Name = "Lemon Zest Trail", Description = "Schnitzel Pass, Season 1", Colors = { Color3.fromRGB(255, 250, 150), Color3.fromRGB(150, 220, 60) }, Glow = true, PassOnly = true }),
 })
 
 -- Telek témák: a telek padlója, platformja, pultja és tábla-oszlopa más színű. Classic: az alap (ingyen).

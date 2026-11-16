@@ -33,6 +33,8 @@ local State = {
 	auras = source({ owned = {}, equipped = "", tickets = 0, ticketProgress = 0 } :: AurasData),
 	offline = source({ pending = 0, seconds = 0 } :: Offline),
 	daily = source({ streak = 0, lastDay = 0 } :: Daily),
+	-- GDD 6.4 Schnitzel Pass (UI/SeasonPassWindow)
+	seasonPass = source({ season = 0, xp = 0, premium = false, free = 0, paid = 0, day = 0, merges = 0, eggs = 0 } :: any),
 	playtime = source({ day = 0, seconds = 0, claimed = 0 } :: Playtime),
 
 	-- the player's settings (UI/SettingsWindow): loaded from the save once, then the client owns them

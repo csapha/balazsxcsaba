@@ -1,7 +1,7 @@
 -- GDD 7: FTUE – az első 10 perc. Döntések (2026-11-15):
 --   szöveges logó a betöltőképernyőn; a kezdőpénz pontosan 2 sütő (Config.Game.StartMoney);
 --   vezetés: arany fénycsík a padlón + ugráló nyíl a cél felett + chef buborék fent (átugorható, a nyíl marad);
---   a HUD gombjai fokozatosan jelennek meg; ajándék chef ~3. perc, "Wake him up!", első event fixen 5 percnél
+--   a HUD menü gombjai a fő lépések után jelennek meg (mind egyszerre); ajándék chef ~3. perc, "Wake him up!", első event fixen 5 percnél
 --   (Config.Events.FirstEventDelay, Panírvihar), ingyen tojás ~7. perc; a questek a 8. fejezettel jönnek;
 --   repülő kamera az első belépéskor + a sütő "leesik az égből"; csak angol szöveg.
 --
@@ -16,7 +16,8 @@ return table.freeze({
 	Main = table.freeze({ "Welcome", "BuyOven1", "BuyOven2", "Merge", "Pickup", "Deposit", "Collect", "BuyMore" }),
 
 	Steps = table.freeze({
-		Welcome = table.freeze({ Text = "Hi! Help me open the schnitzel shop!", Picture = { "Home" } }),
+		-- a nyíl már az üdvözlésnél (és a repülő kamera alatt) az első sütő padjára mutat, ne legyen üres várakozás
+		Welcome = table.freeze({ Text = "Hi! Help me open the schnitzel shop!", Target = "Pad:BuyOne", Picture = { "Home" } }),
 		BuyOven1 = table.freeze({ Text = "Buy an oven!", Target = "Pad:BuyOne", Picture = { "Coin", ">", "Ovens" } }),
 		BuyOven2 = table.freeze({ Text = "Buy one more!", Target = "Pad:BuyOne", Picture = { "Coin", ">", "Ovens" } }),
 		Merge = table.freeze({ Text = "Two same ovens? MERGE!", Target = "Pad:Merge", Picture = { "Ovens", "+", "Ovens", "=", "Upgrade" } }),
@@ -29,18 +30,14 @@ return table.freeze({
 		FreeEgg = table.freeze({ Text = "A free egg for you! Go open it!", Target = "Egg:1", Picture = { "Gift", ">", "Egg" } }),
 	}),
 
-	IntroTimeout = 25, -- ha a kliens addig nem jelzi, hogy lefutott a repülő kamera, a tutorial akkor is indul
+	IntroTimeout = 10, -- ha a kliens addig nem jelzi, hogy lefutott a repülő kamera, a tutorial akkor is indul
+	IntroLoadingWait = 5, -- a kliens legfeljebb ennyit vár a betöltőképernyő végére a repülő kamera előtt (mp)
 	ChefGiftAt = 180, -- játékidő (mp): ajándék chef
 	FreeEggAt = 420, -- ingyen tojás (az első tojás ára 0)
 	DoneAt = 600, -- utána kész a tutorial (minden HUD gomb látszik), ha az egyszeri lépések megvoltak
 	GiveUpAt = 900, -- ennyi játékidő után akkor is kész, ha kihagyott valamit (pl. nem ment el a tojásért)
 
-	-- A HUD gombok megjelenése HALADÁS szerint (döntés 2026-11-15, az idő szerinti helyett):
-	--   Shop – a tutorial fő lépései után; Index – az első IndexLevel szintű sütőnél; Pets – az első petnél;
-	--   Auras – az első ticketnél / auránál; Rebirth – ha a követelmény RebirthProgress részén túl vagy.
-	-- Megjelenéskor a chef be is mutatja ("New: Shop!"). A tutorial végén (és a visszatérő játékosnak) minden látszik.
-	Reveal = table.freeze({
-		IndexLevel = 3,
-		RebirthProgress = 0.01,
-	}),
+	-- A HUD menü gombjai (döntés 2026-11-16, a haladás szerinti helyett): a fő lépések alatt egy sem látszik
+	-- (az ajándék aura ticket sem hozza elő az Aurast), a fő lépések végén (vagy SKIP után) MIND egyszerre
+	-- megjelenik, a chef bemutatja ("New buttons unlocked!"). A fő lépések alatt napi ajándék sem jön.
 })

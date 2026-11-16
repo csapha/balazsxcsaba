@@ -1,4 +1,4 @@
--- Random event visuals (GDD 3.12, 10): a candy banner (UI Kit style) slides down when an event starts,
+-- Random event visuals (GDD 3.12, 10): a banner (faint blurred backdrop) slides down when an event starts,
 -- a coloured vignette on the screen edges, a darker picture during the Blackout; event rewards
 -- (+$, Food Critic) float above your head. (The "Next event" timer is on the HUD.)
 local Lighting = game:GetService("Lighting")
@@ -38,10 +38,31 @@ for id, event in Config.Events.List do
 	Theme.Palettes["Event" .. id] = Theme.paletteFrom(event.Color)
 end
 
--- Banner sliding down from the top: icon + name + description, then it slides back up.
+-- Banner sliding down from the top, then back up (decision 2026-11-16: no candy plate behind it, only a faint,
+-- blurred black backdrop): the icon and the name in the event's colour side by side, the description under them.
+local BACKDROP_TRANSPARENCY = 0.55
+local BACKDROP_BLEED = Vector2.new(260, 36) -- the soft edges reach past the text
+
 local function showBanner(id: string, config: any)
+	local palette = Theme.Palettes["Event" .. id]
 	local holder: Frame
 	local destroy = Vide.root(function()
+		local backdrop = Ui.softPanel(BACKDROP_TRANSPARENCY, 44)
+		backdrop.Name = "Backdrop"
+		backdrop.AnchorPoint = Vector2.new(0.5, 0.5)
+		backdrop.Position = UDim2.fromScale(0.5, 0.5)
+		backdrop.Size = UDim2.new(1, BACKDROP_BLEED.X, 1, BACKDROP_BLEED.Y)
+		backdrop.ZIndex = 0
+		-- darkest behind the text, fading out to nothing at the sides (no box edges)
+		create "UIGradient" {
+			Parent = backdrop,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.22, 0.15),
+				NumberSequenceKeypoint.new(0.78, 0.15),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+		}
 		holder = create "Frame" {
 			Name = "EventBanner",
 			AnchorPoint = Vector2.new(0.5, 1),
@@ -50,41 +71,52 @@ local function showBanner(id: string, config: any)
 			BackgroundTransparency = 1,
 			Parent = gui,
 			Kit.scale(),
-			Kit.plate {
-				Name = "Plate",
-				Color = "Event" .. id,
-				Text = "",
-				Size = UDim2.fromOffset(BANNER_W, BANNER_H),
+			backdrop,
+			-- icon + title, centred together
+			create "Frame" {
+				Name = "Headline",
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.fromOffset(BANNER_W / 2, 4),
+				Size = UDim2.fromOffset(0, 54),
+				AutomaticSize = Enum.AutomaticSize.X,
+				BackgroundTransparency = 1,
+				create "UIListLayout" {
+					FillDirection = Enum.FillDirection.Horizontal,
+					VerticalAlignment = Enum.VerticalAlignment.Center,
+					Padding = UDim.new(0, 10),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				},
 				create "ImageLabel" {
 					Name = "Icon",
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 14, 0.5, -4),
-					Size = UDim2.fromOffset(64, 64),
+					LayoutOrder = 1,
+					Size = UDim2.fromOffset(54, 54),
 					BackgroundTransparency = 1,
 					Image = config.Icon,
 					ScaleType = Enum.ScaleType.Fit,
 					Rotation = -8,
-					ZIndex = 6,
+					ZIndex = 2,
 				},
 				Kit.text {
 					Name = "Title",
+					LayoutOrder = 2,
 					Text = `{string.upper(config.Name)}!`,
 					TextSize = 40,
 					StrokeThickness = 4,
-					Position = UDim2.fromOffset(84, 8),
-					Size = UDim2.new(1, -100, 0, 46),
-					ZIndex = 6,
+					Gradient = ColorSequence.new(palette.light, config.Color),
+					AutomaticSize = Enum.AutomaticSize.X,
+					Size = UDim2.fromOffset(0, 46),
+					ZIndex = 2,
 				},
-				Kit.text {
-					Name = "Description",
-					Text = config.Description,
-					TextSize = 19,
-					Gradient = false,
-					TextWrapped = true,
-					Position = UDim2.fromOffset(84, 54),
-					Size = UDim2.new(1, -100, 0, 34),
-					ZIndex = 6,
-				},
+			},
+			Kit.text {
+				Name = "Description",
+				Text = config.Description,
+				TextSize = 20,
+				Gradient = false,
+				TextWrapped = true,
+				Position = UDim2.fromOffset(16, 60),
+				Size = UDim2.new(1, -32, 0, 30),
+				ZIndex = 2,
 			},
 		} :: Frame
 	end)
@@ -96,7 +128,7 @@ local function showBanner(id: string, config: any)
 	}):Play()
 	task.delay(0.35, function()
 		if holder.Parent then
-			Kit.burst(holder, UDim2.fromOffset(46, BANNER_H / 2), Theme.Palettes["Event" .. id].light, 12, 1.2)
+			Kit.burst(holder, UDim2.fromOffset(BANNER_W / 2, 30), palette.light, 12, 1.2)
 		end
 	end)
 	task.delay(3.6, function()

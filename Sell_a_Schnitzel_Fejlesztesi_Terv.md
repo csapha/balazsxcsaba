@@ -678,12 +678,16 @@ src/
 > A vizuálok placeholderek (szürke dobozok, blokkos figurák) – a modelleket a másik fejlesztő készíti.
 > Ahol eltértünk az eredeti tervtől, azt **Eltérés** jelöli.
 
-### Nem a mi feladatunk / most nem kell (döntés 2026-11-15)
-Ezeket a fejezeteket kihagyjuk, a "mit tudnánk még csinálni" listába sem kerülnek:
-- **6. Monetizáció:** gamepassok, dev productok, Robux gombok, Robux tojás / aura dobás, Offline Claim x10, Rebirth Skip, kezdőcsomag, Season Pass.
-- **4.4 Bottleneck-egyensúly / balance szimulátor:** a szimulátor futtatása és a további hangolás (a csillagokkal még nem futott, nincs `lune`).
-- **7. Első 10 perc (FTUE):** betöltőképernyő, tutorial nyilak, ingyen chef / tojás, első event 5 percnél.
+### Nem a mi feladatunk / most nem kell (döntés 2026-11-15, frissítve 2026-11-16)
 - **Modellek:** minden, ami a `Sell_a_Schnitzel_Voxel_Modellek.md` fájlban van (a modelleket a másik fejlesztő készíti).
+- (A 6. Monetizáció, a 4.4 szimulátor és a 7. FTUE eredetileg itt volt, de azóta mind elkészült – lásd lent.)
+
+### Munkanapló – 2026-11-16
+- **Shop** új "cukorka" kinézet (Gamepasses, Featured, Items), **UI optimalizálás**, új **event bejelentés**, saját **részecske textúrák**, **chef a pihenőn alszik**, **tooltip javítás** (részletek az 5. Shop alatt).
+- **Szimulátor lefutott** (`lune` most a `rokit.toml`-ban), csillagokkal együtt – lásd 4.4.
+- **Schnitzel Pass** (GDD 6.4) – lásd lent.
+- **Új betöltőképernyő** a Kit stílusában (7. FTUE alatt).
+- **Javítás – szöveg-gradiens:** a Kit feliratainak fehér → szürke gradiense sok helyen éles vágás volt a betűk közepén (pl. "New buttons unlocked!", HUD menü feliratai). Ok: a gradiens akkor mérte a szövegsávot, amikor a TextBounds még 0 volt (betűtípus töltődik / épp csatolt elem), és utána nem mérte újra. Most nem mér 0-s TextBounds-szal, és a TextBounds változását is figyeli (mint az EggDrop Kit). Studióban: előtte 217 feliratból 206 volt hibás, utána 229-ből 0.
 
 ### Munkanapló – 2026-11-15
 Ami ma elkészült (a részletek lent, a saját fejezetükben):
@@ -705,7 +709,7 @@ Ami ma elkészült (a részletek lent, a saját fejezetükben):
 - **Technikai rész** (12–13. fejezet): remote rate limit (`Guard`), távolság-ellenőrzés, analytics (onboarding funnel + pénz események), StreamingEnabled, BigNum döntés.
 
 ### Mit tudnánk még csinálni (a fentieken kívül)
-- **8. Retenció:** napi / heti questek, globális ranglisták (az EggDrop játékból átvehető), like-cél tábla a pályán, közös szerver-cél (15. fejezet, 5. kérdés).
+- **8. Retenció:** napi / heti questek (a Schnitzel Pass XP forrásai közé is bekerülhetnek), globális ranglisták (az EggDrop játékból átvehető), like-cél tábla a pályán, közös szerver-cél (15. fejezet, 5. kérdés).
 - **10–11. VFX és hangok kódból:** merge villanás, sütővásárlás porgyűrű, alvó chef ZZZ, sistergés, merge "THUD", horkolás (Creator Store hangok); később zene + zene-csúszka a Settingsben.
 - Chef ritkaságok (chef gacha), Főchef auto-merge, telek-skinek és világok.
 
@@ -801,13 +805,20 @@ Ami ma elkészült (a részletek lent, a saját fejezetükben):
 - `--gaps` kapcsoló: kiírja a leghosszabb várakozásokat (mikor, mire várt a játékos, milyen sütőkkel).
 - **Eltérés:** sütőár 200 × 1.001ⁿ helyett **50 × (1 + n/10)²** (a régi árral a játék 4 perc alatt "elszállt"; az olcsóbb eleje a 30 mp-es szabály miatt kell, a 100. sütőtől ugyanannyi, mint a korábbi 200 × (1 + n/20)²).
 
+**Futtatás 2026-11-16** (8 óra, 5 futás, csillagokkal; `lune run tools/sim/simulate.luau -- 8 5`), medián:
+első chef 3:12, Lv5 2:45, első tojás 5:42, Gen2 15:42, Lv15 27:43, Rebirth 1 33:55, első csillag 45:19,
+Rebirth 2 1:20 ó, Rebirth 5 5:27 ó (4/5 futás érte el 8 óra alatt). Leghosszabb várakozás: első 10 percben 31 mp,
+utána 12:12 perc – ez a végjátékban van (~7:20 ó, a 4. rebirth után mind a 22 sütő Lv15 / 5★, a következő rebirthre
+vár, közben csak eladó fejlesztést tud venni). Az "első merge 1 mp" azért van, mert a kezdőpénz pontosan 2 sütő
+(a tutorial vezetése a szimulátorban nincs benne). **Nincs hangolva**, csak futtatva.
+
 ### 4.3 Pacing hangolás (2026-11-13)
 - Az első 10 percben a leghosszabb várakozás **1:30 → 27 mp** (cél ~30 mp).
 - Új értékek: sütő alapár $50, kezdőpénz $100, első chef $1 500, Panírtojás $100K, Gen2 küszöb 1 000 sütő.
 - Eredmény (szimulátor, medián): első merge 21 mp, első chef 3:17, Lv5 ~3 perc, első tojás ~5–7 perc, Gen2 ~18 perc, Rebirth 1 ~37–40 perc.
 - **Eltérés a 4.3 céloktól:** az első merge (cél 30–45 mp) és a Lv5 (cél 6–8 perc) korábban jön – a 30 mp-es szabály fontosabb.
 
-### Csillagok + végjátéki várakozás (2026-11-15) – ✅ Studióban tesztelve (a szimulátor még nem futott)
+### Csillagok + végjátéki várakozás (2026-11-15) – ✅ Studióban tesztelve, ✅ szimulátor 2026-11-16
 > **Studio teszt (2026-11-15, MCP-vel, `DevService`):**
 > 1. ✅ Tele sor, pár nélkül (Gen4, legalacsonyabb Lv11): a gomb "Upgrade Lv 11 → 12" / $2.525M; rálépve 128 sütőt vett pontosan ennyiért, utána kaszkád merge 12 → 15.
 > 2. ✅ Minden sütő Lv15: "Buy Star ★ (1/5)" / $23.98B, a sütő felett "Lv 15 ☆☆☆☆☆". $1T-ből 10× 1★ + 10× 2★ (mindig a legkevesebb csillagú sütőre), a levont összeg fillérre stimmel. Felugró felirat: "3★: x2.5 value!".
@@ -815,7 +826,7 @@ Ami ma elkészült (a részletek lent, a saját fejezetükben):
 > 4. ✅ Minden sütő 5★: "ALL MAXED ★" / "Time to Rebirth!" (sárga), rálépve nem von le pénzt.
 > 5. ✅ Régi mentés betöltése (2026-11-15, ProfileStore Mock): egy `ovenStars` és `index` nélküli, 10 slotos mentésnél a `Reconcile()` pótolja a hiányzó kulcsokat, a `DataService.migrate` 25 elemre tölti fel a sütőket és a csillagokat, az offline kereset is kiszámolódik. Élesben (valódi DataStore) még nem volt kipróbálva.
 > 6. ✅ Rebirth után a csillagok és a sütők nullázódnak (14 slot); a "RESETS" sorban ott van a "stars".
-> 7. ⚠️ **A szimulátor még nem futott** (nincs lune). Számolás: a csillagár valóban ~120 mp termelés (az eladó-fejlesztés Lv60-ig összesen ~$12.7B, a végjátékban nem korlát). Egy kör (minden sütő +1★) ideje a sütők számától független: ~3 / 6 / 13 / 32 / 80 perc (1★…5★), összesen ~2:15 óra. Csillagok nélkül 10 Lv15 sütővel a $2T ~25 perc.
+> 7. ✅ **A szimulátor lefutott 2026-11-16** (lásd 4.4). Előtte becslés: Számolás: a csillagár valóban ~120 mp termelés (az eladó-fejlesztés Lv60-ig összesen ~$12.7B, a végjátékban nem korlát). Egy kör (minden sütő +1★) ideje a sütők számától független: ~3 / 6 / 13 / 32 / 80 perc (1★…5★), összesen ~2:15 óra. Csillagok nélkül 10 Lv15 sütővel a $2T ~25 perc.
 
 - **Gond volt:** a végjátékban 20–45 percet kellett várni a következő rebirthre, mert tele sornál a 100-as gomb csak ≤ 100 sütős belevásárlást csinált (Gen4-ben egy Lv11-hez már 128 kell), és ha minden slot Lv15, nem volt mit venni.
 - **Belevásárlás:** tele sornál, pár nélkül a 100-as gomb annyi sütőt vesz, amennyi a legalacsonyabb sütő következő szintjéhez kell (akár 100-nál többet). A gomb felirata ilyenkor: "Upgrade Lv 11 → 12" + ár. (`Formulas.intoLowest`, a szimulátor is ezt használja.)
@@ -866,19 +877,38 @@ Ami ma elkészült (a részletek lent, a saját fejezetükben):
   - **Ajánlat-toastok** (GDD 6.5): chef elalszik → Tireless Chefs, Arany+ schnitzel → Lucky x2, rebirth 50%-nál → Rebirth Skip, későbbi belépés → Kezdőcsomag; mindegyik egyszer, 10 percen belül max 1, az első 5 percben semmi.
   - **Premium** napi ajándék (15 perc bevétel + 1 ticket); **Group** +10% pénz (`Config.Shop.Group.GroupId` – még 0).
   - **Offline ablak**: "CLAIM x10" gomb a sima felvétel alatt.
-- Még nincs: Season Pass (a 8. fejezettel), kalapok / kötények / klopfoló skinek (modellek kellenek), megvehető aurák, group exkluzív kalap.
+- Még nincs: kalapok / kötények / klopfoló skinek (modellek kellenek), megvehető aurák, group exkluzív kalap.
 - **Átrendezés (2026-11-15, letisztultabb):** 5 fül – **Featured** (felül nagy VIP banner, alatta Starter Pack banner, és csak 2 kártya: Napi akció + Event ajánlat), **Gamepasses** (a VIP nélkül), **Items** (Cash / Boosts / Fun szekciókkal), **Eggs & Auras**, **Cosmetics**. A **Rebirth Skip** a Rebirth ablakba került (a REBIRTH gomb mellé, tooltippel). A **Kódok** kikerültek a Shopból – a Beállítások ablakba kerülnek (a szerver oldal kész: `Remotes.RedeemCode`, `Config.Shop.Codes`).
 - **Még letisztultabb (2026-11-15):** a Gamepasses fülön csak 6 marad (x2 Money, x2 Baking, Auto Collect, Lucky x2, +2 Chef, +1 Pet). A többi ott jelenik meg, ahol értelme van: **Tireless Chefs** – chef-pad + toast, ha elalszik a chef; **Offline x2 + 12h** és **Offline Claim x10** – csak az Offline ablakban; **Open 3 Eggs** (R$ 99, örökre 3 tojás egyszerre) és **Fast Open** (R$ 49) – a tojásoknál külön promptként (R / F billentyű; gamepass nélkül a vásárlást indítja). Az **Auto Merge** gamepass kikerült (ott a 100-as gomb). **Items**: Cash (1 ó / 6 ó / 24 ó), Boosts (x2 Money 15 p / 1 ó, x2 Luck), Fun (3). A **telek témák** kikerültek a Shopból – később feloldhatók lesznek (a rendszer kész). Az x2 Baking és a Chef Energy boost csak napi akcióként / event ajánlatként jöhet.
 - **Végső felépítés (2026-11-15): 3 fül** – Featured, Gamepasses, Items. Az **Eggs & Auras** (Golden Egg, Aura Roll) és a **Cosmetics** (trail-ek) fül is kikerült; a rendszerük kész marad (`Tab = "Hidden"`), később máshol jöhetnek. A napi akciók: x2 Money 1 ó, Cash Chest, x2 Luck, Cash Bag.
-- **Creator Hub teendő**: minden gamepass / dev product létrehozása és az ID beírása a `Config/Shop.luau`-ba (GamePassId / ProductId); a napi akcióknak, event ajánlatoknak és a 4 Rebirth Skip lépcsőnek saját ProductId kell.
+- **Gamepasses fül új kinézet (2026-11-16, az Egg Drop boltja alapján):** felül széles kiemelt kártya (x2 Money, "DOUBLE YOUR MONEY!"), alatta kéthasábos rács, a magányos utolsó kártya széles lesz. Kártyánként: paletta színátmenet, lassan forgó napsugár, nagy matrica ikon (rugós belépés, hoverre nő), csillogás, címke ("PERMANENT"), cím, zöld előny sor (Perk), kétsoros leírás (Details), zöld Robux-ár gomb (OWNED kék, SOON szürke), akciós ár áthúzva a "-33%" szalag mellett. Az árak az egész Shopban a Roblox Robux-jelével.
+- **A Shop többi füle is (2026-11-16):** a Featured bannerek és az Items kártyái is ugyanazt a színes (cukorka) felületet kapták: paletta színátmenet, forgó napsugár, hoverre növő ikon.
+- **UI optimalizálás (2026-11-16, a licenseplaterng mintájára):** a Pets ablak kártyái egyszer épülnek fel (50 hely), nyitáskor csak az első 12 kerül a fába, a többi a nyitó animáció után képkockánként 6-osával (Motion.reveal), bezárás után ugyanígy ki. A fülös ablakokban (Shop, Index) csak a kiválasztott fül oldala van a fában (Kit.tabPage), a rejtett oldalt nem rendezi újra a motor. A végtelen animációk (gombok csillogása, forgó napsugarak, Auras / Pets / Rewards) csak akkor futnak, ha az elem a játékban van (Motion.loop). Mérés Studióban (45 pet): nyitott Shop 1463 → 683 elem, Index 1196 → 690; a legrosszabb képkocka nyitáskor Pets 17,6 → 9,0 ms, Shop 19,1 → 8,8 ms.
+- **Event bejelentés (2026-11-16):** a színes (cukorka) lap helyett csak egy halvány, elmosott fekete sáv van mögötte, ami oldalra elhalványul; az ikon és a cím (az event színében) középen egymás mellett, alatta a leírás.
+- **Saját részecske textúrák (2026-11-16, ui-resources.com):** a Roblox alap Sparkles / tűz / füst helyett: fénylő négyágú csillag (Panírvihar schnitzelek, arany petek, csillogó aurák, `Ui.sparkles`), Kek lángja és füstje (tűz / füst aurák). Az asset ID-k: `Ui.Textures.ParticleStar / ParticleFlame / ParticleSmoke`.
+- **Chef alvás a pihenőn (2026-11-16):** ha elfogy a stamina, a chef nem ott alszik el, ahol épp jár (eddig sokszor a collector / leadó padon), hanem átsétál a Chef Rest négyzetre (toRest fázis), és ott alszik; a helyek középről kifelé töltődnek (max 17 chef). Felkelés után onnan folytatja: ha visz sütést, a leadó asztalhoz megy, különben a collectorhoz.
+- **Tooltip javítás (2026-11-16):** a Kit tooltip buboréka a kilógó mutatót is beleszámolta az automatikus méretébe, ezért ~4 px-lel magasabb lett a tartalmánál (sötét „3D” sáv az alján). A mutató most külön rétegben van; minden tooltipre hat.
+- **Creator Hub teendő**: minden gamepass / dev product létrehozása és az ID beírása a `Config/Shop.luau`-ba (GamePassId / ProductId); a napi akcióknak, event ajánlatoknak, a 4 Rebirth Skip lépcsőnek és a Schnitzel Pass két termékének (SeasonPremium, SeasonSkip) saját ProductId kell.
+
+### 6.4 Schnitzel Pass (2026-11-16) – ✅ Studióban tesztelve
+- **TopbarPlus "Pass" ikon** (csillag) a Rewards és a Settings között: felirat "Tier 7" vagy "Claim!", piros értesítés, amíg van felvehető jutalom; a tutorial fő lépései alatt és (élesben) szezonon kívül nem látszik; új szintnél csilingel + "Pass Tier 5!" felirat a fej felett.
+- **Szezon:** 1. szezon "Crispy Beginnings", 2026-11-16 → 2026-12-16 (30 nap). Studióban mindig fut (`StudioAlwaysActive`). Új szezon: új `Id` + dátumok + jutalmak a `Config/SeasonPass.luau`-ban; a mentés az Id alapján nullázódik.
+- **30 szint, két sáv:** Free és Premium. Az 1. szint rögtön nyitva. Szint ára 150 + 15 × (szint − 2) XP, összesen 10 440 XP (napi ~30 perc játékkal ~3 hét, napi 1 órával ~1,5 hét).
+- **Jutalmak:** pénz (perc bevétel), aura ticket, boost (x2 Money / Luck / Baking / Chef Energy), Golden Egg, rebirth token (kevés, Free 2, Premium 4 – ne legyen pay-to-win), trail, pet. Free 30: **Crispy Hedgehog** (Epic, +150% Luck), Premium 15: **Lemon Zest Trail**, Premium 30: **Golden Schnitzel Griffin** (Exclusive, +350% Money). A szezon petek exkluzívak, nem számítanak az Indexbe.
+- **Pass XP:** játék 5 XP / perc, merge 2 XP (napi max 150), napi jutalom 60, playtime ajándék 20, kikelt pet 5 (napi max 100; a Pass-ból kapott pet nem számít), rebirth 250. A szerver másodpercenként összeveti az adatot az előző állapottal, így a többi service-hez nem kellett nyúlni.
+- **Robux:** Premium (R$ 199, `Shop.Products.SeasonPremium`, szezononként újra megvehető) és +1 Tier (R$ 29, `SeasonSkip`). Mindkettő ProductId = 0 → Creator Hubon létre kell hozni.
+- **Ablak** (Kit stílus, két fül): **Pass** – csillag jelvény a szinttel, XP sáv, szezon óra; vízszintesen görgethető sáv (oszloponként egy cukorka "TIER 3" tábla: sárga = a te szinted, kicsit nagyobb; narancs = elért; szürke = még nem – döntés 2026-11-16, a pöttyös haladás-vonal helyett; fent Free, lent Premium kártya koronával, Premium nélkül elsötétítve), alul UNLOCK PREMIUM / +1 TIER / CLAIM ALL. Nyitáskor odagörget az első felvehető jutalomhoz; a jelvényre koppintva vissza a saját szintedre. **Earn XP** – 3 × 2 színes (cukorka) kártya forrásonként: nagy matrica, fent "+5 XP", alul a név; a napi korlátos forrásoknál (merge, tojás) "TODAY 40/150" sáv. (Az első, sötét listás változat csúnya volt, lecserélve.)
+- A kártyák nem pulzálnak (döntés 2026-11-16), a felvehetők sárgák, a napsugaruk lassan forog; az oszlopok nyitás után képkockánként 3-asával jönnek be (Motion.reveal).
+- Kód: `Config/SeasonPass.luau`, `Formulas.seasonTier / seasonTierStart / seasonClaimable / seasonReadyCount / seasonActive`, `Services/SeasonPassService.luau`, `UI/SeasonPassWindow.luau`, `Controllers/SeasonPassController.luau`; remote: `SeasonClaim`, `SeasonTier`; mentés: `seasonPass`.
+- Studio teszt: merge XP + napi korlát, szintlépés, Claim All (4 Free jutalom), Premium vásárlás, +1 Tier, max szint, pet / Golden Egg / trail / token jutalom. **Mobilon még nem volt kipróbálva.**
 
 ### 7. FTUE – az első 10 perc (2026-11-15)
-- **Betöltőképernyő** (`src/first/LoadingScreen.client.luau`, ReplicatedFirst): szöveges "SELL A SCHNITZEL" logó, amire egy klopfoló rácsap; schnitzel progress bar, ami világos tésztából aranybarnára "panírozódik"; tippek; "Tap to skip"; lassan mozgó schnitzel-minta. A játék UI betöltésekor zár be.
+- **Betöltőképernyő** (`src/first/LoadingScreen.client.luau`, ReplicatedFirst), **új kinézet 2026-11-16** (a régi sötétbarna, csempés változat csúnya volt): a játék cukorka (Kit) stílusában, sima elemekből (a Kit itt még nincs betöltve). Meleg narancs színátmenet, lassan forgó napsugár, sötétebb szélek, a háttérben lassan hulló schnitzelek; a logó ("SELL A" + nagy arany "SCHNITZEL" vastag fekete körvonallal, felette lebegő schnitzel matrica) rugózva "lecsapódik", kicsit megrázza a képet, morzsák repülnek szét; Kit-stílusú töltősáv (sötét kapszula, arany cukorka kitöltés, "LOADING... 64%", a csík végén schnitzel lovagol); alatta "TIP:" sor; jobb alul zöld SKIP gomb. A játék UI betöltésekor zár be (min. 2,5 mp), kiúszáskor kicsit nagyobbodik.
 - **Kezdőpénz pontosan 2 sütő** ($111), így 15 mp körül jön az első merge (a "hook").
 - **Tutorial lépések** (`Config/Tutorial.luau`, szerver: TutorialService, kliens: UI/Tutorial): Welcome → Buy an oven → Buy one more → MERGE → Grab the schnitzels → Bring them to the counter → Take your money → Buy another oven. Vezetés: arany fénycsík a padlón a célig, ugráló nyíl a cél felett, chef buborék fent 2–4 szóval és SKIP gombbal (a nyíl marad).
 - **Javított vezetés (2026-11-15):** a cél pulzáló arany körvonalat (Highlight), fényoszlopot és lüktető gyűrűt kap a padlón + nagy ugráló nyíl; képernyőszéli mutató távolsággal, ha a cél nincs a képen; "Nice!" / "Great!" minden teljesített lépés után (szikrák + hang); a buborékban lépés-pöttyök (●●●○○) és mini ábra (pl. sütő + sütő = jobb sütő). A repülő kamera rögtön a betöltés után jön, a tutorial megvárja (Remotes.TutorialIntroDone, max 25 mp).
 - **2–10. perc:** ajándék chef ~3. percnél ("FREE" a +1 Chef padon), "Wake him up!", amikor először elalszik egy chef; az első event fixen a Panírvihar az 5. percben; ingyen tojás ~7. percnél (az 1. tojás "Open (FREE)").
-- **HUD gombok HALADÁS szerint** (döntés 2026-11-15, az idő szerinti helyett), "pop" animációval, hanggal és a chef bemutatja ("New: Shop!"): Shop – a tutorial fő lépései után, Index – az első Lv3 sütőnél, Pets – az első petnél, Auras – az első ticketnél, Rebirth – a követelmény 1%-ánál. A visszatérő játékos (tutorial kész) mindent lát.
+- **HUD gombok a fő lépések után** (döntés 2026-11-16, a 2026-11-15-i haladás szerinti helyett): a vezetett fő lépések alatt egy menü gomb sem látszik (a Premium/VIP napi ajándék sem jön ilyenkor, így nem hoz elő aura ticketet és nem rontja el a pontosan 2 sütős kezdőpénzt); a fő lépések végén (vagy SKIP után) mind egyszerre megjelenik "pop" animációval, hanggal, a chef bemutatja ("New buttons unlocked!"). A visszatérő játékos mindent lát. Újrabelépéskor a beragadt "Wake him up!" lépés visszaáll szabad játékra.
 - **Repülő kamera** a telek felett az első belépéskor (2 mp), a **vásárolt sütő leesik az égből** (porfelhő + hang; merge-nél nem).
 - A tutorial 10 perc után kész (ha az egyszeri lépések megvoltak), 15 perc után mindenképp. A régi mentéseknél (már van haladás) kész; Studióban `Config.Tutorial.StudioEnabled`.
 - **SKIP TUTORIAL** gomb a buborékban (két koppintás: "SURE?"): az egész tutorialt átugorja, minden HUD gomb megjelenik (döntés 2026-11-15, a lépésenkénti buborék-elrejtés helyett).
@@ -890,4 +920,4 @@ Ami ma elkészült (a részletek lent, a saját fejezetükben):
 
 ---
 
-*Utolsó frissítés: 2026-11-15*
+*Utolsó frissítés: 2026-11-16*

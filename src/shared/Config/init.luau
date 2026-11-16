@@ -18,6 +18,7 @@ local Config = {
 	Security = require(script.Security),
 	Shop = require(script.Shop),
 	Tutorial = require(script.Tutorial),
+	SeasonPass = require(script.SeasonPass),
 }
 
 return table.freeze(Config)

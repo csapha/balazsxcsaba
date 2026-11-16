@@ -1,5 +1,50 @@
 # UI ikonok
 
+## Merge Ovens ikon (2026-11-16)
+
+Két narancssárga sütő középen összeérő zöld nyíllal:
+`icons/schnitzel-ui-merge-ovens.png` (1254 × 1254, átlátszó RGBA PNG).
+Beépített `image_gen`; végleges prompt: `merge-ovens-icon-prompt.md`.
+Image `81165098929205`, decal `76312952595886`, moderáció Approved.
+A `Ui.Icons.MergeOvens` az Earn Pass XP Merge Ovens kártyáján váltotta a
+korábbi általános Upgrade nyilat. Studio playtestben a tényleges kártyakép
+betöltődött (`IsLoaded == true`), a build és a célzott diffellenőrzés sikeres.
+A teszt után Studio Edit módba állt vissza.
+
+## Schnitzel Pass, XP és jutalomikonok (2026-11-16)
+
+Az új `icons/schnitzel-ui-pass.png` aranycsillag schnitzel emblémával a felső
+Pass gombban, az ablak fejlécében és a Pass fülön szerepel (`Ui.Icons.SeasonPass`).
+Image: `123967822702376`; decal: `139318191443224`; moderáció: Approved.
+Mindhárom tényleges kliensbeli kép betöltődött; a két fül és a későbbi jutalmak
+Studio playtestben ellenőrizve. Prompt: `pass-icon-prompt.md`.
+
+Az öt kiegészítő grafika is elkészült és bekötve: kék csillagos XP-könyv,
+sima Golden Egg, sárga–zöld Lemon Zest Trail, Crispy Hedgehog és Golden Schnitzel
+Griffin portré. Mindegyik 1254 × 1254 pixeles, átlátszó RGBA PNG, beépített
+`image_gen` eredmény. Promptok és fájlnevek: `pass-reward-icons-prompts.md`.
+Mind az öt Roblox-feltöltés moderációja Approved; az image/decal ID-k és a
+műveletek az `icons-manifest.json` fájlban vannak.
+
+A `SeasonPassWindow` saját XP ikont és pet/trail jutalomtérképet használ.
+Studio playtestben az XP fül és fejléc, a 15. szint aranytojása és trailje,
+valamint a 30. szint mindkét petképe `IsLoaded == true` értékkel ellenőrizve.
+A Rojo build és a célzott `git diff --check` sikeres. A teszt után Studio Edit
+módba állt vissza. Részletes áttekintés: `pass-icons-audit.md`.
+
+## Shop ikon (2026-11-16)
+
+Új piros kézi bevásárlókosár sötétszürke fogantyúval, a jelenlegi Shop ikon
+formáját és az új készlet vastag körvonalas, fényes rajzfilmes stílusát követve.
+Fájl: `icons/schnitzel-ui-shop.png` (1254 × 1254, átlátszó RGBA PNG).
+Beépített `image_gen`; a végleges prompt: `shop-icon-prompt.md`.
+Feltöltve Robloxra, moderáció: Approved; image `81892568453108`, decal `92463090101097`.
+A `Ui.Icons.Shop` közös hivatkozás frissült: a HUD Shop gombja és a Shop ablak
+fejléce is az új képet használja.
+Ellenőrzés: Rojo build és `git diff --check` sikeres; Studio playtestben a HUD
+Shop gombjának valódi ImageLabel példányán `IsLoaded == true`. A Studio visszaállt
+Edit módba.
+
 ## Settings ikon (2026-11-15)
 
 Új, átlátszó, 1254 × 1254 pixeles ezüst-kék fogaskerék:

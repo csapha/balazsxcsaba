@@ -187,6 +187,18 @@ function Kit.attach(parent: Instance, child: Instance, shown: () -> boolean)
 	end)
 end
 
+-- A tab page that is only in the GUI tree while its tab is selected (Kit.attach in a full-size holder). A hidden
+-- (Visible = false) page is still laid out on every frame of an opening / scaling window; detached it costs nothing.
+function Kit.tabPage(page: GuiObject, shown: () -> boolean): Frame
+	local holder = create "Frame" {
+		Name = page.Name .. "Holder",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+	} :: Frame
+	Kit.attach(holder, page, shown)
+	return holder
+end
+
 local TEXT_GRADIENT = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
 	ColorSequenceKeypoint.new(0.35, Color3.new(1, 1, 1)),
@@ -204,7 +216,9 @@ local function fitGradient(sequence: ColorSequence)
 		local lastSpan, lastAlignment = -1, nil
 		local function update()
 			local h = label.AbsoluteSize.Y
-			if h <= 0 then
+			-- before the text is laid out (font still loading, label just attached) TextBounds is 0: measuring then
+			-- squeezed the gradient into a hard white / grey edge across the middle of the letters, for good
+			if h <= 0 or label.TextBounds.Y < 1 then
 				return
 			end
 			local span = math.clamp(label.TextBounds.Y / h, 0.05, 1)
@@ -251,6 +265,9 @@ local function fitGradient(sequence: ColorSequence)
 		for _, property in { "Text", "TextSize", "FontFace", "TextWrapped", "TextYAlignment", "Size" } do
 			label:GetPropertyChangedSignal(property):Connect(changed)
 		end
+		-- the real text band (as in the EggDrop Kit): it settles once the font has loaded and the text is laid out;
+		-- update() returns early while the ratio stays the same, so a scaling window costs little
+		label:GetPropertyChangedSignal("TextBounds"):Connect(update)
 		local parentSize: RBXScriptConnection? = nil
 		local function watchParent()
 			if parentSize then
@@ -359,27 +376,36 @@ function Kit.tooltip(props: TooltipProps): ({ [string]: any }, Frame)
 		create "UICorner" { CornerRadius = UDim.new(0, CORNER) },
 		Kit.outline(),
 		Kit.ring(C.PanelLine, CORNER),
-		-- pointer: a rotated square half tucked under the bubble, only its tip (and outline) shows
+		-- The pointer lives in its own full-size layer: the bubble is AutomaticSize, and a pointer hanging out of
+		-- its edge as a direct child made the bubble grow around it (~4 px taller than its ring and content, a
+		-- dark "3D" band along the bottom, and the pointer pulled back inside). The layer's children do not count.
 		create "Frame" {
-			Name = "Pointer",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = pointerX + (if below then UDim2.new() else UDim2.fromScale(0, 1)),
-			Size = UDim2.fromOffset(TIP_POINTER, TIP_POINTER),
-			Rotation = 45,
-			BackgroundColor3 = C.Panel,
-			BorderSizePixel = 0,
+			Name = "PointerLayer",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
 			ZIndex = 0,
-			Kit.outline(),
-		},
-		create "Frame" {
-			-- covers the pointer's inner half so the bubble's edge stays one clean line
-			Name = "PointerCover",
-			AnchorPoint = Vector2.new(0.5, if below then 0 else 1),
-			Position = pointerX + (if below then UDim2.new() else UDim2.fromScale(0, 1)),
-			Size = UDim2.fromOffset(TIP_POINTER * 2, TIP_POINTER),
-			BackgroundColor3 = C.Panel,
-			BorderSizePixel = 0,
-			ZIndex = 1,
+			-- pointer: a rotated square half tucked under the bubble, only its tip (and outline) shows
+			create "Frame" {
+				Name = "Pointer",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = pointerX + (if below then UDim2.new() else UDim2.fromScale(0, 1)),
+				Size = UDim2.fromOffset(TIP_POINTER, TIP_POINTER),
+				Rotation = 45,
+				BackgroundColor3 = C.Panel,
+				BorderSizePixel = 0,
+				ZIndex = 0,
+				Kit.outline(),
+			},
+			create "Frame" {
+				-- covers the pointer's inner half so the bubble's edge stays one clean line
+				Name = "PointerCover",
+				AnchorPoint = Vector2.new(0.5, if below then 0 else 1),
+				Position = pointerX + (if below then UDim2.new() else UDim2.fromScale(0, 1)),
+				Size = UDim2.fromOffset(TIP_POINTER * 2, TIP_POINTER),
+				BackgroundColor3 = C.Panel,
+				BorderSizePixel = 0,
+				ZIndex = 1,
+			},
 		},
 		create "Frame" {
 			Name = "Content",
@@ -492,14 +518,11 @@ function Kit.shine(transparency: number?): Frame
 		Image = Ui.Textures.Shine,
 		ImageTransparency = transparency or 0.55,
 	}
-	local tween = TweenService:Create(streak, SHINE_TWEEN, {
+	-- only runs while the button is in the game (Motion.loop): the kept windows are full of shining buttons
+	Motion.loop(streak, SHINE_TWEEN, {
 		Position = UDim2.fromScale(1, 0.5),
 		AnchorPoint = Vector2.new(0, 0.5),
 	})
-	tween:Play()
-	Vide.cleanup(function()
-		tween:Cancel()
-	end)
 	return create "Frame" {
 		Name = "ShineClip",
 		Size = UDim2.fromScale(1, 1),

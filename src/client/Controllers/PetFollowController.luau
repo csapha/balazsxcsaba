@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local Chat = require(script.Parent.Parent.Util.Chat)
 local State = require(script.Parent.Parent.UI.State)
 
@@ -70,9 +71,7 @@ local function buildPet(id: string, golden: boolean): (Model, { [string]: BasePa
 		for _, name in { "Body", "Head", "EarL", "EarR" } do
 			parts[name].Material = Enum.Material.Neon
 		end
-		local sparkles = Instance.new("Sparkles")
-		sparkles.SparkleColor = Palette.RarityGold
-		sparkles.Parent = parts.Body
+		Ui.sparkles(parts.Body, Palette.RarityGold, 4) -- glowing star sparkles (not Roblox's default Sparkles)
 	end
 
 	model.Parent = folder

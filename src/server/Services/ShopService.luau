@@ -25,6 +25,7 @@ local MembershipService = require(script.Parent.MembershipService)
 local PetService = require(script.Parent.PetService)
 local PlotService = require(script.Parent.PlotService)
 local RebirthService = require(script.Parent.RebirthService)
+local SeasonPassService = require(script.Parent.SeasonPassService)
 
 local ShopConfig = Config.Shop
 local Palette = Config.Palette
@@ -80,6 +81,8 @@ local function available(raw: any, key: string): boolean
 		return raw.offline.pending > 0
 	elseif item.Effect == "RebirthSkip" then
 		return key == Formulas.rebirthSkipProduct(raw.rebirths) and Formulas.rebirthSkipReady(raw)
+	elseif item.Effect == "SeasonPremium" or item.Effect == "SeasonSkip" then
+		return SeasonPassService.available(raw, item.Effect)
 	end
 	return true
 end
@@ -150,6 +153,16 @@ local function grantProduct(player: Player, key: string): (boolean, string)
 	elseif effect == "RebirthSkip" then
 		local state = PlotService.get(player)
 		return state ~= nil and RebirthService.skip(state), ""
+	elseif effect == "SeasonPremium" then
+		return SeasonPassService.unlockPremium(player), "Schnitzel Pass Premium unlocked!"
+	elseif effect == "SeasonSkip" then
+		if SeasonPassService.skipTier(player) then
+			return true, "+1 Pass Tier!"
+		end
+		-- időközben elérte a max szintet (a vásárlás már megtörtént): helyette 30 perc bevétel
+		local amount = incomeCash(player, raw, 30 * 60, 5_000)
+		addMoney(player, data, amount, key)
+		return true, `+{NumberFormat.money(amount)}`
 	elseif effect == "SuperJump" then
 		superJump(player, item)
 		return true, `Super Jump for {item.Duration} seconds!`

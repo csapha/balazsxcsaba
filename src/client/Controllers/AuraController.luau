@@ -7,15 +7,17 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Ui = require(ReplicatedStorage.Shared.Ui)
 local Chat = require(script.Parent.Parent.Util.Chat)
 local State = require(script.Parent.Parent.UI.State)
 
 local AuraConfig = Config.Auras
 
+-- our own particle textures (Ui.Textures), not Roblox's default sparkles / fire / smoke
 local TEXTURES = {
-	sparkles = "rbxasset://textures/particles/sparkles_main.dds",
-	fire = "rbxasset://textures/particles/fire_main.dds",
-	smoke = "rbxasset://textures/particles/smoke_main.dds",
+	sparkles = Ui.Textures.ParticleStar,
+	fire = Ui.Textures.ParticleFlame,
+	smoke = Ui.Textures.ParticleSmoke,
 }
 
 local RAINBOW = ColorSequence.new({

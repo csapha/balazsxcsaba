@@ -19,7 +19,6 @@ local SOUNDS: { [string]: Entry } = {
 	Chime = { id = 9116395089, volume = 0.65 },
 	Golden = { id = 9039712090, volume = 0.6 },
 	Victory = { id = 94590027038118, volume = 0.6 },
-	Boom = { id = "rbxasset://sounds/impact_explosion_03.mp3", volume = 0.8, pitch = 0.05 },
 	New = { id = 1844278029, volume = 0.45 },
 	Impact = { id = 9125484526, volume = 0.8 },
 	Swoosh = { id = 9116416708, volume = 0.55, pitch = 0.05 },

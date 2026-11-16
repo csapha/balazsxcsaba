@@ -1,5 +1,5 @@
 -- TopbarPlus "Settings" ikon: nyitja / zárja a beállítások ablakát (UI/SettingsWindow, Settings + Codes fül).
--- Ha az ablak máshonnan zárul (X, másik ablak), az ikon is kiold. A Rewards ikon után áll (setOrder).
+-- Ha az ablak máshonnan zárul (X, másik ablak), az ikon is kiold. A Rewards és a Pass ikon után áll (setOrder).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Vide = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("Vide"))
@@ -17,7 +17,7 @@ function SettingsController.init()
 	icon:setImage(Ui.Icons.Settings)
 	icon:setCaption("Settings and Codes")
 	icon:align("Left")
-	icon:setOrder(2)
+	icon:setOrder(3) -- a Rewards és a Pass ikon után
 	icon.selected:Connect(function()
 		State.window(WINDOW)
 	end)

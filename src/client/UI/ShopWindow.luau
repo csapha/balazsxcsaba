@@ -42,7 +42,7 @@ local CARD_H = 214
 local GAP = 10
 
 local function robux(price: number): string
-	return `R$ {price}`
+	return `\u{E002} {price}` -- the Robux sign (Roblox renders it in every font)
 end
 
 -- Prices shown are always true (decision 2026-11-15, no fake "was" prices):
@@ -223,19 +223,77 @@ type Card = {
 	oldPrice: (() -> string?)?, -- the normal price, struck through (only when the real price is lower)
 }
 
--- A product card: glowing icon, name, description, optional ribbon / status line, and the buy button.
+-- endless tweens only run while the page is in the game (Motion.loop)
+local loop = Motion.loop
+
+-- The candy surface of every shop card (decision 2026-11-16, the Egg Drop store look): the palette's vertical
+-- gradient, the welded rim, and a slowly turning sunburst clipped to the card (rays: centre and size).
+-- The card itself is a Kit.darkBox with Fill = C.White and Transparency = 0.
+local function candySurface(palette: Theme.Palette, rays: UDim2, raysSize: UDim2): { Instance }
+	local burst = create "ImageLabel" {
+		Name = "Sunburst",
+		Image = Ui.Textures.Sunburst,
+		ImageColor3 = palette.light,
+		ImageTransparency = 0.65,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = rays,
+		Size = raysSize,
+		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		ScaleType = Enum.ScaleType.Fit,
+		ZIndex = 2,
+	}
+	loop(burst, TweenInfo.new(36, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1), { Rotation = 360 })
+	return {
+		create "UIGradient" {
+			Rotation = 90,
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, palette.top),
+				ColorSequenceKeypoint.new(0.42, palette.bottom),
+				ColorSequenceKeypoint.new(1, palette.lip),
+			}),
+		},
+		Kit.weld(palette.light, 0.9),
+		create "Frame" {
+			Name = "Effects",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ClipsDescendants = true,
+			ZIndex = 2,
+			create "UICorner" { CornerRadius = UDim.new(0, 4) },
+			burst,
+		},
+	}
+end
+
+-- A product card: candy surface, a big icon (grows on hover), name, description, optional ribbon / status line,
+-- and the buy button.
 local function card(spec: Card, appear: () -> number, pop: () -> number): Frame
 	local palette = Theme.Palettes[spec.color] or Theme.Palettes.Blue
 	local hasRibbon = spec.ribbon ~= nil
+	local hovered = source(false)
+	local hover = spring(function()
+		return if hovered() then 1 else 0
+	end, 0.3, 0.7)
 	return Kit.darkBox {
 		Name = spec.name,
 		LayoutOrder = spec.order,
+		Fill = C.White,
+		Transparency = 0,
 		Line = palette.light,
+		Active = true,
+		MouseEnter = function()
+			hovered(true)
+		end,
+		MouseLeave = function()
+			hovered(false)
+		end,
 		create "UIScale" {
 			Scale = function()
 				return math.max(0, appear()) * pop()
 			end,
 		},
+		candySurface(palette, UDim2.fromScale(0.5, 50 / CARD_H), UDim2.fromScale(2, 2)),
 		create "ImageLabel" {
 			Name = "Glow",
 			AnchorPoint = Vector2.new(0.5, 0.5),
@@ -243,19 +301,23 @@ local function card(spec: Card, appear: () -> number, pop: () -> number): Frame
 			Size = UDim2.new(1, 0, 0, 110),
 			BackgroundTransparency = 1,
 			Image = Ui.Textures.Soft,
-			ImageColor3 = palette.top,
-			ImageTransparency = 0.62,
+			ZIndex = 2,
 		},
 		create "ImageLabel" {
 			Name = "Icon",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 0, 0, 50),
-			Size = UDim2.fromOffset(78, 78),
+			Size = UDim2.fromOffset(86, 86),
 			BackgroundTransparency = 1,
 			Image = spec.icon,
 			ScaleType = Enum.ScaleType.Fit,
 			Rotation = -6,
 			ZIndex = 3,
+			create "UIScale" {
+				Scale = function()
+					return 1 + hover() * 0.08
+				end,
+			},
 		},
 		if hasRibbon
 			then Kit.plate {
@@ -306,7 +368,6 @@ local function card(spec: Card, appear: () -> number, pop: () -> number): Frame
 			Name = "Description",
 			Text = spec.description,
 			TextSize = 14,
-			TextColor3 = C.Muted,
 			Gradient = false,
 			TextWrapped = true,
 			TextYAlignment = Enum.TextYAlignment.Top,
@@ -321,7 +382,7 @@ local function card(spec: Card, appear: () -> number, pop: () -> number): Frame
 					return (spec.status :: () -> string?)() or ""
 				end,
 				TextSize = 14,
-				TextColor3 = C.Good,
+				TextColor3 = C.Money,
 				Gradient = false,
 				AnchorPoint = Vector2.new(0.5, 1),
 				Position = UDim2.new(0.5, 0, 1, -50),
@@ -456,65 +517,290 @@ local function productCard(order: number, key: string, appear: () -> number, pop
 	}, appear, pop)
 end
 
-local function passesPage(visible: () -> boolean, anim: Motion.Anim, now: () -> number): ScrollingFrame
-	local pop = tabPop(visible)
-	local cards = {}
-	local count = #ShopConfig.PassOrder
-	for i, key in ShopConfig.PassOrder do
-		local item = ShopConfig.Passes[key]
-		local function owned(): boolean
-			return State.passes()[key] == true
+------------------------------------------------------------------------------------------------
+-- Gamepasses tab (decision 2026-11-16, the same layout as the Egg Drop store): a wide featured card on top,
+-- then a two-column grid of candy cards (palette gradient, slowly turning sunburst, a big bouncing sticker icon,
+-- a twinkling sparkle, tag line, title, the perk in green, two lines of details and the price button).
+------------------------------------------------------------------------------------------------
+local FEATURED_H = 226
+local PASS_H = 296
+local PASS_GAP = 14
+
+local function picture(name: string, asset: string, position: UDim2, size: UDim2, z: number?): ImageLabel
+	return create "ImageLabel" {
+		Name = name,
+		Image = asset,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = position,
+		Size = size,
+		ScaleType = Enum.ScaleType.Fit,
+		ZIndex = z or 3,
+	} :: ImageLabel
+end
+
+-- A section header: icon, title and a thin rule to the right edge.
+local function passSection(order: number, title: string, icon: string, pop: () -> number): Frame
+	return create "Frame" {
+		Name = title,
+		LayoutOrder = order,
+		Size = UDim2.new(1, 0, 0, 36),
+		BackgroundTransparency = 1,
+		create "UIScale" { Scale = pop },
+		picture("Icon", icon, UDim2.fromOffset(18, 18), UDim2.fromOffset(34, 34)),
+		Kit.text {
+			Name = "Title",
+			Text = title,
+			TextSize = 25,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(45, 0),
+			Size = UDim2.fromOffset(255, 36),
+		},
+		create "Frame" {
+			Name = "Rule",
+			Position = UDim2.new(0, 302, 0.5, -1),
+			Size = UDim2.new(1, -310, 0, 2),
+			BackgroundColor3 = C.PanelLine,
+			BackgroundTransparency = 0.35,
+			BorderSizePixel = 0,
+		},
+	} :: Frame
+end
+
+local function passCard(
+	key: string,
+	featured: boolean,
+	index: number,
+	count: number,
+	anim: Motion.Anim,
+	pop: () -> number,
+	now: () -> number
+): Frame
+	local item = ShopConfig.Passes[key]
+	local palette = Theme.Palettes[item.Color] or Theme.Palettes.Blue
+	local appear = anim.stagger(index, count)
+	local iconAppear = anim.appear(0.2 + (index - 1) * 0.07, 0, Enum.EasingStyle.Elastic, 0.85)
+	local hovered = source(false)
+	local hover = spring(function()
+		return if hovered() then 1 else 0
+	end, 0.3, 0.7)
+
+	local function owned(): boolean
+		return State.passes()[key] == true
+	end
+	-- the price now, and the normal price when it really is lower (launch sale)
+	local function prices(): (number, number?)
+		if owned() or item.Soon then
+			return item.Price, nil
 		end
-		local function discounted(): (number, number?)
-			if owned() or item.Soon then
-				return item.Price, nil
-			end
-			return passPrice(key, now())
+		return passPrice(key, now())
+	end
+	local function ribbon(): string?
+		if owned() then
+			return "OWNED"
+		elseif item.Soon then
+			return "SOON"
 		end
-		table.insert(cards, card({
-			order = i,
-			name = item.Name,
-			description = function()
-				return item.Description
+		local price, normal = prices()
+		return if normal then percentOff(price, normal) else nil
+	end
+
+	local fill = if featured then 0.82 else 0.94
+	local sticker = picture("Sticker", Ui.Icons[item.Icon] or Ui.Icons.Shop, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(fill, fill))
+	create "UIScale" {
+		Parent = sticker,
+		Scale = function()
+			return math.max(0, iconAppear()) * (1 + hover() * 0.07)
+		end,
+	}
+	local sparkle = picture("Sparkle", Ui.Textures.Sparkle, UDim2.fromScale(0.85, 0.28), UDim2.fromOffset(22, 22), 4)
+	local twinkle = create "UIScale" { Parent = sparkle, Scale = 0.5 }
+	loop(twinkle, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true, index * 0.2), { Scale = 1.1 })
+
+	local tag = item.Tag or "GAMEPASS"
+	local body = Kit.darkBox {
+		Name = "Card",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = function()
+			return UDim2.new(0.5, 0, 0.5, (1 - appear()) * 38)
+		end,
+		Size = UDim2.fromScale(1, 1),
+		Fill = C.White,
+		Transparency = 0,
+		Line = palette.light,
+		Active = true,
+		MouseEnter = function()
+			hovered(true)
+		end,
+		MouseLeave = function()
+			hovered(false)
+		end,
+		create "UIScale" {
+			Scale = function()
+				return math.max(0, appear()) * pop()
 			end,
-			icon = Ui.Icons[item.Icon] or Ui.Icons.Shop,
-			color = item.Color,
-			oldPrice = function(): string?
-				local _, normal = discounted()
-				return if normal then robux(normal) else nil
+		},
+		-- the rays belong to the whole card, so there is no smaller clipped edge behind the icon
+		candySurface(
+			palette,
+			if featured then UDim2.fromScale(0.79, 0.5) else UDim2.fromScale(0.5, 65 / PASS_H),
+			UDim2.fromScale(2.3, 2.3)
+		),
+		create "Frame" {
+			Name = "Artwork",
+			BackgroundTransparency = 1,
+			ZIndex = 3,
+			AnchorPoint = if featured then Vector2.new(1, 0.5) else Vector2.new(0.5, 0),
+			Position = if featured then UDim2.new(1, -14, 0.5, -2) else UDim2.fromScale(0.5, 0),
+			Size = if featured then UDim2.new(0.39, 0, 1, -14) else UDim2.new(1, 0, 0, 130),
+			picture("Glow", Ui.Textures.Soft, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.95, 0.95), 2),
+			sticker,
+			sparkle,
+		},
+		Kit.text {
+			Name = "Tag",
+			Text = if featured then `{tag}  /  PERMANENT` else "PERMANENT",
+			TextSize = 13,
+			TextColor3 = palette.light,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(14, 8),
+			Size = UDim2.new(1, -28, 0, 21),
+			ZIndex = 4,
+		},
+		-- OWNED / SOON / "-33%" in the top right corner (inside the card: the page clips anything past its edge)
+		Kit.plate {
+			Name = "Ribbon",
+			Color = function()
+				if owned() then
+					return "Green"
+				end
+				return if item.Soon then "Gray" else "Red"
 			end,
-			button = function()
+			Text = function()
+				return ribbon() or ""
+			end,
+			Visible = function()
+				return ribbon() ~= nil
+			end,
+			TextSize = 15,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -8, 0, 8),
+			Size = UDim2.fromOffset(84, 26),
+			ZIndex = 6,
+		},
+		Kit.text {
+			Name = "Title",
+			Text = if featured then item.Headline or item.Name else item.Name,
+			TextSize = if featured then 37 else 27,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			TextXAlignment = if featured then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
+			Position = if featured then UDim2.fromOffset(20, 37) else UDim2.fromOffset(8, 123),
+			Size = if featured then UDim2.new(0.6, -20, 0, 43) else UDim2.new(1, -16, 0, 33),
+			ZIndex = 4,
+		},
+		Kit.text {
+			Name = "Perk",
+			Text = item.Perk or "",
+			TextSize = if featured then 23 else 19,
+			TextColor3 = C.Money,
+			Gradient = false,
+			TextXAlignment = if featured then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
+			Position = if featured then UDim2.fromOffset(22, 80) else UDim2.fromOffset(8, 159),
+			Size = if featured then UDim2.new(0.6, -22, 0, 29) else UDim2.new(1, -16, 0, 26),
+			ZIndex = 4,
+		},
+		Kit.text {
+			Name = "Details",
+			Text = item.Details or item.Description,
+			TextSize = if featured then 17 else 15,
+			Gradient = false,
+			TextXAlignment = if featured then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
+			Position = if featured then UDim2.fromOffset(22, 111) else UDim2.fromOffset(8, 188),
+			Size = if featured then UDim2.new(0.59, -22, 0, 44) else UDim2.new(1, -16, 0, 40),
+			ZIndex = 4,
+		},
+		-- the normal price, struck through, only while the real price is lower (next to the ribbon)
+		Kit.text {
+			Name = "OldPrice",
+			RichText = true,
+			Text = function()
+				local _, normal = prices()
+				return if normal then `<s>{robux(normal)}</s>` else ""
+			end,
+			TextSize = 18,
+			TextColor3 = C.Bad,
+			Gradient = false,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -98, 0, 10), -- left of the "-33%" ribbon
+			Size = UDim2.fromOffset(90, 22),
+			Rotation = -4,
+			ZIndex = 6,
+		},
+		Kit.button {
+			Name = "Buy",
+			TextSize = 25,
+			Bounce = 0.4,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = if featured then UDim2.new(0.28, 0, 1, -16) else UDim2.new(0.5, 0, 1, -13),
+			Size = if featured then UDim2.new(0.5, 0, 0, 49) else UDim2.new(1, -26, 0, 47),
+			Color = function()
+				if owned() then
+					return "Blue"
+				end
+				return if item.Soon then "Gray" else "Green"
+			end,
+			Text = function()
 				if owned() then
 					return "OWNED"
 				end
-				return if item.Soon then "SOON" else robux((discounted()))
+				return if item.Soon then "COMING SOON" else robux((prices()))
 			end,
-			buttonColor = function()
-				return if owned() or item.Soon then "Gray" else "Green"
-			end,
-			onBuy = function()
+			Activated = function()
 				if owned() or item.Soon then
 					denied()
 				else
 					Remotes.ShopBuy:FireServer("Pass", key)
 				end
 			end,
-			ribbon = function(): string?
-				if owned() then
-					return "OWNED"
-				elseif item.Soon then
-					return "SOON"
-				end
-				local price, normal = discounted()
-				return if normal then percentOff(price, normal) else nil
-			end,
-			ribbonColor = function(): string
-				if owned() then
-					return "Green"
-				end
-				return if item.Soon then "Gray" else "Red"
-			end,
-		}, anim.stagger(i, count), pop))
+			ZIndex = 5,
+		},
+	}
+	return create "Frame" {
+		Name = key,
+		LayoutOrder = index,
+		Size = if featured then UDim2.new(1, 0, 0, FEATURED_H) else UDim2.new(0.5, -PASS_GAP / 2, 0, PASS_H),
+		BackgroundTransparency = 1,
+		body,
+	} :: Frame
+end
+
+local function passesPage(visible: () -> boolean, anim: Motion.Anim, now: () -> number): ScrollingFrame
+	local pop = tabPop(visible)
+	local order = ShopConfig.PassOrder
+	local count = #order
+
+	-- two cards per row; a card left alone at the end becomes a wide one (no empty space next to it)
+	local rows = {}
+	for index = 2, count, 2 do
+		local alone = order[index + 1] == nil
+		local cards = { passCard(order[index], alone, index, count, anim, pop, now) }
+		if not alone then
+			table.insert(cards, passCard(order[index + 1], false, index + 1, count, anim, pop, now))
+		end
+		table.insert(rows, create "Frame" {
+			Name = "Row",
+			LayoutOrder = index,
+			Size = UDim2.new(1, 0, 0, if alone then FEATURED_H else PASS_H),
+			BackgroundTransparency = 1,
+			create "UIListLayout" {
+				FillDirection = Enum.FillDirection.Horizontal,
+				Padding = UDim.new(0, PASS_GAP),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			cards,
+		})
 	end
 
 	-- launch sale strip: only while the sale really runs
@@ -568,7 +854,40 @@ local function passesPage(visible: () -> boolean, anim: Motion.Anim, now: () -> 
 			ZIndex = 3,
 		},
 	}
-	return page("PassesPage", visible, { sale, grid("Passes", 3, cards) })
+
+	local scroller = page("PassesPage", visible, {
+		sale,
+		passSection(1, "FEATURED", Ui.Icons.Crown, pop),
+		passCard(order[1], true, 1, count, anim, pop, now),
+		passSection(3, "GAMEPASSES", Ui.Icons.Star, pop),
+		create "Frame" {
+			Name = "Passes",
+			LayoutOrder = 4,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			create "UIListLayout" {
+				Padding = UDim.new(0, PASS_GAP),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			},
+			rows,
+		},
+		Kit.text {
+			Name = "Footer",
+			LayoutOrder = 5,
+			Text = "GAMEPASSES ARE FOREVER.",
+			TextSize = 14,
+			TextColor3 = C.Muted,
+			Gradient = false,
+			Size = UDim2.new(1, 0, 0, 24),
+		},
+	})
+	-- the wider gaps of this layout
+	local layout = scroller:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		layout.Padding = UDim.new(0, PASS_GAP)
+	end
+	return scroller
 end
 
 type Banner = {
@@ -596,6 +915,8 @@ local function bigBanner(spec: Banner, appear: () -> number, pop: () -> number):
 		Name = spec.name,
 		LayoutOrder = spec.order,
 		Size = UDim2.new(1, 0, 0, 132),
+		Fill = C.White,
+		Transparency = 0,
 		Line = palette.light,
 		Visible = spec.visible,
 		create "UIScale" {
@@ -603,15 +924,15 @@ local function bigBanner(spec: Banner, appear: () -> number, pop: () -> number):
 				return math.max(0, appear()) * pop()
 			end,
 		},
+		candySurface(palette, UDim2.new(0, 70, 0.5, 0), UDim2.fromScale(2.3, 2.3)),
 		create "ImageLabel" {
-			Name = "Rays",
+			Name = "Glow",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromOffset(70, 66),
-			Size = UDim2.fromOffset(170, 170),
+			Size = UDim2.fromOffset(150, 150),
 			BackgroundTransparency = 1,
-			Image = Ui.Textures.Sunburst,
-			ImageColor3 = palette.top,
-			ImageTransparency = 0.55,
+			Image = Ui.Textures.Soft,
+			ZIndex = 2,
 		},
 		create "ImageLabel" {
 			Name = "Icon",
@@ -629,7 +950,6 @@ local function bigBanner(spec: Banner, appear: () -> number, pop: () -> number):
 			Text = spec.title,
 			TextSize = 30,
 			StrokeThickness = 3,
-			Gradient = ColorSequence.new(palette.light, palette.top),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Position = UDim2.fromOffset(140, 10),
 			Size = UDim2.new(1, -330, 0, 34),
@@ -686,7 +1006,7 @@ local function bigBanner(spec: Banner, appear: () -> number, pop: () -> number):
 				TextColor3 = C.Bad,
 				Gradient = false,
 				AnchorPoint = Vector2.new(0.5, 1),
-				Position = UDim2.new(1, -99, 0.5, -26),
+				Position = UDim2.new(1, -99, 0.5, -23), -- between the ribbon and the button
 				Size = UDim2.fromOffset(170, 22),
 				ZIndex = 4,
 			}
@@ -723,10 +1043,10 @@ local function featuredPage(visible: () -> boolean, anim: Motion.Anim, now: () -
 		palette = "Yellow",
 		icon = Ui.Icons.Crown,
 		contents = function()
-			return "x1.5 money forever · gold [VIP] tag · VIP area with better egg luck · VIP Golden Poodle pet · daily gift"
+			return "x1.5 money forever, gold [VIP] tag, VIP area with better egg luck, VIP Golden Poodle pet and a daily gift"
 		end,
 		sub = function()
-			return if vipOwned() then "You are VIP – enjoy!" else "The best way to support the game!"
+			return if vipOwned() then "You are VIP, enjoy!" else "The best way to support the game!"
 		end,
 		oldPrice = function(): string?
 			if vipOwned() then
@@ -814,7 +1134,7 @@ local function featuredPage(visible: () -> boolean, anim: Motion.Anim, now: () -
 		name = "Daily Deal",
 		description = function()
 			local item = dealItem()
-			return `{item.Name} – {item.Description}`
+			return `{item.Name}: {item.Description}`
 		end,
 		icon = Ui.Icons[dealItem().Icon] or Ui.Icons.Shop,
 		color = "Red",
@@ -869,7 +1189,7 @@ local function featuredPage(visible: () -> boolean, anim: Motion.Anim, now: () -
 		description = function()
 			local id, _, item = activeOffer()
 			if id and item then
-				return `{Config.Events.List[id].Name}: {item.Name} – {item.Description}`
+				return `{Config.Events.List[id].Name}: {item.Name} ({item.Description})`
 			end
 			return "A special deal during every random event"
 		end,
@@ -998,10 +1318,11 @@ function ShopWindow.render(anim: Motion.Anim)
 		Kit.windowScale(anim.scale),
 		OnClose = State.close,
 		Tabs = tabs,
+		-- only the selected tab's page is in the GUI tree (Kit.tabPage)
 		Body = {
-			featuredPage(shown("Featured"), anim, now),
-			passesPage(shown("Passes"), anim, now),
-			itemsPage(shown("Items"), anim, now),
+			Kit.tabPage(featuredPage(shown("Featured"), anim, now), shown("Featured")),
+			Kit.tabPage(passesPage(shown("Passes"), anim, now), shown("Passes")),
+			Kit.tabPage(itemsPage(shown("Items"), anim, now), shown("Items")),
 		},
 	}
 end

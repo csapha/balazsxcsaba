@@ -2,7 +2,6 @@
 --   Equip / Unequip, "5 → Golden", Delete (two-step confirmation).
 -- Layout follows the Snowboard Gear Shop: detail panel on the left, card grid on the right.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Shared = ReplicatedStorage.Shared
@@ -19,7 +18,6 @@ local Theme = require(script.Parent.Theme)
 local create = Vide.create
 local source = Vide.source
 local derive = Vide.derive
-local indexes = Vide.indexes
 
 local C = Theme.Colors
 local PetConfig = Config.Pets
@@ -95,13 +93,10 @@ local function rarityOf(id: string)
 end
 
 local function spinForever(instance: GuiObject, seconds: number): GuiObject
-	local tween = TweenService:Create(instance, TweenInfo.new(seconds, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
+	-- only spins while the window is open (Motion.loop pauses it while the window is detached)
+	Motion.loop(instance, TweenInfo.new(seconds, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
 		Rotation = instance.Rotation + 360,
 	})
-	tween:Play()
-	Vide.cleanup(function()
-		tween:Cancel()
-	end)
 	return instance
 end
 
@@ -491,6 +486,35 @@ local function card(item: () -> State.Pet, selected: (number?) -> number?): Fram
 	} :: Frame
 end
 
+-- The inventory cards (the licenseplaterng Index / Forge way): one card per inventory slot, built once and only
+-- moved in and out of the grid (Kit.attach), slot i shows the i-th pet of the sorted list. While the window opens
+-- (it scales, every card would be laid out again on every frame) only the first SHOWN_AT_OPEN cards are in the
+-- grid (they are the visible ones anyway); the rest come in REVEAL_BATCH per frame after the open animation, and go
+-- out the same way after the window closed (Motion.reveal). Detached cards cost nothing to render.
+local SHOWN_AT_OPEN = 12 -- 3 rows of 4
+local REVEAL_DELAY = 0.5
+local REVEAL_BATCH = 6
+
+local function cardPool(grid: Instance, sorted: () -> { State.Pet }, selected: (number?) -> number?, anim: Motion.Anim)
+	local shownUpTo = Motion.reveal(anim.opened, SHOWN_AT_OPEN, PetConfig.MaxInventory, REVEAL_DELAY, REVEAL_BATCH)
+	for slot = 1, PetConfig.MaxInventory do
+		-- the slot keeps its last pet while it is empty (it is detached then), so the card never reads nil
+		local last: State.Pet = { uid = -slot, id = PetConfig.Order[1], golden = false } :: any
+		local item = derive(function(): State.Pet
+			local pet = sorted()[slot]
+			if pet then
+				last = pet
+			end
+			return last
+		end)
+		local instance = card(item, selected)
+		instance.LayoutOrder = slot
+		Kit.attach(grid, instance, function()
+			return slot <= #sorted() and slot <= shownUpTo()
+		end)
+	end
+end
+
 function PetsWindow.render(anim: Motion.Anim)
 	local selected = source(nil :: number?)
 	local bonuses = derive(function()
@@ -498,7 +522,7 @@ function PetsWindow.render(anim: Motion.Anim)
 	end)
 
 	-- inventory: equipped first, then golden, then by rarity
-	local sorted = derive(function()
+	local sorted: () -> { State.Pet } = derive(function()
 		local data = State.pets()
 		local list = table.clone(data.inventory)
 		local equipped = data.equipped
@@ -544,6 +568,32 @@ function PetsWindow.render(anim: Motion.Anim)
 			end
 		end)
 	end)
+
+	local grid = create "ScrollingFrame" {
+		Name = "Grid",
+		Position = UDim2.fromOffset(LEFT_W + GAP, 34),
+		Size = UDim2.new(1, -(LEFT_W + GAP), 1, -34),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 0, -- scrolls by drag / wheel, the bar itself is not drawn
+		ScrollBarImageTransparency = 1,
+		VerticalScrollBarInset = Enum.ScrollBarInset.None,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		create "UIGridLayout" {
+			CellSize = UDim2.fromOffset(CARD_W, CARD_H),
+			CellPadding = UDim2.fromOffset(10, 10),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		},
+		create "UIPadding" {
+			PaddingTop = UDim.new(0, 3),
+			PaddingBottom = UDim.new(0, 8),
+			PaddingLeft = UDim.new(0, 3),
+			PaddingRight = UDim.new(0, 12),
+		},
+	} :: ScrollingFrame
+	cardPool(grid, sorted, selected, anim)
 
 	return Kit.window {
 		Name = "Pets",
@@ -599,33 +649,7 @@ function PetsWindow.render(anim: Motion.Anim)
 					return bonuses().ChefSpeed
 				end, Color3.fromHex("8AF9FF"), "Chefs walk faster", 1),
 			},
-			create "ScrollingFrame" {
-				Name = "Grid",
-				Position = UDim2.fromOffset(LEFT_W + GAP, 34),
-				Size = UDim2.new(1, -(LEFT_W + GAP), 1, -34),
-				BackgroundTransparency = 1,
-				BorderSizePixel = 0,
-				ScrollBarThickness = 0, -- scrolls by drag / wheel, the bar itself is not drawn
-				ScrollBarImageTransparency = 1,
-				VerticalScrollBarInset = Enum.ScrollBarInset.None,
-				ScrollingDirection = Enum.ScrollingDirection.Y,
-				AutomaticCanvasSize = Enum.AutomaticSize.Y,
-				CanvasSize = UDim2.new(),
-				create "UIGridLayout" {
-					CellSize = UDim2.fromOffset(CARD_W, CARD_H),
-					CellPadding = UDim2.fromOffset(10, 10),
-					SortOrder = Enum.SortOrder.LayoutOrder,
-				},
-				create "UIPadding" {
-					PaddingTop = UDim.new(0, 3),
-					PaddingBottom = UDim.new(0, 8),
-					PaddingLeft = UDim.new(0, 3),
-					PaddingRight = UDim.new(0, 12),
-				},
-				indexes(sorted, function(item)
-					return card(item, selected)
-				end),
-			},
+			grid,
 			Kit.text {
 				Name = "Empty",
 				Text = "No pets yet! Open an egg at the Egg Plaza.",

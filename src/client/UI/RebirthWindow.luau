@@ -343,7 +343,7 @@ local function rebirthPage(visible: () -> boolean, anim: Motion.Anim): Frame
 					return if skipReady() then "Purple" else "Gray"
 				end,
 				Text = function()
-					return `SKIP · R$ {ShopWindow.productPrice(Formulas.rebirthSkipProduct(State.rebirths()))}`
+					return `SKIP  \u{E002} {ShopWindow.productPrice(Formulas.rebirthSkipProduct(State.rebirths()))}`
 				end,
 				Activated = function()
 					if skipReady() then

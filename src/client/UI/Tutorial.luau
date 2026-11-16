@@ -7,7 +7,7 @@
 --   "Nice!" after every finished step (sparkles + sound).
 --   Intro: right after the loading screen a 2 s drone flight over your plot, then the first step
 --     (the server waits for Remotes.TutorialIntroDone).
---   Tutorial.revealed: which HUD buttons are shown yet.
+--   Tutorial.revealed: the HUD menu buttons show once the guided main steps are done.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -16,7 +16,6 @@ local TweenService = game:GetService("TweenService")
 local Vide = require(ReplicatedStorage.Packages.Vide)
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
-local Formulas = require(Shared.Formulas)
 local Remotes = require(Shared.Remotes)
 local Ui = require(Shared.Ui)
 local Audio = require(script.Parent.Audio)
@@ -31,6 +30,13 @@ local spring = Vide.spring
 local C = Theme.Colors
 local TutorialConfig = Config.Tutorial
 local GOLD = Color3.fromHex("FFD23F")
+-- "Nice!" / "New buttons unlocked!": blended like the Kit's white-grey text (Kit TEXT_GRADIENT), but in gold
+local CHEER_GRADIENT = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromHex("FFF38A")),
+	ColorSequenceKeypoint.new(0.35, Color3.fromHex("FFE680")),
+	ColorSequenceKeypoint.new(1, Color3.fromHex("F4A91C")),
+})
+local CHEER_STROKE = Color3.fromHex("4A2A06")
 local player = Players.LocalPlayer
 
 local Tutorial = {}
@@ -42,7 +48,10 @@ local cheerToken = 0
 -- a ticking source for the chef's wave in the bubble (re-evaluated every frame)
 local wave = source(0)
 RunService.Heartbeat:Connect(function()
-	wave(os.clock())
+	-- only while the bubble shows (otherwise the chef's rotation would be recomputed every frame for nothing)
+	if Tutorial.step() then
+		wave(os.clock())
+	end
 end)
 
 -- The current step while the tutorial runs (nil when done or in free play).
@@ -54,35 +63,30 @@ function Tutorial.step(): string?
 	return tutorial.step
 end
 
--- GDD 7 (decision 2026-11-15): HUD buttons appear by PROGRESS (not time); a returning player (tutorial done)
--- sees them all. Shop – after the main tutorial steps; Index – the first Lv3 oven; Pets – the first pet;
--- Auras – the first ticket / aura; Rebirth – past 1% of the requirement.
-function Tutorial.revealed(name: string): boolean
+-- GDD 7 (decision 2026-11-16): the HUD menu buttons are hidden during the guided main steps (nothing to
+-- distract, not even an aura ticket from a gift), and ALL of them appear together when the main steps are
+-- finished (or skipped). A returning player (tutorial done) sees them all.
+function Tutorial.revealed(_name: string): boolean
 	local tutorial = State.tutorial()
 	if tutorial.done then
 		return true
 	end
-	local reveal = TutorialConfig.Reveal
-	if name == "Shop" then
-		return tutorial.step ~= "" and table.find(TutorialConfig.Main, tutorial.step) == nil
-	elseif name == "Index" then
-		return State.highestOven() >= reveal.IndexLevel
-	elseif name == "Pets" then
-		return #State.pets().inventory > 0
-	elseif name == "Auras" then
-		local auras = State.auras()
-		return auras.tickets > 0 or next(auras.owned) ~= nil
-	elseif name == "Rebirth" then
-		return State.rebirths() > 0
-			or State.earned() / Formulas.rebirthRequirement(State.rebirths()) >= reveal.RebirthProgress
-	end
-	return true
+	return tutorial.step ~= "" and table.find(TutorialConfig.Main, tutorial.step) == nil
 end
 
--- A newly revealed button: the chef introduces it ("New: Shop!") with the same pop as "Nice!".
-function Tutorial.announce(text: string)
-	-- a little later, so a step's "Nice!" (it comes at the same time, e.g. Shop after the main steps) shows first
+-- Newly revealed buttons: the chef introduces them ("New: Shop!", or "New buttons!" when several come at
+-- once) with the same pop as "Nice!". Announcements in the same moment are collected into one.
+local announced: { string } = {}
+function Tutorial.announce(name: string)
+	table.insert(announced, name)
+	if #announced > 1 then
+		return
+	end
+	Audio.play("New")
+	-- a little later, so the last step's "Nice!" (it comes at the same time) shows first
 	task.delay(0.9, function()
+		local text = if #announced == 1 then `New: {announced[1]}!` else "New buttons unlocked!"
+		table.clear(announced)
 		cheerToken += 1
 		local token = cheerToken
 		cheer(text)
@@ -363,9 +367,9 @@ local function playIntro()
 		local function done()
 			Remotes.TutorialIntroDone:FireServer()
 		end
-		-- after the loading screen (it sets LoadingDone), at most 15 s
+		-- after the loading screen (it sets LoadingDone), but never hold the tutorial up for long
 		local waited = 0
-		while not player:GetAttribute("LoadingDone") and waited < 15 do
+		while not player:GetAttribute("LoadingDone") and waited < TutorialConfig.IntroLoadingWait do
 			waited += task.wait(0.1)
 		end
 		local plot = ownPlot()
@@ -430,8 +434,8 @@ function Tutorial.start()
 			task.wait(0.2)
 			local step = Tutorial.step()
 			if step ~= lastStep then
-				-- a finished step (not the welcome) gets a "Nice!"
-				if lastStep and lastStep ~= "Welcome" then
+				-- a finished step (not the welcome, and not when the tutorial was skipped) gets a "Nice!"
+				if lastStep and lastStep ~= "Welcome" and not (step == nil and State.tutorial().done) then
 					showCheer()
 				end
 				lastStep = step
@@ -444,7 +448,8 @@ function Tutorial.start()
 			local target, height = resolve(definition and definition.Target)
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
-			local stale = guide.from ~= nil and guide.from.Parent ~= root
+			-- rebuild after a respawn, or when the character arrived after the guide was built (no trail yet)
+			local stale = if guide.from then guide.from.Parent ~= root else guide.target ~= nil and root ~= nil
 			if target ~= guide.target or stale then
 				if target then
 					buildGuide(target, height)
@@ -702,10 +707,14 @@ function Tutorial.render(): Frame
 			end,
 			TextSize = 48,
 			StrokeThickness = 4,
-			Gradient = ColorSequence.new(Color3.fromHex("FFF38A"), Color3.fromHex("F4A91C")),
+			-- the same shape as the Kit's white-grey text (flat light top, deepening only in the lower part) in gold,
+			-- with a warm dark stroke like the HUD's gold numbers; the box grows with the text
+			Gradient = CHEER_GRADIENT,
+			StrokeColor = CHEER_STROKE,
 			AnchorPoint = Vector2.new(0.5, 0),
 			Position = UDim2.new(0.5, 0, 0, 100),
-			Size = UDim2.fromOffset(400, 56),
+			Size = UDim2.fromOffset(0, 56),
+			AutomaticSize = Enum.AutomaticSize.X,
 			Visible = function()
 				return cheerPop() > 0.02
 			end,

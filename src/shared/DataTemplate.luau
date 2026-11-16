@@ -54,6 +54,20 @@ local Template = {
 		claimed = 0,
 	},
 
+	-- GDD 6.4: Schnitzel Pass (Config.SeasonPass). season: melyik szezon adatai (más Id → nullázás),
+	-- free / premium: a felvett jutalmak bitmaszkja (a t. szint = 2^(t-1)), day + merges / eggs: az aznapi
+	-- (UTC) korlátos XP források eddigi XP-je.
+	seasonPass = {
+		season = 0,
+		xp = 0,
+		premium = false,
+		free = 0,
+		paid = 0,
+		day = 0,
+		merges = 0,
+		eggs = 0,
+	},
+
 	-- GDD 5.1 ⑦: beváltott kódok ({ [KÓD] = true }, Config.Codes)
 	codes = {},
 

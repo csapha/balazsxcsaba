@@ -2,7 +2,7 @@
 -- ebből rajzolja a fénycsíkot, a nyilat és a chef buborékot (UI/Tutorial). Másodpercenként:
 --   a fő lépések feltételét nézi (sütő vétel, merge, felvétel, leadás, pénz felvétel, újabb sütő), és léptet;
 --   "Free" állapotban a játékidő alapján indítja az ajándék chefet (~3. perc) és az ingyen tojást (~7. perc);
---   10 perc után (és ha minden egyszeri lépés megvolt) a tutorial kész – minden HUD gomb látszik.
+--   10 perc után (és ha minden egyszeri lépés megvolt) a tutorial kész. A HUD menü gombjai már a fő lépések végén megjelennek.
 -- A többi szolgáltatás jelez: SellService (pénz felvétel), ChefService (elalszik / felébred / ajándék chef),
 -- PetService (ingyen tojás).
 local Players = game:GetService("Players")
@@ -103,6 +103,13 @@ function TutorialService.event(player: Player, name: string)
 			tutorial.freeEgg = true
 		end)
 	end
+end
+
+-- A vezetett rész (a fő lépések) fut-e még. Közben nem jön napi ajándék (MembershipService), hogy a
+-- kezdőpénz pontosan 2 sütő maradjon, és ne ugorjon fel ajándék ablak a repülő kamera alatt.
+function TutorialService.guided(raw: any): boolean
+	local tutorial = raw.tutorial
+	return not tutorial.done and (tutorial.step == "" or table.find(Tutorial.Main, tutorial.step) ~= nil)
 end
 
 -- Ingyen-e most a chef felvétel / az 1. tojás (a ChefService / PetService kérdezi).

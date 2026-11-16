@@ -123,11 +123,11 @@ local function updateEggPrompt(prompt: Instance)
 			local price = (prompt:GetAttribute("EggPrice") or 0) * Config.Pets.MultiOpenCount
 			prompt.ActionText = `Open 3 ({NumberFormat.money(price)})`
 		else
-			prompt.ActionText = `Open 3 · R$ {ShopWindow.passPrice("TripleEgg", os.time())}`
+			prompt.ActionText = `Open 3 (\u{E002} {ShopWindow.passPrice("TripleEgg", os.time())})`
 		end
 	elseif kind == "FastOpen" then
 		prompt.Enabled = not player:GetAttribute("PassFastEgg")
-		prompt.ActionText = `Fast Open · R$ {ShopWindow.passPrice("FastEgg", os.time())}`
+		prompt.ActionText = `Fast Open (\u{E002} {ShopWindow.passPrice("FastEgg", os.time())})`
 	end
 end
 

@@ -112,6 +112,10 @@ function DataService.migrate(data: any): any
 	if not tutorial.done and tutorial.step == "" and (data.ovensBought > 0 or data.rebirths > 0 or studioOff) then
 		tutorial.done = true
 	end
+	-- "Wake him up!" nem maradhat beragadva: újrabelépéskor a chef már nem alszik (ha újra elalszik, újra jön)
+	if tutorial.step == "Wake" then
+		tutorial.step = "Free"
+	end
 	return data
 end
 

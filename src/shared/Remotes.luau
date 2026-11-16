@@ -31,6 +31,8 @@ local EVENTS = {
 	"CosmeticAction", -- kliens → szerver: ("equip" | "unequip" | "buyMoney", id) kozmetikumok (GDD 5.1 ⑥)
 	"TutorialIntroDone", -- kliens → szerver: a tutorial repülő kamerája lefutott (GDD 7.2), indulhat az első lépés
 	"TutorialSkip", -- kliens → szerver: a játékos átugorja az egész tutorialt (SKIP TUTORIAL gomb)
+	"SeasonClaim", -- kliens → szerver: ("Free" | "Premium", tier) vagy ("All") Schnitzel Pass jutalom felvétele
+	"SeasonTier", -- szerver → játékos: (tier) új Pass szint (ünneplés a Pass ikonon)
 }
 
 local Remotes = {} :: { [string]: RemoteEvent }

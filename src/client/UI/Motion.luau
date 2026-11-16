@@ -41,6 +41,26 @@ function Motion.tweened(initial: number): (() -> number, (target: number, info: 
 	end
 end
 
+-- An endless (repeating) tween that only runs while the instance is in the game: the kept windows and the hidden
+-- tab pages are detached (Kit.attach), and their spinning rays / shine streaks would keep ticking for nothing.
+-- Stops together with the calling Vide scope.
+function Motion.loop(instance: Instance, info: TweenInfo, goal: { [string]: any })
+	local tween = TweenService:Create(instance, info, goal)
+	local function update()
+		if instance:IsDescendantOf(game) then
+			tween:Play()
+		else
+			tween:Pause()
+		end
+	end
+	local connection = instance.AncestryChanged:Connect(update)
+	update()
+	Vide.cleanup(function()
+		connection:Disconnect()
+		tween:Cancel()
+	end)
+end
+
 -- Add or remove many elements in batches: doing it in one frame caused a ~40 ms hitch.
 function Motion.reveal(opened: () -> boolean, first: number, total: number, delay: number, batch: number): () -> number
 	local count = Vide.source(first)

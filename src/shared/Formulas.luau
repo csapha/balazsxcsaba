@@ -753,4 +753,71 @@ function Formulas.playtimeStatus(
 	return ready, nextIndex, remaining
 end
 
+-- GDD 6.4: Schnitzel Pass (Config.SeasonPass) ------------------------------------------------------------
+
+-- Fut-e a szezon `now` időpontban (studio: Studióban a lejárt szezon is fut, Config.SeasonPass.StudioAlwaysActive).
+function Formulas.seasonActive(now: number, studio: boolean?): boolean
+	local pass = Config.SeasonPass
+	if studio and pass.StudioAlwaysActive then
+		return true
+	end
+	return now >= pass.Season.StartsAt and now < pass.Season.EndsAt
+end
+
+function Formulas.seasonMaxTier(): number
+	return #Config.SeasonPass.Free
+end
+
+-- Ennyi XP kell a `tier`. szinthez (az 1. szint 0 XP-nél nyitva van).
+function Formulas.seasonTierStart(tier: number): number
+	local pass = Config.SeasonPass
+	local steps = math.max(0, tier - 1)
+	return steps * pass.TierBase + pass.TierStep * steps * (steps - 1) / 2
+end
+
+-- A szint `xp`-ből: (szint 1..max, XP a szinten belül, a következő szinthez kellő XP; a max szinten 0).
+function Formulas.seasonTier(xp: number): (number, number, number)
+	local max = Formulas.seasonMaxTier()
+	local tier = 1
+	while tier < max and xp >= Formulas.seasonTierStart(tier + 1) do
+		tier += 1
+	end
+	if tier >= max then
+		return max, 0, 0
+	end
+	local start = Formulas.seasonTierStart(tier)
+	return tier, xp - start, Formulas.seasonTierStart(tier + 1) - start
+end
+
+-- Felvehető-e a jutalom (track: "Free" | "Premium"): elérte a szintet, Premiumnál megvan a Premium, még nem vette fel.
+-- (A szezon futását a hívó nézi.)
+function Formulas.seasonClaimable(pass: any, track: string, tier: number): boolean
+	if tier < 1 or tier > Formulas.seasonMaxTier() or tier ~= math.floor(tier) then
+		return false
+	end
+	if Formulas.seasonTier(pass.xp) < tier then
+		return false
+	end
+	local bit = 2 ^ (tier - 1)
+	if track == "Free" then
+		return not bit32.btest(pass.free, bit)
+	elseif track == "Premium" then
+		return pass.premium and not bit32.btest(pass.paid, bit)
+	end
+	return false
+end
+
+-- Hány jutalom vehető fel most (mindkét sávon).
+function Formulas.seasonReadyCount(pass: any): number
+	local count = 0
+	for tier = 1, Formulas.seasonTier(pass.xp) do
+		for _, track in { "Free", "Premium" } do
+			if Formulas.seasonClaimable(pass, track, tier) then
+				count += 1
+			end
+		end
+	end
+	return count
+end
+
 return Formulas
