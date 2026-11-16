@@ -5,7 +5,7 @@
 --   with a bounce, a shake and a crumb burst;
 --   a Kit-style loading bar (dark pill, gold candy fill, "LOADING... 64%" inside, a schnitzel riding the edge);
 --   a tip line under it and a candy SKIP button (never hold the player up).
--- It closes when the game UI is up (data loaded) – or on SKIP. Then it sets the local player's "LoadingDone"
+-- It closes when the game UI is up (data loaded) and at least MIN_SHOW seconds passed – or on SKIP. Then it sets the local player's "LoadingDone"
 -- attribute, so the tutorial intro (camera flight) starts after it.
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
@@ -32,7 +32,7 @@ local TEXT_GRADIENT = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, Color3.fromHex("ABABB6")),
 })
 
-local MIN_SHOW = 2.5 -- seconds (the logo drop)
+local MIN_SHOW = 5.5 -- seconds: long enough to see it even when the data loads at once (SKIP closes it sooner)
 local MAX_WAIT = 30
 local STAGE = Vector2.new(1000, 600)
 
@@ -474,8 +474,10 @@ local lastTip = os.clock()
 local connection = RunService.RenderStepped:Connect(function(dt)
 	rescale()
 	local now = os.clock()
-	-- progress: eases towards 90% while loading, then to 100% once the game UI is up
-	local target = if ready() then 1 else 0.9 * (1 - math.exp(-(now - started) / 4))
+	-- progress: eases towards 90% while loading, then to 100% once the game UI is up; never faster than
+	-- MIN_SHOW, so a quick load still fills the bar evenly instead of jumping to 100%
+	local loading = if ready() then 1 else 0.9 * (1 - math.exp(-(now - started) / 4))
+	local target = math.min(loading, (now - started) / MIN_SHOW)
 	shown += (target - shown) * math.min(1, dt * 4)
 	fill.Size = UDim2.fromScale(shown, 1)
 	rider.Position = UDim2.new(math.clamp(shown, 0.04, 1), -6, 0.5, -2)
